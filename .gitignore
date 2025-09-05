@@ -1,0 +1,135 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go build artifacts
+*.test
+*.out
+/build/
+/dist/
+/bin/
+/cmd/*/main
+
+# Go coverage files
+*.cover
+*.coverprofile
+coverage.txt
+coverage.html
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Dependency directories
+vendor/
+node_modules/
+
+# Go module proxy cache
+/pkg/
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+postgres_data/
+
+# Log files
+*.log
+logs/
+*.log.*
+
+# Docker
+.dockerignore
+
+# Build artifacts
+build/
+dist/
+*.tar.gz
+*.zip
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Test artifacts
+test-results/
+*.test
+
+# Migration artifacts
+migrations/*.down.sql
+
+# Service-specific ignores
+services/*/build/
+services/*/.env
+services/*/logs/
+
+# API Gateway artifacts
+api-gateway/build/
+api-gateway/logs/
+
+# Docker volumes
+docker/volumes/
+docker/logs/
+
+# Kubernetes
+*.yaml.bak
+k8s/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+Jenkinsfile
+
+# Documentation artifacts
+docs/build/
+*.pdf
+*.docx
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Secrets and keys
+secrets/
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+
+# Cache directories
+.cache/
+.cache/
+__pycache__/
+
+# Air live reload
+tmp/
