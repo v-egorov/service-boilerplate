@@ -1,24 +1,28 @@
 services:
   api-gateway:
+    build:
+      context: ..
+      dockerfile: api-gateway/Dockerfile.dev
     environment:
       - APP_ENV=development
       - LOGGING_LEVEL=debug
     volumes:
       - ../api-gateway:/app/api-gateway
       - /app/api-gateway/tmp
-    command: ["air", "-c", "/app/api-gateway/.air.toml"]
     ports:
       - "8080:8080"
     working_dir: /app/api-gateway
 
   user-service:
+    build:
+      context: ..
+      dockerfile: services/user-service/Dockerfile.dev
     environment:
       - APP_ENV=development
       - LOGGING_LEVEL=debug
     volumes:
       - ../services/user-service:/app/services/user-service
       - /app/services/user-service/tmp
-    command: ["air", "-c", "/app/services/user-service/.air.toml"]
     ports:
       - "8081:8081"
     working_dir: /app/services/user-service
@@ -31,4 +35,3 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../docker/init.sql:/docker-entrypoint-initdb.d/init.sql
-

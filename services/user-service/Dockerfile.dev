@@ -1,0 +1,26 @@
+# Development stage with Go for hot reloading
+FROM golang:1.23-alpine
+
+# Install curl for health checks
+RUN apk --no-cache add curl
+
+WORKDIR /app
+
+# Install Air for hot reloading
+RUN go install github.com/air-verse/air@v1.52.3
+
+# Copy go mod files from project root
+COPY ../../go.mod ../../go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY ../.. .
+
+# Copy Air configuration
+COPY services/user-service/.air.toml .
+
+# Expose port
+EXPOSE 8081
+
+# Default command for development
+CMD ["air", "-c", ".air.toml"]
