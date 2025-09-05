@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   api-gateway:
     environment:
@@ -7,9 +5,11 @@ services:
       - LOGGING_LEVEL=debug
     volumes:
       - ../api-gateway:/app/api-gateway
-    command: ["./api-gateway"]
+      - /app/api-gateway/tmp
+    command: ["air", "-c", "/app/api-gateway/.air.toml"]
     ports:
       - "8080:8080"
+    working_dir: /app/api-gateway
 
   user-service:
     environment:
@@ -17,9 +17,11 @@ services:
       - LOGGING_LEVEL=debug
     volumes:
       - ../services/user-service:/app/services/user-service
-    command: ["./user-service"]
+      - /app/services/user-service/tmp
+    command: ["air", "-c", "/app/services/user-service/.air.toml"]
     ports:
       - "8081:8081"
+    working_dir: /app/services/user-service
 
   postgres:
     environment:
@@ -29,3 +31,4 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+

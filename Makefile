@@ -61,9 +61,24 @@ down: ## Stop all services
 	@echo "Services stopped."
 
 .PHONY: dev
-dev: ## Start services in development mode with file watching
-	@echo "Starting development environment..."
+dev: ## Start services in development mode with hot reload
+	@echo "Starting development environment with hot reload..."
 	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f docker/docker-compose.override.yml up
+
+.PHONY: dev-build
+dev-build: ## Build development images with Air
+	@echo "Building development images..."
+	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f docker/docker-compose.override.yml build
+
+.PHONY: air-gateway
+air-gateway: ## Run API Gateway with Air locally
+	@echo "Starting API Gateway with Air..."
+	@cd $(API_GATEWAY_DIR) && air
+
+.PHONY: air-user-service
+air-user-service: ## Run User Service with Air locally
+	@echo "Starting User Service with Air..."
+	@cd $(USER_SERVICE_DIR) && air
 
 .PHONY: logs
 logs: ## Show service logs

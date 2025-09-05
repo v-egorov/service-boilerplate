@@ -59,13 +59,32 @@ service-boilerplate/
 
 ### 🚀 Recommended: Docker Development (Primary)
 
-1. **Clone and setup:**
+1. **Start all services:**
    ```bash
-   git clone <repository-url>
-   cd service-boilerplate
+   make up
    ```
 
-2. **Start all services:**
+2. **Development with hot reload:**
+   ```bash
+   make dev
+   ```
+
+3. **View service logs:**
+   ```bash
+   make logs
+   ```
+
+4. **Stop services:**
+   ```bash
+   make down
+   ```
+
+5. **Interactive development menu:**
+   ```bash
+   ./scripts/dev.sh
+   ```
+
+### 💻 Alternative: Local Development (Secondary)
    ```bash
    make up
    ```
@@ -118,6 +137,19 @@ service-boilerplate/
    ```
 
 ### 🔧 Development Workflows
+
+#### **Hot Reload Development**
+The project includes **Air** for hot reloading during development:
+
+- **Docker Hot Reload**: `make dev` - Services automatically restart on file changes
+- **Local Hot Reload**: `make air-gateway` or `make air-user-service` - Run individual services with hot reload
+
+#### **Development Tools**
+- **Air**: Live reloading for Go applications
+- **Development Script**: `./scripts/dev.sh` - Interactive development menu
+- **Structured Logging**: JSON logging with configurable levels
+- **Health Checks**: Automatic service health monitoring
+- **Environment Configuration**: Flexible config management
 
 1. **Start all services:**
    ```bash
@@ -193,7 +225,8 @@ This will:
 make up                # Start all services with Docker (RECOMMENDED)
 make down              # Stop all services
 make logs              # View service logs
-make dev               # Start development environment
+make dev               # Start development environment with hot reload
+make dev-build         # Build development images with Air
 
 # Local Development (Secondary)
 make setup             # Initialize project
