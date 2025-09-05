@@ -3,15 +3,15 @@ FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
-# Copy go mod files
-COPY go.mod go.sum ./
+# Copy go mod files from project root
+COPY ../../go.mod ../../go.sum ./
 RUN go mod download
 
 # Copy source code
-COPY . .
+COPY ../.. .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o user-service ./cmd
+RUN cd services/user-service && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o user-service ./cmd
 
 # Final stage
 FROM alpine:latest
@@ -20,7 +20,7 @@ RUN apk --no-cache add ca-certificates curl
 WORKDIR /root/
 
 # Copy the binary from builder stage
-COPY --from=builder /app/user-service .
+COPY --from=builder /app/services/user-service/user-service .
 
 # Expose port
 EXPOSE 8081

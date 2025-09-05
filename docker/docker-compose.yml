@@ -5,32 +5,35 @@ services:
     image: postgres:15-alpine
     container_name: service-boilerplate-postgres
     environment:
-      POSTGRES_DB: service_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      - POSTGRES_DB=${DATABASE_NAME:-service_db}
+      - POSTGRES_USER=${DATABASE_USER:-postgres}
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD:-postgres}
     ports:
-      - "5432:5432"
+      - "${DATABASE_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - service-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   api-gateway:
     build:
-      context: ../api-gateway
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: api-gateway/Dockerfile
     container_name: service-boilerplate-gateway
     ports:
-      - "8080:8080"
+      - "${API_GATEWAY_PORT:-8080}:8080"
     environment:
-      - APP_ENV=production
+      - APP_ENV=${APP_ENV:-production}
       - SERVER_PORT=8080
+      - LOGGING_LEVEL=${LOGGING_LEVEL:-info}
+      - LOGGING_FORMAT=${LOGGING_FORMAT:-json}
+      - DOCKER_ENV=true
     depends_on:
       user-service:
         condition: service_healthy
@@ -41,22 +44,26 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped
 
   user-service:
     build:
-      context: ../services/user-service
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: services/user-service/Dockerfile
     container_name: service-boilerplate-user-service
     ports:
-      - "8081:8081"
+      - "${USER_SERVICE_PORT:-8081}:8081"
     environment:
-      - APP_ENV=production
+      - APP_ENV=${APP_ENV:-production}
       - SERVER_PORT=8081
       - DATABASE_HOST=postgres
       - DATABASE_PORT=5432
-      - DATABASE_USER=postgres
-      - DATABASE_PASSWORD=postgres
-      - DATABASE_NAME=service_db
+      - DATABASE_USER=${DATABASE_USER:-postgres}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-postgres}
+      - DATABASE_NAME=${DATABASE_NAME:-service_db}
+      - DATABASE_SSL_MODE=disable
+      - LOGGING_LEVEL=${LOGGING_LEVEL:-info}
+      - LOGGING_FORMAT=${LOGGING_FORMAT:-json}
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,6 +74,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped
 
 volumes:
   postgres_data:

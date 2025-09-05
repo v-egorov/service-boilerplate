@@ -53,20 +53,43 @@ service-boilerplate/
 
 ### Prerequisites
 
-- Go 1.23+
-- PostgreSQL 15+
-- Docker & Docker Compose (optional)
+- Docker & Docker Compose (recommended)
+- Go 1.23+ (for local development)
+- PostgreSQL 15+ (for local development)
 
-### Local Development
+### 🚀 Recommended: Docker Development (Primary)
 
 1. **Clone and setup:**
    ```bash
    git clone <repository-url>
    cd service-boilerplate
+   ```
+
+2. **Start all services:**
+   ```bash
+   make up
+   ```
+
+3. **View service logs:**
+   ```bash
+   make logs
+   ```
+
+4. **Stop services:**
+   ```bash
+   make down
+   ```
+
+**That's it!** All services (PostgreSQL, API Gateway, User Service) will start automatically with proper networking and health checks.
+
+### 💻 Alternative: Local Development (Secondary)
+
+1. **Setup local environment:**
+   ```bash
    make setup
    ```
 
-2. **Start PostgreSQL:**
+2. **Start PostgreSQL locally:**
    ```bash
    docker run -d --name postgres \
      -e POSTGRES_DB=service_db \
@@ -80,13 +103,21 @@ service-boilerplate/
    make migrate-up
    ```
 
-4. **Build and run services:**
+4. **Build and run services locally:**
    ```bash
    make build
-   make run
+   make run-local     # Runs all services locally
+   # OR run individually:
+   make run-gateway-local
+   make run-user-service-local
    ```
 
-### Docker Development
+5. **Stop local services:**
+   ```bash
+   make stop-local
+   ```
+
+### 🔧 Development Workflows
 
 1. **Start all services:**
    ```bash
@@ -158,14 +189,24 @@ This will:
 ## Available Make Targets
 
 ```bash
-make help              # Show all available targets
+# Primary Docker Commands
+make up                # Start all services with Docker (RECOMMENDED)
+make down              # Stop all services
+make logs              # View service logs
+make dev               # Start development environment
+
+# Local Development (Secondary)
 make setup             # Initialize project
 make build             # Build all services
-make run               # Run all services locally
+make run-local         # Run all services locally
+make stop-local        # Stop local services
+make run-gateway-local # Run API Gateway locally
+make run-user-service-local # Run User Service locally
+
+# Testing & Maintenance
 make test              # Run all tests
 make clean             # Clean build artifacts
 make docker-build      # Build Docker images
-make docker-run        # Run with Docker Compose
 make migrate-up        # Run database migrations
 make create-service    # Create new service
 ```

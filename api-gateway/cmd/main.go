@@ -36,8 +36,12 @@ func main() {
 	// Initialize service registry
 	serviceRegistry := services.NewServiceRegistry(logger.Logger)
 
-	// Register services
-	serviceRegistry.RegisterService("user-service", "http://localhost:8081")
+	// Register services - use service names in Docker, localhost for local development
+	userServiceURL := "http://user-service:8081"
+	if cfg.App.Environment == "development" && os.Getenv("DOCKER_ENV") != "true" {
+		userServiceURL = "http://localhost:8081"
+	}
+	serviceRegistry.RegisterService("user-service", userServiceURL)
 
 	// Initialize handlers
 	gatewayHandler := handlers.NewGatewayHandler(serviceRegistry, logger.Logger)

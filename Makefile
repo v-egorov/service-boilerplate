@@ -48,18 +48,50 @@ build-user-service: ## Build User Service
 	@mkdir -p $(BUILD_DIR)
 	@cd $(USER_SERVICE_DIR) && $(GOBUILD) -o ../$(BUILD_DIR)/user-service ./cmd
 
-.PHONY: run
-run: run-gateway run-user-service ## Run all services locally
+.PHONY: up
+up: ## Start all services with Docker (PRIMARY)
+	@echo "Starting services with Docker..."
+	@$(DOCKER_COMPOSE) --env-file .env up -d
+	@echo "Services started! Use 'make logs' to view logs."
 
-.PHONY: run-gateway
-run-gateway: ## Run API Gateway
-	@echo "Running API Gateway..."
+.PHONY: down
+down: ## Stop all services
+	@echo "Stopping services..."
+	@$(DOCKER_COMPOSE) --env-file .env down
+	@echo "Services stopped."
+
+.PHONY: dev
+dev: ## Start services in development mode with file watching
+	@echo "Starting development environment..."
+	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f docker/docker-compose.override.yml up
+
+.PHONY: logs
+logs: ## Show service logs
+	@$(DOCKER_COMPOSE) --env-file .env logs -f
+
+.PHONY: run-local
+run-local: ## Run all services locally (SECONDARY)
+	@echo "Starting all services locally..."
+	@cd $(API_GATEWAY_DIR) && $(GO) run ./cmd &
+	@sleep 2
+	@cd $(USER_SERVICE_DIR) && $(GO) run ./cmd &
+	@echo "All services started locally. Use 'make stop-local' to stop them."
+
+.PHONY: run-gateway-local
+run-gateway-local: ## Run API Gateway locally
+	@echo "Running API Gateway locally..."
 	@cd $(API_GATEWAY_DIR) && $(GO) run ./cmd
 
-.PHONY: run-user-service
-run-user-service: ## Run User Service
-	@echo "Running User Service..."
+.PHONY: run-user-service-local
+run-user-service-local: ## Run User Service locally
+	@echo "Running User Service locally..."
 	@cd $(USER_SERVICE_DIR) && $(GO) run ./cmd
+
+.PHONY: stop-local
+stop-local: ## Stop all locally running services
+	@echo "Stopping local services..."
+	@pkill -f "go run ./cmd" || true
+	@echo "Local services stopped."
 
 .PHONY: test
 test: ## Run all tests
@@ -103,22 +135,12 @@ check: fmt vet lint ## Run fmt, vet, and lint
 .PHONY: docker-build
 docker-build: ## Build all Docker images
 	@echo "Building Docker images..."
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) build
-
-.PHONY: docker-run
-docker-run: ## Run services with Docker Compose
-	@echo "Starting services with Docker..."
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) up -d
-
-.PHONY: docker-stop
-docker-stop: ## Stop all Docker containers
-	@echo "Stopping Docker containers..."
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) down
+	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) build
 
 .PHONY: docker-logs
-docker-logs: ## Show Docker container logs
+docker-logs: ## Show Docker container logs (legacy)
 	@echo "Showing container logs..."
-	@$(DOCKER_COMPOSE) -f $(DOCKER_COMPOSE_FILE) logs -f
+	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) logs -f
 
 .PHONY: migrate-up
 migrate-up: ## Run database migrations

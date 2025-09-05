@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  api-gateway:
+    environment:
+      - APP_ENV=development
+      - LOGGING_LEVEL=debug
+    volumes:
+      - ../api-gateway:/app/api-gateway
+    command: ["./api-gateway"]
+    ports:
+      - "8080:8080"
+
+  user-service:
+    environment:
+      - APP_ENV=development
+      - LOGGING_LEVEL=debug
+    volumes:
+      - ../services/user-service:/app/services/user-service
+    command: ["./user-service"]
+    ports:
+      - "8081:8081"
+
+  postgres:
+    environment:
+      - POSTGRES_DB=service_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../docker/init.sql:/docker-entrypoint-initdb.d/init.sql

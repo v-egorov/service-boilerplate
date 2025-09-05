@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+
 	"github.com/spf13/viper"
 )
 
@@ -54,8 +56,31 @@ func Load(configPath string) (*Config, error) {
 	viper.SetEnvPrefix("APP")
 	viper.AutomaticEnv()
 
+	// Bind specific environment variables with higher priority
+	viper.BindEnv("database.host", "DATABASE_HOST")
+	viper.BindEnv("database.port", "DATABASE_PORT")
+	viper.BindEnv("database.user", "DATABASE_USER")
+	viper.BindEnv("database.password", "DATABASE_PASSWORD")
+	viper.BindEnv("database.database", "DATABASE_NAME")
+	viper.BindEnv("database.ssl_mode", "DATABASE_SSL_MODE")
+	viper.BindEnv("logging.level", "LOGGING_LEVEL")
+	viper.BindEnv("logging.format", "LOGGING_FORMAT")
+	viper.BindEnv("server.port", "SERVER_PORT")
+	viper.BindEnv("app.environment", "APP_ENV")
+
+	// Set environment variable defaults for Docker
+	if os.Getenv("DOCKER_ENV") == "true" {
+		if os.Getenv("DATABASE_HOST") == "" {
+			os.Setenv("DATABASE_HOST", "postgres")
+		}
+	}
+
+	// Try to read config file, but don't fail if it doesn't exist
 	if err := viper.ReadInConfig(); err != nil {
-		return nil, err
+		// If config file doesn't exist, continue with environment variables and defaults
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			return nil, err
+		}
 	}
 
 	var config Config

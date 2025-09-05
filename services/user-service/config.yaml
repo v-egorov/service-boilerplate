@@ -4,7 +4,7 @@ app:
   environment: "development"
 
 database:
-  host: "localhost"
+  host: "localhost"  # Local development default
   port: 5432
   user: "postgres"
   password: "postgres"
@@ -16,7 +16,7 @@ database:
   max_conn_life: 3600
 
 logging:
-  level: "info"
+  level: "debug"
   format: "json"
   output: "stdout"
 
