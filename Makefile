@@ -7,6 +7,12 @@ USER_SERVICE_DIR := services/user-service
 BUILD_DIR := build
 DOCKER_COMPOSE_FILE := docker/docker-compose.yml
 
+# Network variables
+NETWORK_NAME := service-boilerplate-network
+NETWORK_DRIVER := bridge
+NETWORK_SUBNET := 172.21.0.0/16
+NETWORK_GATEWAY := 172.21.0.1
+
 # Go variables
 GO := go
 GOMOD := $(GO) mod
@@ -38,6 +44,13 @@ help: ## Show this help message
 	@echo '  clean-test         - Clean test artifacts'
 	@echo '  fresh-start        - Complete reset and setup'
 	@echo '  clean-all-confirm  - Clean all with confirmation'
+	@echo ''
+	@echo 'Network Commands:'
+	@echo '  network-create     - Create custom Docker network'
+	@echo '  network-inspect    - Inspect Docker network'
+	@echo '  network-ls         - List Docker networks'
+	@echo '  network-clean      - Clean up unused networks'
+	@echo '  network-remove     - Remove custom network'
 
 .PHONY: setup
 setup: ## Initialize project (download deps, setup tools)
@@ -284,6 +297,48 @@ clean-all-confirm: ## Clean all with confirmation prompt
 	else \
 		echo "❌ Clean operation cancelled."; \
 	fi
+
+# Network Management Commands
+.PHONY: network-create
+network-create: ## Create custom Docker network
+	@echo "🌐 Creating service network..."
+	@docker network create \
+		--driver $(NETWORK_DRIVER) \
+		--subnet $(NETWORK_SUBNET) \
+		--gateway $(NETWORK_GATEWAY) \
+		--label com.service-boilerplate.network=backend \
+		--label com.service-boilerplate.project=service-boilerplate \
+		$(NETWORK_NAME) 2>/dev/null || echo "Network $(NETWORK_NAME) already exists"
+
+.PHONY: network-inspect
+network-inspect: ## Inspect Docker network
+	@echo "🔍 Inspecting service network..."
+	@docker network inspect $(NETWORK_NAME) || echo "Network $(NETWORK_NAME) not found"
+
+.PHONY: network-ls
+network-ls: ## List Docker networks
+	@echo "📋 Docker networks:"
+	@docker network ls
+
+.PHONY: network-clean
+network-clean: ## Clean up Docker networks
+	@echo "🧹 Cleaning up unused networks..."
+	@docker network prune -f
+	@echo "✅ Unused networks cleaned"
+
+.PHONY: network-remove
+network-remove: ## Remove custom network
+	@echo "🗑️  Removing service network..."
+	@docker network rm $(NETWORK_NAME) 2>/dev/null || echo "Network $(NETWORK_NAME) not found or in use"
+
+.PHONY: help-network
+help-network: ## Show network commands
+	@echo "🌐 Network Commands:"
+	@echo "  network-create     - Create custom Docker network"
+	@echo "  network-inspect    - Inspect Docker network"
+	@echo "  network-ls         - List Docker networks"
+	@echo "  network-clean      - Clean up unused networks"
+	@echo "  network-remove     - Remove custom network"
 
 .PHONY: help-clean
 help-clean: ## Show cleaning commands

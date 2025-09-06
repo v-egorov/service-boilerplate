@@ -11,7 +11,11 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - service-network
+      service-network:
+        aliases:
+          - postgres
+          - db
+          - database
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-postgres}"]
       interval: 10s
@@ -36,7 +40,11 @@ services:
       user-service:
         condition: service_healthy
     networks:
-      - service-network
+      service-network:
+        aliases:
+          - api-gateway
+          - gateway
+          - api
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
@@ -67,7 +75,11 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - service-network
+      service-network:
+        aliases:
+          - user-service
+          - users
+          - user-svc
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
       interval: 30s
@@ -101,3 +113,12 @@ volumes:
 networks:
   service-network:
     driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: service-boilerplate-bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+          gateway: 172.21.0.1
+    labels:
+      - "com.service-boilerplate.network=backend"
+      - "com.service-boilerplate.project=service-boilerplate"

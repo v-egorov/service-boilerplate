@@ -35,3 +35,9 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ../docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      service-network:
+        aliases:
+          - postgres
+          - db
+          - database
