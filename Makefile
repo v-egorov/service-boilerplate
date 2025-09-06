@@ -26,6 +26,18 @@ help: ## Show this help message
 	@echo ''
 	@echo 'Targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ''
+	@echo 'Cleaning Commands:'
+	@echo '  clean              - Clean basic Go build artifacts'
+	@echo '  clean-all          - Complete clean for fresh start'
+	@echo '  clean-go           - Clean Go artifacts and cache'
+	@echo '  clean-docker       - Clean Docker containers/images'
+	@echo '  clean-volumes      - Clean Docker volumes'
+	@echo '  clean-logs         - Clean log files'
+	@echo '  clean-cache        - Clean caches and temp files'
+	@echo '  clean-test         - Clean test artifacts'
+	@echo '  fresh-start        - Complete reset and setup'
+	@echo '  clean-all-confirm  - Clean all with confirmation'
 
 .PHONY: setup
 setup: ## Initialize project (download deps, setup tools)
@@ -184,3 +196,105 @@ tidy: ## Clean up go.mod
 create-service: ## Create new service (usage: make create-service SERVICE_NAME=name PORT=8082)
 	@echo "Creating new service: $(SERVICE_NAME)"
 	@./scripts/create-service.sh $(SERVICE_NAME) $(PORT)
+
+# Cleaning Commands
+.PHONY: clean-all
+clean-all: clean-go clean-docker clean-volumes clean-logs clean-cache clean-test ## Complete clean for fresh start
+	@echo "✅ Complete clean finished! All artifacts removed."
+
+.PHONY: clean-go
+clean-go: ## Clean Go build artifacts and cache
+	@echo "🧹 Cleaning Go artifacts..."
+	@$(GOCLEAN) -r
+	@rm -rf $(BUILD_DIR)
+	@rm -rf $(API_GATEWAY_DIR)/tmp
+	@rm -rf $(USER_SERVICE_DIR)/tmp
+	@find . -name "*.test" -type f -delete 2>/dev/null || true
+	@find . -name "*.out" -type f -delete 2>/dev/null || true
+	@find . -name "coverage.*" -type f -delete 2>/dev/null || true
+	@echo "✅ Go artifacts cleaned"
+
+.PHONY: clean-docker
+clean-docker: ## Clean Docker containers, images, and networks
+	@echo "🐳 Cleaning Docker artifacts..."
+	@docker-compose --env-file .env down --volumes --remove-orphans 2>/dev/null || true
+	@docker system prune -f --volumes 2>/dev/null || true
+	@docker volume prune -f 2>/dev/null || true
+	@docker network prune -f 2>/dev/null || true
+	@echo "✅ Docker artifacts cleaned"
+
+.PHONY: clean-volumes
+clean-volumes: ## Clean Docker volumes and persistent data
+	@echo "💾 Cleaning Docker volumes..."
+	@docker-compose --env-file .env down -v 2>/dev/null || true
+	@docker volume rm $$(docker volume ls -q | grep -E "(postgres_data|api_gateway|user_service)" 2>/dev/null) 2>/dev/null || true
+	@echo "🔧 Handling PostgreSQL volume permissions..."
+	@if [ -d "docker/volumes/postgres_data" ]; then \
+		echo "   Using Docker to clean PostgreSQL data..."; \
+		docker run --rm -v $(PWD)/docker/volumes/postgres_data:/var/lib/postgresql/data alpine sh -c "rm -rf /var/lib/postgresql/data/* 2>/dev/null || true" 2>/dev/null || true; \
+	fi
+	@rm -rf docker/volumes/api-gateway/ 2>/dev/null || true
+	@rm -rf docker/volumes/user-service/ 2>/dev/null || true
+	@rm -rf docker/volumes/ 2>/dev/null || true
+	@echo "✅ Docker volumes cleaned"
+
+.PHONY: clean-logs
+clean-logs: ## Clean log files
+	@echo "📝 Cleaning log files..."
+	@find . -name "*.log" -type f -delete 2>/dev/null || true
+	@find . -name "build-errors.log" -type f -delete 2>/dev/null || true
+	@rm -rf logs/ 2>/dev/null || true
+	@echo "✅ Log files cleaned"
+
+.PHONY: clean-cache
+clean-cache: ## Clean Go caches and temporary files
+	@echo "🗂️  Cleaning caches and temporary files..."
+	@go clean -cache 2>/dev/null || true
+	@go clean -modcache 2>/dev/null || true
+	@find . -name ".DS_Store" -type f -delete 2>/dev/null || true
+	@find . -name "Thumbs.db" -type f -delete 2>/dev/null || true
+	@find . -name "*.bak" -type f -delete 2>/dev/null || true
+	@find . -name "*.old" -type f -delete 2>/dev/null || true
+	@find . -name "*.tmp" -type f -delete 2>/dev/null || true
+	@echo "✅ Caches and temporary files cleaned"
+
+.PHONY: clean-test
+clean-test: ## Clean test artifacts
+	@echo "🧪 Cleaning test artifacts..."
+	@find . -name "*.cover" -type f -delete 2>/dev/null || true
+	@find . -name "*.coverprofile" -type f -delete 2>/dev/null || true
+	@find . -name "coverage.txt" -type f -delete 2>/dev/null || true
+	@find . -name "coverage.html" -type f -delete 2>/dev/null || true
+	@rm -rf test-results/ 2>/dev/null || true
+	@echo "✅ Test artifacts cleaned"
+
+.PHONY: fresh-start
+fresh-start: clean-all setup ## Complete reset and setup
+	@echo "🔄 Fresh start complete! Ready for development."
+
+.PHONY: clean-all-confirm
+clean-all-confirm: ## Clean all with confirmation prompt
+	@echo "⚠️  This will remove ALL build artifacts, Docker volumes, and caches!"
+	@echo "This includes database data and cannot be undone."
+	@echo ""
+	@read -p "Are you sure you want to proceed? (y/N): " confirm && \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		$(MAKE) clean-all; \
+		echo "✅ Clean operation completed successfully."; \
+	else \
+		echo "❌ Clean operation cancelled."; \
+	fi
+
+.PHONY: help-clean
+help-clean: ## Show cleaning commands
+	@echo "🧹 Cleaning Commands:"
+	@echo "  clean              - Clean basic Go build artifacts"
+	@echo "  clean-all          - Complete clean for fresh start"
+	@echo "  clean-go           - Clean Go artifacts and cache"
+	@echo "  clean-docker       - Clean Docker containers/images"
+	@echo "  clean-volumes      - Clean Docker volumes"
+	@echo "  clean-logs         - Clean log files"
+	@echo "  clean-cache        - Clean caches and temp files"
+	@echo "  clean-test         - Clean test artifacts"
+	@echo "  fresh-start        - Complete reset and setup"
+	@echo "  clean-all-confirm  - Clean all with confirmation"
