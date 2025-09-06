@@ -8,7 +8,7 @@ services:
       - LOGGING_LEVEL=debug
     volumes:
       - ../api-gateway:/app/api-gateway
-      - /app/api-gateway/tmp
+      - ../docker/volumes/api-gateway/tmp:/app/api-gateway/tmp
     ports:
       - "8080:8080"
     working_dir: /app/api-gateway
@@ -22,7 +22,7 @@ services:
       - LOGGING_LEVEL=debug
     volumes:
       - ../services/user-service:/app/services/user-service
-      - /app/services/user-service/tmp
+      - ../docker/volumes/user-service/tmp:/app/services/user-service/tmp
     ports:
       - "8081:8081"
     working_dir: /app/services/user-service
@@ -33,5 +33,5 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ../docker/volumes/postgres_data:/var/lib/postgresql/data
       - ../docker/init.sql:/docker-entrypoint-initdb.d/init.sql
