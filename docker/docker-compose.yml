@@ -76,6 +76,28 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+volumes:
+  postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/postgres_data
+
+  api_gateway_tmp:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/api-gateway/tmp
+
+  user_service_tmp:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/user-service/tmp
+
 networks:
   service-network:
     driver: bridge
