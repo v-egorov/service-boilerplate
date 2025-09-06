@@ -16,6 +16,9 @@ RUN GOPROXY=$GOPROXY go mod download
 # Copy source code
 COPY ../.. .
 
+# Tidy go modules
+RUN GOPROXY=$GOPROXY go mod tidy
+
 # Copy Air configuration
 COPY api-gateway/.air.toml .
 

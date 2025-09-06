@@ -4,14 +4,17 @@ FROM golang:1.23-alpine AS builder
 WORKDIR /app
 
 # Install Air for hot reloading (compatible with Go 1.23)
-RUN go install github.com/air-verse/air@v1.52.3
+RUN GOPROXY=$GOPROXY go install github.com/air-verse/air@v1.52.3
 
 # Copy go mod files from project root
 COPY ../../go.mod ../../go.sum ./
-RUN go mod download
+RUN GOPROXY=$GOPROXY go mod download
 
 # Copy source code
 COPY ../.. .
+
+# Tidy go modules
+RUN GOPROXY=$GOPROXY go mod tidy
 
 # Build the application
 RUN cd services/user-service && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o user-service ./cmd
