@@ -133,7 +133,7 @@ down: ## Stop all services
 	@echo "Services stopped."
 
 .PHONY: dev
-dev: ## Start services in development mode with hot reload
+dev: create-volumes-dirs  ## Start services in development mode with hot reload
 	@echo "Starting development environment with hot reload..."
 	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f docker/docker-compose.override.yml up
 
