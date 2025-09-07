@@ -90,9 +90,24 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  migration:
+    image: ${MIGRATION_IMAGE}
+    container_name: ${MIGRATION_CONTAINER_NAME}
+    profiles: ["migration"]
+    volumes:
+      - ./services/${SERVICE_NAME}/migrations:/migrations:ro
+      - migration_tmp:/tmp/migrations
+    environment:
+      - DATABASE_URL=postgres://${DATABASE_USER}:${DATABASE_PASSWORD}@${POSTGRES_NAME}:${DATABASE_PORT}/${DATABASE_NAME}?sslmode=${DATABASE_SSL_MODE}
+    networks:
+      - service-network
+    command: ["version"]
+    depends_on:
+       - postgres
+
 volumes:
   postgres_data:
-    name: postgres_data
+    name: ${POSTGRES_VOLUME}
     driver: local
     driver_opts:
       type: none
@@ -100,7 +115,7 @@ volumes:
       device: ${PWD}/docker/volumes/postgres_data
 
   api_gateway_tmp:
-    name: api_gateway_tmp
+    name: ${API_GATEWAY_TMP_VOLUME}
     driver: local
     driver_opts:
       type: none
@@ -108,12 +123,20 @@ volumes:
       device: ${PWD}/docker/volumes/api-gateway/tmp
 
   user_service_tmp:
-    name: user_service_tmp
+    name: ${USER_SERVICE_TMP_VOLUME}
     driver: local
     driver_opts:
       type: none
       o: bind
       device: ${PWD}/docker/volumes/user-service/tmp
+
+  migration_tmp:
+    name: ${MIGRATION_TMP_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/tmp/migrations
 
 networks:
   service-network:

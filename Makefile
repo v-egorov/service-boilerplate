@@ -57,12 +57,16 @@ help: ## Show this help message
 	@echo '  db-create          - Create database if it does not exist'
 	@echo '  db-drop            - Drop database (with confirmation)'
 	@echo '  db-recreate        - Recreate database from scratch'
-	@echo '  db-migrate         - Run all pending migrations'
+	@echo '  db-migrate-up      - Run migrations up'
+	@echo '  db-migrate-down    - Run migrations down'
 	@echo '  db-migrate-status  - Show migration status'
-	@echo '  db-rollback        - Rollback last migration'
+	@echo '  db-migrate-goto VERSION= - Go to specific version'
+	@echo '  db-migrate-validate - Validate migration files'
+	@echo '  db-migration-create NAME= - Create migration file'
+	@echo '  db-migration-list  - List migration files'
 	@echo '  db-seed            - Seed database with test data'
 	@echo '  db-dump            - Create database dump'
-	@echo '  db-restore         - Restore database from dump'
+	@echo '  db-restore FILE=   - Restore database from dump'
 	@echo '  db-clean           - Clean all data from tables'
 	@echo '  db-schema          - Show database schema'
 	@echo '  db-tables          - List all tables and structure'
@@ -226,24 +230,14 @@ docker-logs: ## Show Docker container logs (legacy)
 	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) logs -f
 
 .PHONY: migrate-up
-migrate-up: ## Run database migrations (legacy - use db-migrate)
-	@echo "⚠️  This target is deprecated. Use 'make db-migrate' instead."
-	@echo "Running database migrations..."
-	@if command -v migrate >/dev/null 2>&1; then \
-		migrate -path services/user-service/migrations -database $(DATABASE_URL) up; \
-	else \
-		echo "❌ migrate tool not found. Use 'make db-migrate' instead."; \
-	fi
+migrate-up: ## Run database migrations (legacy - use db-migrate-up)
+	@echo "⚠️  This target is deprecated. Use 'make db-migrate-up' instead."
+	$(MAKE) db-migrate-up
 
 .PHONY: migrate-down
-migrate-down: ## Rollback database migrations (legacy - use db-rollback)
-	@echo "⚠️  This target is deprecated. Use 'make db-rollback' instead."
-	@echo "Rolling back database migrations..."
-	@if command -v migrate >/dev/null 2>&1; then \
-		migrate -path services/user-service/migrations -database $(DATABASE_URL) down 1; \
-	else \
-		echo "❌ migrate tool not found. Use 'make db-rollback' instead."; \
-	fi
+migrate-down: ## Rollback database migrations (legacy - use db-migrate-down)
+	@echo "⚠️  This target is deprecated. Use 'make db-migrate-down' instead."
+	$(MAKE) db-migrate-down
 
 .PHONY: db-reset
 db-reset: db-rollback db-migrate ## Reset database (down + up) - Updated to use new targets
@@ -255,6 +249,9 @@ DATABASE_HOST ?= postgres
 DATABASE_PORT ?= 5432
 DATABASE_NAME ?= service_db
 DATABASE_SSL_MODE ?= disable
+SERVICE_NAME ?= user-service
+MIGRATION_IMAGE ?= migrate/migrate:latest
+POSTGRES_NAME ?= postgres
 
 # Database URL construction for targets
 DATABASE_URL := postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)
@@ -308,32 +305,83 @@ db-drop: ## Drop database (with confirmation)
 db-recreate: db-drop db-create ## Recreate database from scratch
 	@echo "🔄 Database $(DATABASE_NAME) recreated successfully"
 
-## Migration Management (Enhanced)
-.PHONY: db-migrate
-db-migrate: ## Run all pending migrations
-	@echo "📈 Running database migrations..."
-	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -f /docker-entrypoint-initdb.d/init.sql 2>/dev/null || echo "ℹ️  Init script completed or not found"
-	@for file in services/user-service/migrations/*.up.sql; do \
-		if [ -f "$$file" ]; then \
-			echo "📄 Applying $$file..."; \
-			docker-compose --env-file .env exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -f $$file 2>/dev/null || echo "⚠️  Failed to apply $$file"; \
-		fi \
-	done
-	@echo "✅ All available migrations applied"
+## Migration Management (Docker-Based)
+.PHONY: db-migrate-up
+db-migrate-up: ## Run migrations up using migration container
+	@echo "📈 Running migrations up..."
+	@docker run --rm --network service-boilerplate-network \
+		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
+		$(MIGRATION_IMAGE) \
+		-path /migrations \
+		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)" \
+		up
+
+.PHONY: db-migrate-down
+db-migrate-down: ## Run migrations down using migration container
+	@echo "⏪ Running migrations down..."
+	@docker run --rm --network service-boilerplate-network \
+		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
+		$(MIGRATION_IMAGE) \
+		-path /migrations \
+		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)" \
+		down 1
 
 .PHONY: db-migrate-status
-db-migrate-status: ## Show migration status and applied migrations
-	@echo "📋 Migration Status:"
-	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT schemaname, tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;" 2>/dev/null || echo "❌ Cannot access database"
-	@echo ""
-	@echo "📁 Available migration files:"
-	@ls -la services/user-service/migrations/ 2>/dev/null || echo "No migration files found"
+db-migrate-status: ## Show migration status using migration container
+	@echo "📋 Migration status:"
+	@docker run --rm --network service-boilerplate-network \
+		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
+		$(MIGRATION_IMAGE) \
+		-path /migrations \
+		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)" \
+		version
+
+.PHONY: db-migrate
+db-migrate: db-migrate-up ## Run all pending migrations (alias for db-migrate-up)
 
 .PHONY: db-rollback
-db-rollback: ## Rollback last migration (drop users table)
-	@echo "⏪ Rolling back last migration..."
-	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "DROP TABLE IF EXISTS users CASCADE;" 2>/dev/null || echo "⚠️  Table drop failed or table doesn't exist"
-	@echo "✅ Last migration rolled back (users table dropped)"
+db-rollback: db-migrate-down ## Rollback last migration (alias for db-migrate-down)
+
+.PHONY: db-migrate-goto
+db-migrate-goto: ## Go to specific migration version (VERSION=001)
+	@echo "🎯 Going to migration version $(VERSION)..."
+	@if [ -z "$(VERSION)" ]; then \
+		echo "❌ Error: Please specify VERSION (e.g., make db-migrate-goto VERSION=001)"; \
+		exit 1; \
+	fi
+	@docker run --rm --network service-boilerplate-network \
+		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
+		$(MIGRATION_IMAGE) \
+		-path /migrations \
+		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)" \
+		goto $(VERSION)
+
+.PHONY: db-migrate-validate
+db-migrate-validate: ## Validate migration files
+	@echo "✅ Validating migration files..."
+	@docker run --rm --network service-boilerplate-network \
+		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
+		$(MIGRATION_IMAGE) \
+		-path /migrations \
+		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)" \
+		up --dry-run
+
+.PHONY: db-migration-create
+db-migration-create: ## Create new migration file (NAME=add_users_table)
+	@echo "📝 Creating migration: $(NAME)"
+	@if [ -z "$(NAME)" ]; then \
+		echo "❌ Error: Please specify NAME (e.g., make db-migration-create NAME=add_users_table)"; \
+		exit 1; \
+	fi
+	@docker run --rm \
+		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
+		$(MIGRATION_IMAGE) \
+		create -ext sql -dir /migrations -seq $(NAME)
+
+.PHONY: db-migration-list
+db-migration-list: ## List available migration files
+	@echo "📁 Migration files in services/$(SERVICE_NAME)/migrations:"
+	@ls -la services/$(SERVICE_NAME)/migrations/ 2>/dev/null || echo "No migration files found"
 
 ## Data Management
 .PHONY: db-seed
@@ -727,9 +775,13 @@ help-db: ## Show database commands
 	@echo "  db-recreate        - Recreate database from scratch"
 	@echo ""
 	@echo "Migration Management:"
-	@echo "  db-migrate         - Run all pending migrations"
+	@echo "  db-migrate-up      - Run migrations up"
+	@echo "  db-migrate-down    - Run migrations down"
 	@echo "  db-migrate-status  - Show migration status"
-	@echo "  db-rollback        - Rollback last migration"
+	@echo "  db-migrate-goto VERSION= - Go to specific version"
+	@echo "  db-migrate-validate - Validate migration files"
+	@echo "  db-migration-create NAME= - Create migration file"
+	@echo "  db-migration-list  - List migration files"
 	@echo ""
 	@echo "Data Management:"
 	@echo "  db-seed            - Seed database with test data"
@@ -750,6 +802,9 @@ help-db: ## Show database commands
 	@echo "Examples:"
 	@echo "  make db-setup                    # Setup database for development"
 	@echo "  make db-connect                  # Open database shell"
+	@echo "  make db-migrate-up               # Run migrations"
+	@echo "  make db-migration-create NAME=add_users_table"
+	@echo "  make db-migrate-goto VERSION=001 # Go to specific version"
 	@echo "  make db-dump                     # Create backup"
 	@echo "  make db-restore FILE=dump.sql    # Restore from backup"
 	@echo "  make db-seed                     # Add test data"

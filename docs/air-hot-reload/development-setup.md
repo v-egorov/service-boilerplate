@@ -413,23 +413,82 @@ The development environment includes PostgreSQL:
 ```yaml
 postgres:
   environment:
-    - POSTGRES_DB=service_db
-    - POSTGRES_USER=postgres
-    - POSTGRES_PASSWORD=postgres
+    - POSTGRES_DB=${DATABASE_NAME}
+    - POSTGRES_USER=${DATABASE_USER}
+    - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
   volumes:
-    - postgres_data:/var/lib/postgresql/data
+    - ${POSTGRES_VOLUME}:/var/lib/postgresql/data
     - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
 ```
 
-### Database Migrations
+### Database Migrations with Docker Container
+
+Migrations are handled by a dedicated migration service using Docker:
+
+```yaml
+# Migration Service (profiles: migration)
+migration:
+  image: ${MIGRATION_IMAGE}
+  container_name: ${MIGRATION_CONTAINER_NAME}
+  volumes:
+    - ./services/${SERVICE_NAME}/migrations:/migrations:ro
+  environment:
+    - DATABASE_URL=postgres://${DATABASE_USER}:${DATABASE_PASSWORD}@${POSTGRES_NAME}:${DATABASE_PORT}/${DATABASE_NAME}?sslmode=${DATABASE_SSL_MODE}
+  networks:
+    - service-network
+```
+
+#### Migration Commands
 
 ```bash
-# Run migrations
-make migrate-up
+# Run migrations up
+make db-migrate-up
+
+# Run migrations down
+make db-migrate-down
+
+# Check migration status
+make db-migrate-status
+
+# Go to specific version
+make db-migrate-goto VERSION=001
+
+# Create new migration
+make db-migration-create NAME=add_users_table
+
+# Validate migrations
+make db-migrate-validate
 
 # Reset database
 make db-reset
 ```
+
+#### Migration Workflow
+
+1. **Create Migration**:
+   ```bash
+   make db-migration-create NAME=add_user_profiles
+   # Creates: services/user-service/migrations/000002_add_user_profiles.up.sql
+   ```
+
+2. **Write Migration SQL**:
+   ```sql
+   -- Add new columns to users table
+   ALTER TABLE users ADD COLUMN profile_image_url VARCHAR(500);
+   ALTER TABLE users ADD COLUMN bio TEXT;
+   ```
+
+3. **Run Migration**:
+   ```bash
+   make db-migrate-up
+   # Applies all pending migrations
+   ```
+
+4. **Verify Status**:
+   ```bash
+   make db-migrate-status
+   # Shows current migration version
+   ```
 
 ## IDE Integration
 

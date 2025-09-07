@@ -411,6 +411,11 @@ Docker configuration is fully controlled via `.env` file:
 | `DATABASE_NAME` | `service_db` | PostgreSQL database name |
 | `DATABASE_USER` | `postgres` | PostgreSQL username |
 | `DATABASE_PASSWORD` | `postgres` | PostgreSQL password |
+| `MIGRATION_CONTAINER_NAME` | `service-boilerplate-migration` | Migration container name |
+| `MIGRATION_TMP_VOLUME` | `service-boilerplate-migration-tmp` | Migration temp volume |
+| `MIGRATION_IMAGE` | `migrate/migrate:latest` | Migration tool image |
+| `SERVICE_NAME` | `user-service` | Current service for migrations |
+| `MIGRATION_PATH` | `services/user-service/migrations` | Migration files path |
 
 ### Network Configuration
 Services use named networks with multiple aliases for flexible connectivity:
@@ -453,6 +458,41 @@ networks:
       - ${POSTGRES_NAME}
       - db
       - database
+```
+
+### Migration Service Configuration
+Database migrations are handled by a dedicated Docker container:
+
+```yaml
+# Migration Service
+migration:
+  image: ${MIGRATION_IMAGE}
+  container_name: ${MIGRATION_CONTAINER_NAME}
+  profiles: ["migration"]
+  volumes:
+    - ./services/${SERVICE_NAME}/migrations:/migrations:ro
+    - ${MIGRATION_TMP_VOLUME}:/tmp/migrations
+  environment:
+    - DATABASE_URL=postgres://${DATABASE_USER}:${DATABASE_PASSWORD}@${POSTGRES_NAME}:${DATABASE_PORT}/${DATABASE_NAME}?sslmode=${DATABASE_SSL_MODE}
+  networks:
+    - service-network
+  command: ["version"]
+  depends_on:
+    - ${POSTGRES_NAME}
+```
+
+#### Migration Profiles
+The migration service uses Docker Compose profiles for optional execution:
+
+```bash
+# Run with migration service
+docker-compose --profile migration up
+
+# Run migrations only
+docker-compose --profile migration run --rm migration up
+
+# Normal development (without migration service)
+docker-compose up
 ```
 
 ## Related Files
