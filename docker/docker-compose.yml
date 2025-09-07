@@ -9,7 +9,7 @@ services:
     ports:
       - "${DATABASE_PORT:-5432}:5432"
     volumes:
-      - ${POSTGRES_VOLUME}:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     networks:
       service-network:
         aliases:
@@ -91,24 +91,24 @@ services:
     restart: unless-stopped
 
 volumes:
-  ${POSTGRES_VOLUME}:
-    name: ${POSTGRES_VOLUME}
+  postgres_data:
+    name: postgres_data
     driver: local
     driver_opts:
       type: none
       o: bind
       device: ${PWD}/docker/volumes/postgres_data
 
-  ${API_GATEWAY_TMP_VOLUME}:
-    name: ${API_GATEWAY_TMP_VOLUME}
+  api_gateway_tmp:
+    name: api_gateway_tmp
     driver: local
     driver_opts:
       type: none
       o: bind
       device: ${PWD}/docker/volumes/api-gateway/tmp
 
-  ${USER_SERVICE_TMP_VOLUME}:
-    name: ${USER_SERVICE_TMP_VOLUME}
+  user_service_tmp:
+    name: user_service_tmp
     driver: local
     driver_opts:
       type: none
@@ -122,4 +122,3 @@ networks:
     labels:
       - "com.service-boilerplate.network=backend"
       - "com.service-boilerplate.project=service-boilerplate"
-

@@ -1,55 +1,56 @@
 services:
-   api-gateway:
-     build:
-       context: ..
-       dockerfile: api-gateway/Dockerfile.dev
-     environment:
-       - APP_ENV=development
-       - LOGGING_LEVEL=debug
-     volumes:
-       - ../api-gateway:/app/api-gateway
-       - ${API_GATEWAY_TMP_VOLUME}:/app/api-gateway/tmp
-     ports:
-       - "${API_GATEWAY_PORT}:${API_GATEWAY_PORT}"
-     working_dir: /app/api-gateway
-     networks:
-       service-network:
-         aliases:
-           - ${API_GATEWAY_NAME}
-           - gateway
-           - api
+  api-gateway:
+    build:
+      context: ..
+      dockerfile: api-gateway/Dockerfile.dev
+    environment:
+      - APP_ENV=development
+      - LOGGING_LEVEL=debug
+    volumes:
+      - ../api-gateway:/app/api-gateway
+      - api_gateway_tmp:/app/api-gateway/tmp
+    ports:
+      - "${API_GATEWAY_PORT}:${API_GATEWAY_PORT}"
+    working_dir: /app/api-gateway
+    networks:
+      service-network:
+        aliases:
+          - ${API_GATEWAY_NAME}
+          - gateway
+          - api
 
-   user-service:
-     build:
-       context: ..
-       dockerfile: services/user-service/Dockerfile.dev
-     environment:
-       - APP_ENV=development
-       - LOGGING_LEVEL=debug
-     volumes:
-       - ../services/user-service:/app/services/user-service
-       - ${USER_SERVICE_TMP_VOLUME}:/app/services/user-service/tmp
-     ports:
-       - "${USER_SERVICE_PORT}:${USER_SERVICE_PORT}"
-     working_dir: /app/services/user-service
-     networks:
-       service-network:
-         aliases:
-           - ${USER_SERVICE_NAME}
-           - users
-           - user-svc
+  user-service:
+    build:
+      context: ..
+      dockerfile: services/user-service/Dockerfile.dev
+    environment:
+      - APP_ENV=development
+      - LOGGING_LEVEL=debug
+    volumes:
+      - ../services/user-service:/app/services/user-service
+      - user_service_tmp:/app/services/user-service/tmp
+    ports:
+      - "${USER_SERVICE_PORT}:${USER_SERVICE_PORT}"
+    working_dir: /app/services/user-service
+    networks:
+      service-network:
+        aliases:
+          - ${USER_SERVICE_NAME}
+          - users
+          - user-svc
 
-   postgres:
-     environment:
-       - POSTGRES_DB=${DATABASE_NAME}
-       - POSTGRES_USER=${DATABASE_USER}
-       - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
-     volumes:
-       - ${POSTGRES_VOLUME}:/var/lib/postgresql/data
-       - ../docker/init.sql:/docker-entrypoint-initdb.d/init.sql
-     networks:
-       service-network:
-         aliases:
-           - ${POSTGRES_NAME}
-           - db
-           - database
+  postgres:
+    environment:
+      - POSTGRES_DB=${DATABASE_NAME}
+      - POSTGRES_USER=${DATABASE_USER}
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      service-network:
+        aliases:
+          - ${POSTGRES_NAME}
+          - db
+          - database
+
