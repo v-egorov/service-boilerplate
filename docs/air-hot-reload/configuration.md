@@ -202,8 +202,199 @@ You can use environment variables in your `.air.toml`:
 
 ## Docker Configuration
 
+### Docker Compose Override File (`docker-compose.override.yml`)
+
+#### Purpose and Role
+
+The `docker-compose.override.yml` file is a **development-specific configuration file** that extends and modifies the base `docker-compose.yml` configuration. It follows Docker Compose's [override mechanism](https://docs.docker.com/compose/extends/#multiple-compose-files) to provide development-friendly settings without modifying the production configuration.
+
+#### Key Characteristics
+
+- **Automatic Loading**: Docker Compose automatically merges `docker-compose.override.yml` with `docker-compose.yml` when running `docker-compose up`
+- **Development Focused**: Contains settings optimized for local development (hot reload, debugging, volume mounts)
+- **Non-Intrusive**: Changes in override file don't affect production deployments
+- **Override Priority**: Settings in override file take precedence over base configuration
+
+#### Usage Workflow
+
+##### 1. Development Environment Setup
+```bash
+# Start development environment (automatically uses override)
+make dev
+# or
+docker-compose up
+
+# Both commands automatically merge:
+# docker-compose.yml + docker-compose.override.yml
+```
+
+##### 2. Production Deployment
+```bash
+# Production uses only base configuration
+docker-compose -f docker-compose.yml up
+
+# Or with explicit file specification
+make up
+```
+
+##### 3. Override-Specific Commands
+```bash
+# View merged configuration
+docker-compose config
+
+# View only override configuration
+docker-compose -f docker-compose.override.yml config
+
+# Validate override file
+docker-compose -f docker-compose.override.yml config --quiet
+```
+
+#### Configuration Differences
+
+| Aspect | `docker-compose.yml` | `docker-compose.override.yml` |
+|--------|---------------------|------------------------------|
+| **Purpose** | Production-ready base config | Development enhancements |
+| **Dockerfiles** | `Dockerfile` (optimized) | `Dockerfile.dev` (with Air) |
+| **Environment** | `APP_ENV=production` | `APP_ENV=development` |
+| **Volumes** | Minimal (data only) | Full source code mounts |
+| **Ports** | Configurable via env | Development ports |
+| **Dependencies** | Health checks | Development tools |
+| **Logging** | JSON format | Text format with debug |
+
+#### Override File Contents
+
+##### Development-Specific Settings
+```yaml
+# Development Dockerfile with Air hot reload
+build:
+  dockerfile: api-gateway/Dockerfile.dev
+
+# Development environment
+environment:
+  - APP_ENV=development
+  - LOGGING_LEVEL=debug
+
+# Source code volume mounts for hot reload
+volumes:
+  - ../api-gateway:/app/api-gateway
+  - ${API_GATEWAY_TMP_VOLUME}:/app/api-gateway/tmp
+
+# Development ports
+ports:
+  - "${API_GATEWAY_PORT}:${API_GATEWAY_PORT}"
+
+# Network aliases for service discovery
+networks:
+  service-network:
+    aliases:
+      - ${API_GATEWAY_NAME}
+      - gateway
+      - api
+```
+
+##### Workflow Integration
+
+1. **Local Development**:
+   ```bash
+   # Override enables hot reload and debugging
+   make dev
+   # Files changed → Air rebuilds → No restart needed
+   ```
+
+2. **Testing Changes**:
+   ```bash
+   # Override mounts source code
+   vim api-gateway/internal/handlers/gateway.go
+   # Changes immediately available in container
+   ```
+
+3. **Debugging**:
+   ```bash
+   # Override provides debug environment
+   docker-compose exec api-gateway sh
+   # Full debugging tools available
+   ```
+
+#### Best Practices
+
+##### File Organization
+```
+docker/
+├── docker-compose.yml          # Base production config
+├── docker-compose.override.yml # Development overrides
+└── docker-compose.test.yml     # Testing overrides (optional)
+```
+
+##### Environment Separation
+```bash
+# Development (with override)
+docker-compose up
+
+# Production (without override)
+docker-compose -f docker-compose.yml up
+
+# Testing (with test override)
+docker-compose -f docker-compose.yml -f docker-compose.test.yml up
+```
+
+##### Version Control
+- ✅ Commit `docker-compose.override.yml` (contains development config)
+- ✅ Include in `.gitignore` if it contains secrets
+- ❌ Never commit sensitive data in override files
+
+#### Troubleshooting Override Issues
+
+##### Common Problems
+```bash
+# Check merged configuration
+docker-compose config
+
+# Validate override file syntax
+docker-compose -f docker-compose.override.yml config
+
+# Check if override is being loaded
+docker-compose ps  # Should show development containers
+```
+
+##### Override Not Loading
+- Ensure file is named exactly `docker-compose.override.yml`
+- Check file is in same directory as `docker-compose.yml`
+- Verify YAML syntax is valid
+- Use `docker-compose config` to see merged result
+
+##### Environment Variable Issues
+```bash
+# Check variable values
+docker-compose exec api-gateway env | grep API_GATEWAY
+
+# Override .env file location
+docker-compose --env-file .env.dev up
+```
+
+#### Advanced Usage
+
+##### Multiple Override Files
+```bash
+# Development with custom settings
+docker-compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.custom.yml up
+
+# CI/CD pipeline
+docker-compose -f docker-compose.yml -f docker-compose.ci.yml up
+```
+
+##### Conditional Overrides
+```yaml
+# Override only in development
+services:
+  api-gateway:
+    # Only applies when override is loaded
+    environment:
+      - DEBUG=true
+      - HOT_RELOAD=true
+```
+
 ### Environment Variables
-Docker naming and networking is controlled via `.env` file:
+Docker configuration is fully controlled via `.env` file:
 
 | Variable | Default Value | Description |
 |----------|---------------|-------------|
@@ -211,6 +402,15 @@ Docker naming and networking is controlled via `.env` file:
 | `USER_SERVICE_NAME` | `service-boilerplate-user-service` | User Service container name |
 | `POSTGRES_NAME` | `service-boilerplate-postgres` | PostgreSQL container name |
 | `SERVICE_NETWORK_NAME` | `service-boilerplate-network` | Docker network name |
+| `API_GATEWAY_PORT` | `8080` | API Gateway external port |
+| `USER_SERVICE_PORT` | `8081` | User Service external port |
+| `DATABASE_PORT` | `5432` | PostgreSQL external port |
+| `API_GATEWAY_TMP_VOLUME` | `service-boilerplate-api-gateway-tmp` | API Gateway temp volume |
+| `USER_SERVICE_TMP_VOLUME` | `service-boilerplate-user-service-tmp` | User Service temp volume |
+| `POSTGRES_VOLUME` | `service-boilerplate-postgres-data` | PostgreSQL data volume |
+| `DATABASE_NAME` | `service_db` | PostgreSQL database name |
+| `DATABASE_USER` | `postgres` | PostgreSQL username |
+| `DATABASE_PASSWORD` | `postgres` | PostgreSQL password |
 
 ### Network Configuration
 Services use named networks with multiple aliases for flexible connectivity:

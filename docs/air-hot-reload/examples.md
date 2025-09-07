@@ -133,13 +133,70 @@ tmp_dir = "tmp"
 APP_ENV=development
 LOGGING_LEVEL=debug
 LOGGING_FORMAT=text
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/service_db?sslmode=disable
+
+# Service Configuration
+API_GATEWAY_PORT=8080
+USER_SERVICE_PORT=8081
+DATABASE_PORT=5432
+
+# Database Configuration
+DATABASE_HOST=postgres
+DATABASE_USER=postgres
+DATABASE_PASSWORD=postgres
+DATABASE_NAME=service_db
+DATABASE_SSL_MODE=disable
+
+# Docker Naming
+API_GATEWAY_NAME=api-gateway
+USER_SERVICE_NAME=user-service
+POSTGRES_NAME=postgres
 
 # .env.production
 APP_ENV=production
 LOGGING_LEVEL=info
 LOGGING_FORMAT=json
-DATABASE_URL=postgres://prod_user:prod_pass@prod-db:5432/prod_db?sslmode=require
+
+# Production Database
+DATABASE_USER=prod_user
+DATABASE_PASSWORD=secure_password
+DATABASE_NAME=prod_db
+DATABASE_SSL_MODE=require
+```
+
+### Custom Port Configuration
+
+```bash
+# Development with custom ports
+API_GATEWAY_PORT=3000
+USER_SERVICE_PORT=3001
+DATABASE_PORT=5433
+
+# Testing environment
+API_GATEWAY_PORT=8080
+USER_SERVICE_PORT=8082
+DATABASE_PORT=5434
+
+# CI/CD environment
+API_GATEWAY_PORT=8080
+USER_SERVICE_PORT=8081
+DATABASE_PORT=5432
+```
+
+### Volume Customization
+
+```bash
+# Custom volume names for different environments
+API_GATEWAY_TMP_VOLUME=myproject-api-gateway-tmp
+USER_SERVICE_TMP_VOLUME=myproject-user-service-tmp
+POSTGRES_VOLUME=myproject-postgres-data
+
+# Environment-specific volumes
+# Development
+POSTGRES_VOLUME=dev-postgres-data
+# Testing
+POSTGRES_VOLUME=test-postgres-data
+# Production
+POSTGRES_VOLUME=prod-postgres-data
 ```
 
 ### Docker Override Examples

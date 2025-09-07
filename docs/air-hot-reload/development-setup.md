@@ -66,37 +66,128 @@ USER_SERVICE_PORT=8081
 
 ### Docker Development Environment
 
-The development setup uses Docker Compose with overrides:
+#### Docker Compose Override Workflow
 
+The development setup uses **Docker Compose's override mechanism** with `docker-compose.override.yml`:
+
+##### How Override Files Work
+```bash
+# Docker Compose automatically merges files:
+docker-compose up
+# = docker-compose.yml + docker-compose.override.yml
+
+# Production deployment (override ignored):
+docker-compose -f docker-compose.yml up
+```
+
+##### Override File Purpose
+- **Development Optimizations**: Hot reload, debugging, source mounting
+- **Environment Separation**: Dev settings don't affect production
+- **Automatic Loading**: No special commands needed for development
+- **Configuration Override**: Dev settings take precedence over base config
+
+##### Development Override Configuration
 ```yaml
 # docker/docker-compose.override.yml
 services:
   api-gateway:
+    # Development Dockerfile with Air
     build:
-      context: ..
       dockerfile: api-gateway/Dockerfile.dev
+
+    # Development environment
     environment:
       - APP_ENV=development
       - LOGGING_LEVEL=debug
+
+    # Live source code mounting
     volumes:
       - ../api-gateway:/app/api-gateway
+      - ${API_GATEWAY_TMP_VOLUME}:/app/api-gateway/tmp
+
+    # Development ports
     ports:
-      - "8080:8080"
-    working_dir: /app/api-gateway
+      - "${API_GATEWAY_PORT}:${API_GATEWAY_PORT}"
+
+    # Service discovery aliases
+    networks:
+      service-network:
+        aliases:
+          - ${API_GATEWAY_NAME}
+          - gateway
+          - api
 
   user-service:
     build:
-      context: ..
       dockerfile: services/user-service/Dockerfile.dev
     environment:
       - APP_ENV=development
       - LOGGING_LEVEL=debug
     volumes:
       - ../services/user-service:/app/services/user-service
+      - ${USER_SERVICE_TMP_VOLUME}:/app/services/user-service/tmp
     ports:
-      - "8081:8081"
-    working_dir: /app/services/user-service
+      - "${USER_SERVICE_PORT}:${USER_SERVICE_PORT}"
+    networks:
+      service-network:
+        aliases:
+          - ${USER_SERVICE_NAME}
+          - users
+          - user-svc
+
+  postgres:
+    environment:
+      - POSTGRES_DB=${DATABASE_NAME}
+      - POSTGRES_USER=${DATABASE_USER}
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+    volumes:
+      - ${POSTGRES_VOLUME}:/var/lib/postgresql/data
+    networks:
+      service-network:
+        aliases:
+          - ${POSTGRES_NAME}
+          - db
+          - database
 ```
+
+##### Override Workflow in Action
+
+1. **Start Development**:
+   ```bash
+   make dev
+   # Docker Compose loads: base.yml + override.yml
+   # Result: Development containers with hot reload
+   ```
+
+2. **Make Code Changes**:
+   ```bash
+   vim api-gateway/internal/handlers/gateway.go
+   # Override mounts source → changes immediately available
+   # Air detects changes → automatic rebuild
+   ```
+
+3. **Debug and Test**:
+   ```bash
+   # Override provides development tools
+   docker-compose exec api-gateway sh
+   curl http://gateway:8080/health  # Using network alias
+   ```
+
+4. **Deploy to Production**:
+   ```bash
+   make up
+   # Only loads base.yml → production containers
+   # Override file ignored → clean production deployment
+   ```
+
+##### Key Override Benefits
+
+- **🔄 Hot Reload**: Source mounting enables live updates
+- **🐛 Debugging**: Development tools and logging
+- **🏷️ Service Discovery**: Network aliases for easy connectivity
+- **⚙️ Environment Control**: Dev vs prod settings separation
+- **📦 Volume Management**: Configurable temp and data volumes
+- **🚀 Automatic**: No special commands needed
 
 ## Development Workflow
 

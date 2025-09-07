@@ -115,15 +115,37 @@ services/user-service/.air.toml
 # Docker Files
 api-gateway/Dockerfile.dev
 services/user-service/Dockerfile.dev
-docker/docker-compose.override.yml
+docker/docker-compose.yml          # Production configuration
+docker/docker-compose.override.yml # Development overrides
 ```
 
 ## How It Works
 
-1. **File Monitoring**: Air watches `.go` files for changes
-2. **Build Trigger**: On file change, triggers `go build`
-3. **Binary Replacement**: New binary replaces the running process
-4. **Zero Downtime**: Process replacement happens seamlessly
+### Development Workflow with Docker Override
+
+1. **Environment Setup**: `docker-compose.override.yml` provides development configuration
+2. **File Monitoring**: Air watches `.go` files for changes in mounted volumes
+3. **Build Trigger**: On file change, triggers `go build` inside containers
+4. **Binary Replacement**: New binary replaces the running process seamlessly
+5. **Zero Downtime**: Process replacement happens without service interruption
+
+### Docker Compose Override Mechanism
+
+```bash
+# Development (automatic override loading)
+make dev
+# Loads: docker-compose.yml + docker-compose.override.yml
+
+# Production (override ignored)
+make up
+# Loads: docker-compose.yml only
+```
+
+The override file enables:
+- **Hot reload** with source code mounting
+- **Development tools** and debugging
+- **Service aliases** for easy connectivity
+- **Environment separation** between dev and prod
 
 ## Configuration
 
