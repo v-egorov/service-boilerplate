@@ -422,15 +422,19 @@ docker-reset-confirm: ## Reset project Docker environment with confirmation
 		echo "❌ Reset cancelled"; \
 	fi
 
-.PHONY: docker-recreate
-docker-recreate: ## Recreate project Docker environment from scratch
-	@echo "🔄 Recreating project Docker environment..."
+.PHONY: create-volumes-dirs
+create-volumes-dirs: ## (Re)create volumes directories
+	@echo "🔄 Recreating volumes directories..."
 
 	# Create volume directories
 	@echo "   Creating volume directories..."
 	@mkdir -p docker/volumes/postgres_data
 	@mkdir -p docker/volumes/api-gateway/tmp
 	@mkdir -p docker/volumes/user-service/tmp
+
+.PHONY: docker-recreate
+docker-recreate: create-volumes-dirs ## Recreate project Docker environment from scratch
+	@echo "🔄 Recreating project Docker environment..."
 
 	# Build images from scratch
 	@echo "   Building images from scratch..."
