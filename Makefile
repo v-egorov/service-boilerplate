@@ -7,11 +7,9 @@ USER_SERVICE_DIR := services/user-service
 BUILD_DIR := build
 DOCKER_COMPOSE_FILE := docker/docker-compose.yml
 
-# Network variables
+# Network variables (simplified for compatibility)
 NETWORK_NAME := service-boilerplate-network
 NETWORK_DRIVER := bridge
-NETWORK_SUBNET := 172.21.0.0/16
-NETWORK_GATEWAY := 172.21.0.1
 
 # Go variables
 GO := go

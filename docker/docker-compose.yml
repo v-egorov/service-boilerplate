@@ -113,12 +113,6 @@ volumes:
 networks:
   service-network:
     driver: bridge
-    driver_opts:
-      com.docker.network.bridge.name: service-boilerplate-bridge
-    ipam:
-      config:
-        - subnet: 172.21.0.0/16
-          gateway: 172.21.0.1
     labels:
       - "com.service-boilerplate.network=backend"
       - "com.service-boilerplate.project=service-boilerplate"
