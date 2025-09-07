@@ -228,6 +228,35 @@ docker-compose exec api-gateway air -v
 
 # Restart service
 docker-compose restart api-gateway
+
+# Connect to services using aliases
+curl http://gateway:8080/health    # Using alias
+curl http://api:8080/health        # Alternative alias
+curl http://users:8081/users       # User service alias
+curl http://db:5432/               # Database alias
+```
+
+### Docker Management with Naming System
+
+```bash
+# View running containers with custom names
+docker ps --filter "name=service-boilerplate"
+
+# Connect to specific containers
+docker exec -it service-boilerplate-api-gateway sh
+docker exec -it service-boilerplate-user-service sh
+docker exec -it service-boilerplate-postgres psql -U postgres
+
+# Clean up with safety features
+make clean-all        # Interactive cleanup with confirmation
+make clean-docker     # Remove containers and images
+make clean-volumes    # Remove volumes (with confirmation)
+make clean-logs       # Clear all log files
+
+# Selective cleanup
+make clean-go         # Clean Go build artifacts
+make clean-cache      # Clear Docker cache
+make clean-test       # Remove test artifacts
 ```
 
 ### Production Deployment
@@ -483,7 +512,7 @@ service-boilerplate/
 ### Makefile Examples
 
 ```makefile
-# Makefile
+# Makefile - Enhanced with comprehensive cleanup
 .PHONY: dev
 dev:
 	@echo "Starting development environment..."
@@ -494,11 +523,48 @@ test:
 	@echo "Running tests..."
 	@go test ./...
 
-.PHONY: clean
-clean:
-	@echo "Cleaning up..."
-	@docker-compose down -v
-	@docker system prune -f
+# Enhanced cleanup system
+.PHONY: clean-all
+clean-all:
+	@echo "🧹 Starting comprehensive cleanup..."
+	@read -p "This will remove containers, images, volumes, and logs. Continue? (y/N) " confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		echo "Removing containers..."; \
+		docker-compose down; \
+		echo "Removing images..."; \
+		docker rmi $$(docker images "service-boilerplate*" -q) 2>/dev/null || true; \
+		echo "Removing volumes..."; \
+		docker volume rm $$(docker volume ls -q | grep service-boilerplate) 2>/dev/null || true; \
+		echo "Cleaning logs..."; \
+		rm -rf logs/*.log; \
+		echo "Cleanup complete!"; \
+	else \
+		echo "Cleanup cancelled."; \
+	fi
+
+.PHONY: clean-docker
+clean-docker:
+	@echo "Removing Docker containers and images..."
+	@docker-compose down
+	@docker rmi $$(docker images "service-boilerplate*" -q) 2>/dev/null || true
+
+.PHONY: clean-volumes
+clean-volumes:
+	@echo "⚠️  Volume cleanup - this will delete database data!"
+	@read -p "Continue? (y/N) " confirm; \
+	if [ "$$confirm" = "y" ] || [ "$$confirm" = "Y" ]; then \
+		docker volume rm $$(docker volume ls -q | grep service-boilerplate) 2>/dev/null || true; \
+		echo "Volumes removed."; \
+	else \
+		echo "Volume cleanup cancelled."; \
+	fi
+
+.PHONY: clean-logs
+clean-logs:
+	@echo "Cleaning log files..."
+	@rm -rf logs/*.log
+	@find . -name "*.log" -type f -delete
+	@echo "Log cleanup complete."
 ```
 
 ### Health Check Examples
