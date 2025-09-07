@@ -387,7 +387,7 @@ db-migration-list: ## List available migration files
 .PHONY: db-seed
 db-seed: ## Seed database with test data
 	@echo "🌱 Seeding database with test data..."
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -f - < scripts/seed.sql 2>/dev/null
+	@cat scripts/seed.sql | docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database seeded with 5 test users"; \
 	else \
@@ -426,7 +426,7 @@ db-restore: ## Restore database from dump (usage: make db-restore FILE=dump.sql)
 .PHONY: db-clean
 db-clean: ## Clean all data from tables (keep schema)
 	@echo "🧹 Cleaning database data..."
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -f - < scripts/clean.sql 2>/dev/null
+	@cat scripts/clean.sql | docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database data cleaned (schema preserved)"; \
 	else \
