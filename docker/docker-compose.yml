@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: service-boilerplate-postgres
+    container_name: ${POSTGRES_CONTAINER}
     environment:
       - POSTGRES_DB=${DATABASE_NAME:-service_db}
       - POSTGRES_USER=${DATABASE_USER:-postgres}
@@ -13,7 +13,7 @@ services:
     networks:
       service-network:
         aliases:
-          - postgres
+          - ${POSTGRES_NAME}
           - db
           - database
     healthcheck:
@@ -27,7 +27,8 @@ services:
     build:
       context: ..
       dockerfile: api-gateway/Dockerfile
-    container_name: service-boilerplate-gateway
+    image: ${API_GATEWAY_IMAGE}
+    container_name: ${API_GATEWAY_CONTAINER}
     ports:
       - "${API_GATEWAY_PORT:-8080}:8080"
     environment:
@@ -42,7 +43,7 @@ services:
     networks:
       service-network:
         aliases:
-          - api-gateway
+          - ${API_GATEWAY_NAME}
           - gateway
           - api
     healthcheck:
@@ -57,13 +58,14 @@ services:
     build:
       context: ..
       dockerfile: services/user-service/Dockerfile
-    container_name: service-boilerplate-user-service
+    image: ${USER_SERVICE_IMAGE}
+    container_name: ${USER_SERVICE_CONTAINER}
     ports:
       - "${USER_SERVICE_PORT:-8081}:8081"
     environment:
       - APP_ENV=${APP_ENV:-production}
       - SERVER_PORT=8081
-      - DATABASE_HOST=postgres
+      - DATABASE_HOST=${POSTGRES_NAME}
       - DATABASE_PORT=5432
       - DATABASE_USER=${DATABASE_USER:-postgres}
       - DATABASE_PASSWORD=${DATABASE_PASSWORD:-postgres}
@@ -77,7 +79,7 @@ services:
     networks:
       service-network:
         aliases:
-          - user-service
+          - ${USER_SERVICE_NAME}
           - users
           - user-svc
     healthcheck:
@@ -90,6 +92,7 @@ services:
 
 volumes:
   postgres_data:
+    name: ${POSTGRES_VOLUME}
     driver: local
     driver_opts:
       type: none
@@ -97,6 +100,7 @@ volumes:
       device: ${PWD}/docker/volumes/postgres_data
 
   api_gateway_tmp:
+    name: ${API_GATEWAY_TMP_VOLUME}
     driver: local
     driver_opts:
       type: none
@@ -104,6 +108,7 @@ volumes:
       device: ${PWD}/docker/volumes/api-gateway/tmp
 
   user_service_tmp:
+    name: ${USER_SERVICE_TMP_VOLUME}
     driver: local
     driver_opts:
       type: none
@@ -112,7 +117,8 @@ volumes:
 
 networks:
   service-network:
-    driver: bridge
+    name: ${NETWORK_NAME}
+    driver: ${NETWORK_DRIVER}
     labels:
       - "com.service-boilerplate.network=backend"
       - "com.service-boilerplate.project=service-boilerplate"

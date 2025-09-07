@@ -11,6 +11,9 @@ This project uses [Air](https://github.com/air-verse/air) for hot reloading duri
 - **Fast Compilation**: Incremental builds for quick development cycles
 - **Docker Integration**: Works within Docker containers for consistent environments
 - **Environment Control**: Different configurations for development vs production
+- **Named Networks**: Custom Docker networks with service aliases for reliable connectivity
+- **Configurable Naming**: Environment-based Docker container and network naming
+- **Enhanced Cleanup**: Comprehensive cleanup commands with safety features
 
 ## Quick Start
 
@@ -44,6 +47,55 @@ make up
 - Uses standard `Dockerfile` for optimized builds
 - Pre-compiled binaries
 - Environment: `APP_ENV=production`
+
+## Docker Enhancements
+
+### Named Networks
+The project uses custom Docker networks with service aliases for reliable inter-service communication:
+
+```yaml
+networks:
+  service-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+    labels:
+      - "com.service-boilerplate.network=service"
+```
+
+### Service Aliases
+Each service has multiple DNS aliases for flexible connectivity:
+
+- **API Gateway**: `${API_GATEWAY_NAME}`, `gateway`, `api`
+- **User Service**: `${USER_SERVICE_NAME}`, `users`, `user-svc`
+- **PostgreSQL**: `${POSTGRES_NAME}`, `db`, `database`
+
+### Configurable Naming
+Docker container and network names are controlled via `.env` variables:
+
+```bash
+# Container Names
+API_GATEWAY_NAME=service-boilerplate-api-gateway
+USER_SERVICE_NAME=service-boilerplate-user-service
+POSTGRES_NAME=service-boilerplate-postgres
+
+# Network Name
+SERVICE_NETWORK_NAME=service-boilerplate-network
+```
+
+### Enhanced Cleanup
+Comprehensive cleanup commands with safety features:
+
+```bash
+# Safe cleanup with confirmation
+make clean-all
+
+# Selective cleanup
+make clean-docker    # Remove containers and images
+make clean-volumes   # Remove volumes with confirmation
+make clean-logs      # Clear log files
+```
 
 ## File Structure
 

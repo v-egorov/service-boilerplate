@@ -1,31 +1,43 @@
 services:
-  api-gateway:
-    build:
-      context: ..
-      dockerfile: api-gateway/Dockerfile.dev
-    environment:
-      - APP_ENV=development
-      - LOGGING_LEVEL=debug
-    volumes:
-      - ../api-gateway:/app/api-gateway
-      - api_gateway_tmp:/app/api-gateway/tmp
-    ports:
-      - "8080:8080"
-    working_dir: /app/api-gateway
+   api-gateway:
+     build:
+       context: ..
+       dockerfile: api-gateway/Dockerfile.dev
+     environment:
+       - APP_ENV=development
+       - LOGGING_LEVEL=debug
+     volumes:
+       - ../api-gateway:/app/api-gateway
+       - api_gateway_tmp:/app/api-gateway/tmp
+     ports:
+       - "8080:8080"
+     working_dir: /app/api-gateway
+     networks:
+       service-network:
+         aliases:
+           - ${API_GATEWAY_NAME}
+           - gateway
+           - api
 
-  user-service:
-    build:
-      context: ..
-      dockerfile: services/user-service/Dockerfile.dev
-    environment:
-      - APP_ENV=development
-      - LOGGING_LEVEL=debug
-    volumes:
-      - ../services/user-service:/app/services/user-service
-      - user_service_tmp:/app/services/user-service/tmp
-    ports:
-      - "8081:8081"
-    working_dir: /app/services/user-service
+   user-service:
+     build:
+       context: ..
+       dockerfile: services/user-service/Dockerfile.dev
+     environment:
+       - APP_ENV=development
+       - LOGGING_LEVEL=debug
+     volumes:
+       - ../services/user-service:/app/services/user-service
+       - user_service_tmp:/app/services/user-service/tmp
+     ports:
+       - "8081:8081"
+     working_dir: /app/services/user-service
+     networks:
+       service-network:
+         aliases:
+           - ${USER_SERVICE_NAME}
+           - users
+           - user-svc
 
   postgres:
     environment:
@@ -38,6 +50,6 @@ services:
     networks:
       service-network:
         aliases:
-          - postgres
+          - ${POSTGRES_NAME}
           - db
           - database

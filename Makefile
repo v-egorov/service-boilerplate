@@ -24,6 +24,25 @@ GOVET := $(GO) vet
 DOCKER := docker
 DOCKER_COMPOSE := docker-compose
 
+# Docker naming variables (loaded from .env)
+DOCKER_PROJECT_PREFIX := service-boilerplate
+DOCKER_IMAGE_PREFIX := docker
+DOCKER_CONTAINER_PREFIX := $(DOCKER_PROJECT_PREFIX)
+DOCKER_NETWORK_PREFIX := $(DOCKER_PROJECT_PREFIX)
+DOCKER_VOLUME_PREFIX := $(DOCKER_PROJECT_PREFIX)
+API_GATEWAY_NAME := api-gateway
+USER_SERVICE_NAME := user-service
+POSTGRES_NAME := postgres
+API_GATEWAY_IMAGE := $(DOCKER_IMAGE_PREFIX)-$(API_GATEWAY_NAME)
+USER_SERVICE_IMAGE := $(DOCKER_IMAGE_PREFIX)-$(USER_SERVICE_NAME)
+API_GATEWAY_CONTAINER := $(DOCKER_CONTAINER_PREFIX)-$(API_GATEWAY_NAME)
+USER_SERVICE_CONTAINER := $(DOCKER_CONTAINER_PREFIX)-$(USER_SERVICE_NAME)
+POSTGRES_CONTAINER := $(DOCKER_CONTAINER_PREFIX)-$(POSTGRES_NAME)
+NETWORK_NAME := $(DOCKER_NETWORK_PREFIX)-network
+POSTGRES_VOLUME := $(DOCKER_VOLUME_PREFIX)-postgres-data
+API_GATEWAY_TMP_VOLUME := $(DOCKER_VOLUME_PREFIX)-api-gateway-tmp
+USER_SERVICE_TMP_VOLUME := $(DOCKER_VOLUME_PREFIX)-user-service-tmp
+
 .PHONY: help
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -35,13 +54,18 @@ help: ## Show this help message
 	@echo '  clean              - Clean basic Go build artifacts'
 	@echo '  clean-all          - Complete clean for fresh start'
 	@echo '  clean-go           - Clean Go artifacts and cache'
-	@echo '  clean-docker       - Clean Docker containers/images'
+	@echo '  clean-docker       - Clean project Docker artifacts'
 	@echo '  clean-volumes      - Clean Docker volumes'
 	@echo '  clean-logs         - Clean log files'
 	@echo '  clean-cache        - Clean caches and temp files'
 	@echo '  clean-test         - Clean test artifacts'
 	@echo '  fresh-start        - Complete reset and setup'
 	@echo '  clean-all-confirm  - Clean all with confirmation'
+	@echo ''
+	@echo 'Docker Management:'
+	@echo '  docker-reset           - Complete project Docker environment reset'
+	@echo '  docker-reset-confirm   - Reset with confirmation prompt'
+	@echo '  docker-recreate        - Recreate project Docker environment'
 	@echo ''
 	@echo 'Network Commands:'
 	@echo '  network-create     - Create custom Docker network'
@@ -226,13 +250,19 @@ clean-go: ## Clean Go build artifacts and cache
 	@echo "✅ Go artifacts cleaned"
 
 .PHONY: clean-docker
-clean-docker: ## Clean Docker containers, images, and networks
-	@echo "🐳 Cleaning Docker artifacts..."
+clean-docker: ## Clean project Docker containers, images, and networks
+	@echo "🐳 Cleaning project Docker artifacts..."
 	@docker-compose --env-file .env down --volumes --remove-orphans 2>/dev/null || true
-	@docker system prune -f --volumes 2>/dev/null || true
-	@docker volume prune -f 2>/dev/null || true
-	@docker network prune -f 2>/dev/null || true
-	@echo "✅ Docker artifacts cleaned"
+	@docker rm $(API_GATEWAY_CONTAINER) 2>/dev/null || true
+	@docker rm $(USER_SERVICE_CONTAINER) 2>/dev/null || true
+	@docker rm $(POSTGRES_CONTAINER) 2>/dev/null || true
+	@docker rmi $(API_GATEWAY_IMAGE) 2>/dev/null || true
+	@docker rmi $(USER_SERVICE_IMAGE) 2>/dev/null || true
+	@docker volume rm $(POSTGRES_VOLUME) 2>/dev/null || true
+	@docker volume rm $(API_GATEWAY_TMP_VOLUME) 2>/dev/null || true
+	@docker volume rm $(USER_SERVICE_TMP_VOLUME) 2>/dev/null || true
+	@docker network rm $(NETWORK_NAME) 2>/dev/null || true
+	@echo "✅ Project Docker artifacts cleaned"
 
 .PHONY: clean-volumes
 clean-volumes: ## Clean Docker volumes and persistent data
@@ -329,6 +359,93 @@ network-remove: ## Remove custom network
 	@echo "🗑️  Removing service network..."
 	@docker network rm $(NETWORK_NAME) 2>/dev/null || echo "Network $(NETWORK_NAME) not found or in use"
 
+# Docker Environment Management
+.PHONY: docker-reset
+docker-reset: ## Complete project Docker environment reset
+	@echo "🔄 Starting complete project Docker reset..."
+
+	# Stop and remove project containers (exact names)
+	@echo "   Stopping project containers..."
+	@docker stop $(API_GATEWAY_CONTAINER) 2>/dev/null || true
+	@docker stop $(USER_SERVICE_CONTAINER) 2>/dev/null || true
+	@docker stop $(POSTGRES_CONTAINER) 2>/dev/null || true
+
+	@echo "   Removing project containers..."
+	@docker rm $(API_GATEWAY_CONTAINER) 2>/dev/null || true
+	@docker rm $(USER_SERVICE_CONTAINER) 2>/dev/null || true
+	@docker rm $(POSTGRES_CONTAINER) 2>/dev/null || true
+
+	# Remove project images (exact names)
+	@echo "   Removing project images..."
+	@docker rmi $(API_GATEWAY_IMAGE) 2>/dev/null || true
+	@docker rmi $(USER_SERVICE_IMAGE) 2>/dev/null || true
+
+	# Remove project volumes (exact names)
+	@echo "   Removing project volumes..."
+	@docker volume rm $(POSTGRES_VOLUME) 2>/dev/null || true
+	@docker volume rm $(API_GATEWAY_TMP_VOLUME) 2>/dev/null || true
+	@docker volume rm $(USER_SERVICE_TMP_VOLUME) 2>/dev/null || true
+
+	# Remove project networks (exact names)
+	@echo "   Removing project networks..."
+	@docker network rm $(NETWORK_NAME) 2>/dev/null || true
+
+	# Clean up volume directories
+	@echo "   Cleaning volume directories..."
+	@rm -rf docker/volumes/ 2>/dev/null || true
+
+	@echo "✅ Project Docker environment reset complete"
+	@echo "   Run 'make docker-recreate' to recreate from scratch"
+
+.PHONY: docker-reset-confirm
+docker-reset-confirm: ## Reset project Docker environment with confirmation
+	@echo "🔄 Project Docker Environment Reset"
+	@echo ""
+	@echo "This will remove:"
+	@echo "  • Container: $(API_GATEWAY_CONTAINER)"
+	@echo "  • Container: $(USER_SERVICE_CONTAINER)"
+	@echo "  • Container: $(POSTGRES_CONTAINER)"
+	@echo "  • Image: $(API_GATEWAY_IMAGE)"
+	@echo "  • Image: $(USER_SERVICE_IMAGE)"
+	@echo "  • Volume: $(POSTGRES_VOLUME)"
+	@echo "  • Volume: $(API_GATEWAY_TMP_VOLUME)"
+	@echo "  • Volume: $(USER_SERVICE_TMP_VOLUME)"
+	@echo "  • Network: $(NETWORK_NAME)"
+	@echo "  • All volume data and directories"
+	@echo ""
+	@echo "The environment can be recreated with: make docker-recreate"
+	@echo ""
+	@read -p "Are you sure you want to reset the project Docker environment? (yes/no): " confirm; \
+	if [ "$$confirm" = "yes" ]; then \
+		$(MAKE) docker-reset; \
+	else \
+		echo "❌ Reset cancelled"; \
+	fi
+
+.PHONY: docker-recreate
+docker-recreate: ## Recreate project Docker environment from scratch
+	@echo "🔄 Recreating project Docker environment..."
+
+	# Create volume directories
+	@echo "   Creating volume directories..."
+	@mkdir -p docker/volumes/postgres_data
+	@mkdir -p docker/volumes/api-gateway/tmp
+	@mkdir -p docker/volumes/user-service/tmp
+
+	# Build images from scratch
+	@echo "   Building images from scratch..."
+	@make docker-build
+
+	# Start services
+	@echo "   Starting services..."
+	@make up
+
+	@echo "✅ Project Docker environment recreated"
+	@echo "   Services should be available at:"
+	@echo "   • API Gateway: http://localhost:8080"
+	@echo "   • User Service: http://localhost:8081"
+	@echo "   • PostgreSQL: localhost:5432"
+
 .PHONY: help-network
 help-network: ## Show network commands
 	@echo "🌐 Network Commands:"
@@ -337,6 +454,14 @@ help-network: ## Show network commands
 	@echo "  network-ls         - List Docker networks"
 	@echo "  network-clean      - Clean up unused networks"
 	@echo "  network-remove     - Remove custom network"
+
+.PHONY: help-docker
+help-docker: ## Show Docker management commands
+	@echo "🐳 Docker Management Commands:"
+	@echo "  docker-reset           - Complete project Docker environment reset"
+	@echo "  docker-reset-confirm   - Reset with confirmation prompt"
+	@echo "  docker-recreate        - Recreate project Docker environment"
+	@echo "  clean-docker           - Clean project Docker artifacts"
 
 .PHONY: help-clean
 help-clean: ## Show cleaning commands

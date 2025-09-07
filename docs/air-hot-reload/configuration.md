@@ -200,12 +200,68 @@ You can use environment variables in your `.air.toml`:
 - Ensure `cmd` can execute from the service root directory
 - Test configuration with `air -c .air.toml` locally
 
+## Docker Configuration
+
+### Environment Variables
+Docker naming and networking is controlled via `.env` file:
+
+| Variable | Default Value | Description |
+|----------|---------------|-------------|
+| `API_GATEWAY_NAME` | `service-boilerplate-api-gateway` | API Gateway container name |
+| `USER_SERVICE_NAME` | `service-boilerplate-user-service` | User Service container name |
+| `POSTGRES_NAME` | `service-boilerplate-postgres` | PostgreSQL container name |
+| `SERVICE_NETWORK_NAME` | `service-boilerplate-network` | Docker network name |
+
+### Network Configuration
+Services use named networks with multiple aliases for flexible connectivity:
+
+```yaml
+# docker/docker-compose.yml
+networks:
+  service-network:
+    name: ${SERVICE_NETWORK_NAME}
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+```
+
+### Service Aliases
+Each service has multiple DNS names for inter-service communication:
+
+```yaml
+# API Gateway
+networks:
+  service-network:
+    aliases:
+      - ${API_GATEWAY_NAME}
+      - gateway
+      - api
+
+# User Service
+networks:
+  service-network:
+    aliases:
+      - ${USER_SERVICE_NAME}
+      - users
+      - user-svc
+
+# PostgreSQL
+networks:
+  service-network:
+    aliases:
+      - ${POSTGRES_NAME}
+      - db
+      - database
+```
+
 ## Related Files
 
 - `api-gateway/.air.toml` - API Gateway configuration
 - `services/user-service/.air.toml` - User Service configuration
 - `Makefile` - Development commands
-- `docker/docker-compose.override.yml` - Docker development setup</content>
+- `docker/docker-compose.override.yml` - Docker development setup
+- `.env` - Environment variables and naming configuration</content>
 </xai:function_call">### 📋 **Configuration Documentation Created**
 
 I've created comprehensive configuration documentation covering:

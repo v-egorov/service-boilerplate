@@ -1,6 +1,6 @@
 module github.com/vegorov/service-boilerplate
 
-go 1.24.7
+go 1.23.0
 
 // Removed go version directive to use system Go installation
 // go 1.24.0
