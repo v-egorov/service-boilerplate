@@ -264,18 +264,18 @@ DATABASE_URL := postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST
 .PHONY: db-connect
 db-connect: ## Connect to database shell
 	@echo "🔌 Connecting to database..."
-	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME)
+	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME)
 
 .PHONY: db-status
 db-status: ## Show database status and connections
 	@echo "📊 Database Status:"
-	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT version();" 2>/dev/null || echo "❌ Database not accessible"
-	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT count(*) as active_connections FROM pg_stat_activity;" 2>/dev/null || echo "❌ Cannot query connections"
+	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT version();" 2>/dev/null || echo "❌ Database not accessible"
+	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT count(*) as active_connections FROM pg_stat_activity;" 2>/dev/null || echo "❌ Cannot query connections"
 
 .PHONY: db-health
 db-health: ## Check database health and connectivity
 	@echo "🏥 Database Health Check:"
-	@docker-compose --env-file .env exec postgres pg_isready -U $(DATABASE_USER) -d $(DATABASE_NAME) -h $(DATABASE_HOST) -p $(DATABASE_PORT)
+	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres pg_isready -U $(DATABASE_USER) -d $(DATABASE_NAME) -h $(DATABASE_HOST) -p $(DATABASE_PORT)
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database is healthy and accepting connections"; \
 	else \
@@ -286,7 +286,7 @@ db-health: ## Check database health and connectivity
 .PHONY: db-create
 db-create: ## Create database if it doesn't exist
 	@echo "🆕 Creating database $(DATABASE_NAME)..."
-	@docker-compose --env-file .env exec postgres psql -U postgres -c "CREATE DATABASE $(DATABASE_NAME);" 2>/dev/null || echo "ℹ️  Database $(DATABASE_NAME) already exists or creation failed"
+	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U postgres -c "CREATE DATABASE $(DATABASE_NAME);" 2>/dev/null || echo "ℹ️  Database $(DATABASE_NAME) already exists or creation failed"
 
 .PHONY: db-drop
 db-drop: ## Drop database (with confirmation)
@@ -295,7 +295,7 @@ db-drop: ## Drop database (with confirmation)
 	@echo ""
 	@read -p "Are you sure you want to drop the database? (yes/no): " confirm; \
 	if [ "$$confirm" = "yes" ]; then \
-		docker-compose --env-file .env exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS $(DATABASE_NAME);"; \
+		docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS $(DATABASE_NAME);"; \
 		echo "✅ Database $(DATABASE_NAME) dropped successfully"; \
 	else \
 		echo "❌ Database drop cancelled"; \
@@ -387,14 +387,7 @@ db-migration-list: ## List available migration files
 .PHONY: db-seed
 db-seed: ## Seed database with test data
 	@echo "🌱 Seeding database with test data..."
-	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "
-	INSERT INTO users (email, first_name, last_name) VALUES
-		('john.doe@example.com', 'John', 'Doe'),
-		('jane.smith@example.com', 'Jane', 'Smith'),
-		('bob.wilson@example.com', 'Bob', 'Wilson'),
-		('alice.johnson@example.com', 'Alice', 'Johnson'),
-		('charlie.brown@example.com', 'Charlie', 'Brown')
-	ON CONFLICT (email) DO NOTHING;" 2>/dev/null
+	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -f - < scripts/seed.sql 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database seeded with 5 test users"; \
 	else \
@@ -404,7 +397,7 @@ db-seed: ## Seed database with test data
 .PHONY: db-dump
 db-dump: ## Create database dump
 	@echo "💾 Creating database dump..."
-	@docker-compose --env-file .env exec postgres pg_dump -U $(DATABASE_USER) -d $(DATABASE_NAME) --no-owner --no-privileges > db_dump_$(shell date +%Y%m%d_%H%M%S).sql 2>/dev/null
+	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres pg_dump -U $(DATABASE_USER) -d $(DATABASE_NAME) --no-owner --no-privileges > db_dump_$(shell date +%Y%m%d_%H%M%S).sql 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database dump created: db_dump_$(shell date +%Y%m%d_%H%M%S).sql"; \
 	else \
@@ -423,7 +416,7 @@ db-restore: ## Restore database from dump (usage: make db-restore FILE=dump.sql)
 		echo "❌ Error: File $(FILE) not found"; \
 		exit 1; \
 	fi
-	@docker-compose --env-file .env exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) < $(FILE) 2>/dev/null
+	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) < $(FILE) 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database restored from $(FILE)"; \
 	else \
@@ -433,8 +426,7 @@ db-restore: ## Restore database from dump (usage: make db-restore FILE=dump.sql)
 .PHONY: db-clean
 db-clean: ## Clean all data from tables (keep schema)
 	@echo "🧹 Cleaning database data..."
-	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "
-	TRUNCATE TABLE users RESTART IDENTITY CASCADE;" 2>/dev/null
+	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -f - < scripts/clean.sql 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database data cleaned (schema preserved)"; \
 	else \
@@ -445,20 +437,17 @@ db-clean: ## Clean all data from tables (keep schema)
 .PHONY: db-schema
 db-schema: ## Show database schema and tables
 	@echo "📋 Database Schema:"
-	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\dt" 2>/dev/null || echo "❌ Cannot access database schema"
+	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\dt" 2>/dev/null || echo "❌ Cannot access database schema"
 	@echo ""
 	@echo "📊 Indexes:"
-	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\di" 2>/dev/null || echo "❌ Cannot access indexes"
+	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\di" 2>/dev/null || echo "❌ Cannot access indexes"
 
 .PHONY: db-tables
 db-tables: ## List all tables and their structure
 	@echo "📊 Table Structures:"
-	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "
-	SELECT table_name FROM information_schema.tables
-	WHERE table_schema = 'public'
-	ORDER BY table_name;" 2>/dev/null || echo "❌ Cannot list tables"
+	@cat scripts/list_tables.sql | docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null || echo "❌ Cannot list tables"
 	@echo ""
-	@if docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\d users" 2>/dev/null; then \
+	@if docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\d users" 2>/dev/null; then \
 		echo "✅ Users table structure displayed above"; \
 	else \
 		echo "⚠️  Users table not found or cannot display structure"; \
@@ -467,15 +456,7 @@ db-tables: ## List all tables and their structure
 .PHONY: db-counts
 db-counts: ## Show row counts and sizes for all tables
 	@echo "🔢 Table Statistics:"
-	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "
-	SELECT
-		schemaname as schema,
-		tablename as table,
-		pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as size,
-		n_tup_ins - n_tup_del as row_count
-	FROM pg_stat_user_tables
-	WHERE schemaname = 'public'
-	ORDER BY n_tup_ins - n_tup_del DESC;" 2>/dev/null || echo "❌ Cannot query table statistics"
+	@cat scripts/table_stats.sql | docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null || echo "❌ Cannot query table statistics"
 
 ## Development Workflow Targets
 .PHONY: db-setup
