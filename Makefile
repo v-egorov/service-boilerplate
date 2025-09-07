@@ -123,13 +123,13 @@ build-user-service: ## Build User Service
 .PHONY: up
 up: ## Start all services with Docker (PRIMARY)
 	@echo "Starting services with Docker..."
-	@$(DOCKER_COMPOSE) --env-file .env up -d
+	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) up -d
 	@echo "Services started! Use 'make logs' to view logs."
 
 .PHONY: down
 down: ## Stop all services
 	@echo "Stopping services..."
-	@$(DOCKER_COMPOSE) --env-file .env down
+	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) down
 	@echo "Services stopped."
 
 .PHONY: dev
@@ -154,7 +154,7 @@ air-user-service: ## Run User Service with Air locally
 
 .PHONY: logs
 logs: ## Show service logs
-	@$(DOCKER_COMPOSE) --env-file .env logs -f
+	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) logs -f
 
 .PHONY: run-local
 run-local: ## Run all services locally (SECONDARY)
@@ -447,7 +447,7 @@ db-tables: ## List all tables and their structure
 	@echo "📊 Table Structures:"
 	@cat scripts/list_tables.sql | docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null || echo "❌ Cannot list tables"
 	@echo ""
-	@if docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\d users" 2>/dev/null; then \
+	@if docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\d user_service.users" 2>/dev/null; then \
 		echo "✅ Users table structure displayed above"; \
 	else \
 		echo "⚠️  Users table not found or cannot display structure"; \

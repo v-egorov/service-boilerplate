@@ -1,5 +1,8 @@
--- Create users table
-CREATE TABLE IF NOT EXISTS users (
+-- Create user_service schema
+CREATE SCHEMA IF NOT EXISTS user_service;
+
+-- Create users table in user_service schema
+CREATE TABLE IF NOT EXISTS user_service.users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     first_name VARCHAR(100) NOT NULL,
@@ -9,7 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Create index on email for faster lookups
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_email ON user_service.users(email);
 
 -- Create index on created_at for ordering
-CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_users_created_at ON user_service.users(created_at DESC);

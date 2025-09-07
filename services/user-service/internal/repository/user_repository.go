@@ -24,7 +24,7 @@ func NewUserRepository(db *pgxpool.Pool, logger *logrus.Logger) *UserRepository 
 
 func (r *UserRepository) Create(ctx context.Context, user *models.User) (*models.User, error) {
 	query := `
-		INSERT INTO users (email, first_name, last_name, created_at, updated_at)
+		INSERT INTO user_service.users (email, first_name, last_name, created_at, updated_at)
 		VALUES ($1, $2, $3, NOW(), NOW())
 		RETURNING id, created_at, updated_at`
 
@@ -41,7 +41,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) (*models
 }
 
 func (r *UserRepository) GetByID(ctx context.Context, id int) (*models.User, error) {
-	query := `SELECT id, email, first_name, last_name, created_at, updated_at FROM users WHERE id = $1`
+	query := `SELECT id, email, first_name, last_name, created_at, updated_at FROM user_service.users WHERE id = $1`
 
 	user := &models.User{}
 	err := r.db.QueryRow(ctx, query, id).Scan(
@@ -60,7 +60,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id int) (*models.User, err
 
 func (r *UserRepository) Update(ctx context.Context, id int, user *models.User) (*models.User, error) {
 	query := `
-		UPDATE users
+		UPDATE user_service.users
 		SET email = $1, first_name = $2, last_name = $3, updated_at = NOW()
 		WHERE id = $4
 		RETURNING id, email, first_name, last_name, created_at, updated_at`
@@ -78,7 +78,7 @@ func (r *UserRepository) Update(ctx context.Context, id int, user *models.User) 
 }
 
 func (r *UserRepository) Delete(ctx context.Context, id int) error {
-	query := `DELETE FROM users WHERE id = $1`
+	query := `DELETE FROM user_service.users WHERE id = $1`
 
 	result, err := r.db.Exec(ctx, query, id)
 	if err != nil {
@@ -95,7 +95,7 @@ func (r *UserRepository) Delete(ctx context.Context, id int) error {
 }
 
 func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*models.User, error) {
-	query := `SELECT id, email, first_name, last_name, created_at, updated_at FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2`
+	query := `SELECT id, email, first_name, last_name, created_at, updated_at FROM user_service.users ORDER BY created_at DESC LIMIT $1 OFFSET $2`
 
 	rows, err := r.db.Query(ctx, query, limit, offset)
 	if err != nil {
@@ -124,7 +124,7 @@ func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*models
 }
 
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
-	query := `SELECT id, email, first_name, last_name, created_at, updated_at FROM users WHERE email = $1`
+	query := `SELECT id, email, first_name, last_name, created_at, updated_at FROM user_service.users WHERE email = $1`
 
 	user := &models.User{}
 	err := r.db.QueryRow(ctx, query, email).Scan(
