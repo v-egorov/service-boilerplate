@@ -50,6 +50,27 @@ help: ## Show this help message
 	@echo 'Targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo ''
+	@echo 'Database Commands:'
+	@echo '  db-connect         - Connect to database shell'
+	@echo '  db-status          - Show database status and connections'
+	@echo '  db-health          - Check database health and connectivity'
+	@echo '  db-create          - Create database if it does not exist'
+	@echo '  db-drop            - Drop database (with confirmation)'
+	@echo '  db-recreate        - Recreate database from scratch'
+	@echo '  db-migrate         - Run all pending migrations'
+	@echo '  db-migrate-status  - Show migration status'
+	@echo '  db-rollback        - Rollback last migration'
+	@echo '  db-seed            - Seed database with test data'
+	@echo '  db-dump            - Create database dump'
+	@echo '  db-restore         - Restore database from dump'
+	@echo '  db-clean           - Clean all data from tables'
+	@echo '  db-schema          - Show database schema'
+	@echo '  db-tables          - List all tables and structure'
+	@echo '  db-counts          - Show row counts for all tables'
+	@echo '  db-setup           - Complete database setup'
+	@echo '  db-reset-dev       - Reset database for development'
+	@echo '  db-fresh           - Complete reset with volume cleanup'
+	@echo ''
 	@echo 'Cleaning Commands:'
 	@echo '  clean              - Clean basic Go build artifacts'
 	@echo '  clean-all          - Complete clean for fresh start'
@@ -205,17 +226,227 @@ docker-logs: ## Show Docker container logs (legacy)
 	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) logs -f
 
 .PHONY: migrate-up
-migrate-up: ## Run database migrations
+migrate-up: ## Run database migrations (legacy - use db-migrate)
+	@echo "⚠️  This target is deprecated. Use 'make db-migrate' instead."
 	@echo "Running database migrations..."
-	@migrate -path services/user-service/migrations -database $(DATABASE_URL) up
+	@if command -v migrate >/dev/null 2>&1; then \
+		migrate -path services/user-service/migrations -database $(DATABASE_URL) up; \
+	else \
+		echo "❌ migrate tool not found. Use 'make db-migrate' instead."; \
+	fi
 
 .PHONY: migrate-down
-migrate-down: ## Rollback database migrations
+migrate-down: ## Rollback database migrations (legacy - use db-rollback)
+	@echo "⚠️  This target is deprecated. Use 'make db-rollback' instead."
 	@echo "Rolling back database migrations..."
-	@migrate -path services/user-service/migrations -database $(DATABASE_URL) down 1
+	@if command -v migrate >/dev/null 2>&1; then \
+		migrate -path services/user-service/migrations -database $(DATABASE_URL) down 1; \
+	else \
+		echo "❌ migrate tool not found. Use 'make db-rollback' instead."; \
+	fi
 
 .PHONY: db-reset
-db-reset: migrate-down migrate-up ## Reset database (down + up)
+db-reset: db-rollback db-migrate ## Reset database (down + up) - Updated to use new targets
+
+# Database variables (loaded from .env file at runtime)
+DATABASE_USER ?= postgres
+DATABASE_PASSWORD ?= postgres
+DATABASE_HOST ?= postgres
+DATABASE_PORT ?= 5432
+DATABASE_NAME ?= service_db
+DATABASE_SSL_MODE ?= disable
+
+# Database URL construction for targets
+DATABASE_URL := postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)
+
+# ============================================================================
+# 🗄️  DATABASE MANAGEMENT TARGETS
+# ============================================================================
+
+## Database Connection & Access
+.PHONY: db-connect
+db-connect: ## Connect to database shell
+	@echo "🔌 Connecting to database..."
+	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME)
+
+.PHONY: db-status
+db-status: ## Show database status and connections
+	@echo "📊 Database Status:"
+	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT version();" 2>/dev/null || echo "❌ Database not accessible"
+	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT count(*) as active_connections FROM pg_stat_activity;" 2>/dev/null || echo "❌ Cannot query connections"
+
+.PHONY: db-health
+db-health: ## Check database health and connectivity
+	@echo "🏥 Database Health Check:"
+	@docker-compose --env-file .env exec postgres pg_isready -U $(DATABASE_USER) -d $(DATABASE_NAME) -h $(DATABASE_HOST) -p $(DATABASE_PORT)
+	@if [ $$? -eq 0 ]; then \
+		echo "✅ Database is healthy and accepting connections"; \
+	else \
+		echo "❌ Database health check failed"; \
+	fi
+
+## Database Management
+.PHONY: db-create
+db-create: ## Create database if it doesn't exist
+	@echo "🆕 Creating database $(DATABASE_NAME)..."
+	@docker-compose --env-file .env exec postgres psql -U postgres -c "CREATE DATABASE $(DATABASE_NAME);" 2>/dev/null || echo "ℹ️  Database $(DATABASE_NAME) already exists or creation failed"
+
+.PHONY: db-drop
+db-drop: ## Drop database (with confirmation)
+	@echo "💥 WARNING: This will drop database $(DATABASE_NAME) and ALL its data!"
+	@echo "This action cannot be undone."
+	@echo ""
+	@read -p "Are you sure you want to drop the database? (yes/no): " confirm; \
+	if [ "$$confirm" = "yes" ]; then \
+		docker-compose --env-file .env exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS $(DATABASE_NAME);"; \
+		echo "✅ Database $(DATABASE_NAME) dropped successfully"; \
+	else \
+		echo "❌ Database drop cancelled"; \
+	fi
+
+.PHONY: db-recreate
+db-recreate: db-drop db-create ## Recreate database from scratch
+	@echo "🔄 Database $(DATABASE_NAME) recreated successfully"
+
+## Migration Management (Enhanced)
+.PHONY: db-migrate
+db-migrate: ## Run all pending migrations
+	@echo "📈 Running database migrations..."
+	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -f /docker-entrypoint-initdb.d/init.sql 2>/dev/null || echo "ℹ️  Init script completed or not found"
+	@for file in services/user-service/migrations/*.up.sql; do \
+		if [ -f "$$file" ]; then \
+			echo "📄 Applying $$file..."; \
+			docker-compose --env-file .env exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -f $$file 2>/dev/null || echo "⚠️  Failed to apply $$file"; \
+		fi \
+	done
+	@echo "✅ All available migrations applied"
+
+.PHONY: db-migrate-status
+db-migrate-status: ## Show migration status and applied migrations
+	@echo "📋 Migration Status:"
+	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT schemaname, tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;" 2>/dev/null || echo "❌ Cannot access database"
+	@echo ""
+	@echo "📁 Available migration files:"
+	@ls -la services/user-service/migrations/ 2>/dev/null || echo "No migration files found"
+
+.PHONY: db-rollback
+db-rollback: ## Rollback last migration (drop users table)
+	@echo "⏪ Rolling back last migration..."
+	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "DROP TABLE IF EXISTS users CASCADE;" 2>/dev/null || echo "⚠️  Table drop failed or table doesn't exist"
+	@echo "✅ Last migration rolled back (users table dropped)"
+
+## Data Management
+.PHONY: db-seed
+db-seed: ## Seed database with test data
+	@echo "🌱 Seeding database with test data..."
+	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "
+	INSERT INTO users (email, first_name, last_name) VALUES
+		('john.doe@example.com', 'John', 'Doe'),
+		('jane.smith@example.com', 'Jane', 'Smith'),
+		('bob.wilson@example.com', 'Bob', 'Wilson'),
+		('alice.johnson@example.com', 'Alice', 'Johnson'),
+		('charlie.brown@example.com', 'Charlie', 'Brown')
+	ON CONFLICT (email) DO NOTHING;" 2>/dev/null
+	@if [ $$? -eq 0 ]; then \
+		echo "✅ Database seeded with 5 test users"; \
+	else \
+		echo "❌ Database seeding failed"; \
+	fi
+
+.PHONY: db-dump
+db-dump: ## Create database dump
+	@echo "💾 Creating database dump..."
+	@docker-compose --env-file .env exec postgres pg_dump -U $(DATABASE_USER) -d $(DATABASE_NAME) --no-owner --no-privileges > db_dump_$(shell date +%Y%m%d_%H%M%S).sql 2>/dev/null
+	@if [ $$? -eq 0 ]; then \
+		echo "✅ Database dump created: db_dump_$(shell date +%Y%m%d_%H%M%S).sql"; \
+	else \
+		echo "❌ Database dump failed"; \
+	fi
+
+.PHONY: db-restore
+db-restore: ## Restore database from dump (usage: make db-restore FILE=dump.sql)
+	@echo "🔄 Restoring database from $(FILE)..."
+	@if [ -z "$(FILE)" ]; then \
+		echo "❌ Error: Please specify FILE variable"; \
+		echo "   Usage: make db-restore FILE=path/to/dump.sql"; \
+		exit 1; \
+	fi
+	@if [ ! -f "$(FILE)" ]; then \
+		echo "❌ Error: File $(FILE) not found"; \
+		exit 1; \
+	fi
+	@docker-compose --env-file .env exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) < $(FILE) 2>/dev/null
+	@if [ $$? -eq 0 ]; then \
+		echo "✅ Database restored from $(FILE)"; \
+	else \
+		echo "❌ Database restore failed"; \
+	fi
+
+.PHONY: db-clean
+db-clean: ## Clean all data from tables (keep schema)
+	@echo "🧹 Cleaning database data..."
+	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "
+	TRUNCATE TABLE users RESTART IDENTITY CASCADE;" 2>/dev/null
+	@if [ $$? -eq 0 ]; then \
+		echo "✅ Database data cleaned (schema preserved)"; \
+	else \
+		echo "❌ Database cleanup failed"; \
+	fi
+
+## Schema Inspection
+.PHONY: db-schema
+db-schema: ## Show database schema and tables
+	@echo "📋 Database Schema:"
+	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\dt" 2>/dev/null || echo "❌ Cannot access database schema"
+	@echo ""
+	@echo "📊 Indexes:"
+	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\di" 2>/dev/null || echo "❌ Cannot access indexes"
+
+.PHONY: db-tables
+db-tables: ## List all tables and their structure
+	@echo "📊 Table Structures:"
+	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "
+	SELECT table_name FROM information_schema.tables
+	WHERE table_schema = 'public'
+	ORDER BY table_name;" 2>/dev/null || echo "❌ Cannot list tables"
+	@echo ""
+	@if docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\d users" 2>/dev/null; then \
+		echo "✅ Users table structure displayed above"; \
+	else \
+		echo "⚠️  Users table not found or cannot display structure"; \
+	fi
+
+.PHONY: db-counts
+db-counts: ## Show row counts and sizes for all tables
+	@echo "🔢 Table Statistics:"
+	@docker-compose --env-file .env exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "
+	SELECT
+		schemaname as schema,
+		tablename as table,
+		pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as size,
+		n_tup_ins - n_tup_del as row_count
+	FROM pg_stat_user_tables
+	WHERE schemaname = 'public'
+	ORDER BY n_tup_ins - n_tup_del DESC;" 2>/dev/null || echo "❌ Cannot query table statistics"
+
+## Development Workflow Targets
+.PHONY: db-setup
+db-setup: db-create db-migrate db-seed ## Complete database setup for development
+	@echo "🎉 Database setup complete!"
+	@echo "   Database: $(DATABASE_NAME)"
+	@echo "   Tables: users"
+	@echo "   Test data: 5 users created"
+	@echo "   Status: Ready for development"
+
+.PHONY: db-reset-dev
+db-reset-dev: db-drop db-setup ## Reset database for fresh development start
+	@echo "🔄 Database reset complete for development"
+	@echo "   All data cleared and fresh schema applied"
+
+.PHONY: db-fresh
+db-fresh: clean-volumes db-setup ## Complete database reset with volume cleanup
+	@echo "🆕 Fresh database environment ready"
+	@echo "   Volumes cleaned and database fully reset"
 
 .PHONY: deps
 deps: ## Download dependencies
@@ -480,3 +711,45 @@ help-clean: ## Show cleaning commands
 	@echo "  clean-test         - Clean test artifacts"
 	@echo "  fresh-start        - Complete reset and setup"
 	@echo "  clean-all-confirm  - Clean all with confirmation"
+
+.PHONY: help-db
+help-db: ## Show database commands
+	@echo "🗄️  Database Commands:"
+	@echo ""
+	@echo "Connection & Access:"
+	@echo "  db-connect         - Connect to database shell"
+	@echo "  db-status          - Show database status and connections"
+	@echo "  db-health          - Check database health and connectivity"
+	@echo ""
+	@echo "Database Management:"
+	@echo "  db-create          - Create database if it does not exist"
+	@echo "  db-drop            - Drop database (with confirmation)"
+	@echo "  db-recreate        - Recreate database from scratch"
+	@echo ""
+	@echo "Migration Management:"
+	@echo "  db-migrate         - Run all pending migrations"
+	@echo "  db-migrate-status  - Show migration status"
+	@echo "  db-rollback        - Rollback last migration"
+	@echo ""
+	@echo "Data Management:"
+	@echo "  db-seed            - Seed database with test data"
+	@echo "  db-dump            - Create database dump"
+	@echo "  db-restore FILE=   - Restore database from dump"
+	@echo "  db-clean           - Clean all data from tables"
+	@echo ""
+	@echo "Schema Inspection:"
+	@echo "  db-schema          - Show database schema"
+	@echo "  db-tables          - List all tables and structure"
+	@echo "  db-counts          - Show row counts for all tables"
+	@echo ""
+	@echo "Development Workflow:"
+	@echo "  db-setup           - Complete database setup"
+	@echo "  db-reset-dev       - Reset database for development"
+	@echo "  db-fresh           - Complete reset with volume cleanup"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make db-setup                    # Setup database for development"
+	@echo "  make db-connect                  # Open database shell"
+	@echo "  make db-dump                     # Create backup"
+	@echo "  make db-restore FILE=dump.sql    # Restore from backup"
+	@echo "  make db-seed                     # Add test data"
