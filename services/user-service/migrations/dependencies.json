@@ -1,0 +1,57 @@
+{
+  "migrations": {
+    "000001": {
+      "description": "Create user_service schema and users table",
+      "depends_on": [],
+      "affects_tables": [
+        "user_service.users"
+      ],
+      "estimated_duration": "30s",
+      "risk_level": "low",
+      "rollback_safe": true
+    },
+    "000002": {
+      "description": "Add user profiles functionality",
+      "depends_on": [
+        "000001"
+      ],
+      "affects_tables": [
+        "user_service.users"
+      ],
+      "estimated_duration": "45s",
+      "risk_level": "medium",
+      "rollback_safe": true
+    },
+    "000003": {
+      "description": "Add development test data",
+      "depends_on": [
+        "000001"
+      ],
+      "affects_tables": [
+        "user_service.users"
+      ],
+      "estimated_duration": "15s",
+      "risk_level": "low",
+      "rollback_safe": true,
+      "environment": "development"
+    },
+    "000004": {
+      "description": "add_user_settings",
+      "depends_on": [
+        "000003"
+      ],
+      "migration_type": "table",
+      "affects_tables": [],
+      "estimated_duration": "30s",
+      "risk_level": "medium",
+      "rollback_safe": true,
+      "created_at": "2025-09-07T20:54:28Z"
+    }
+  },
+  "global_config": {
+    "max_parallel_migrations": 1,
+    "require_approval_for_high_risk": true,
+    "auto_backup_before_destructive": true,
+    "validate_after_migration": true
+  }
+}

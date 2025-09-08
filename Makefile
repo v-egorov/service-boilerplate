@@ -394,6 +394,42 @@ db-seed: ## Seed database with test data
 		echo "❌ Database seeding failed"; \
 	fi
 
+.PHONY: db-seed-enhanced
+db-seed-enhanced: ## Environment-specific seeding (ENV=development)
+	@echo "🌱 Enhanced database seeding for environment: $(ENV)"
+	@./scripts/enhanced_seed.sh $(ENV) user-service
+
+.PHONY: db-migration-generate
+db-migration-generate: ## Generate new migration with templates (NAME=add_feature TYPE=table)
+	@echo "🚀 Generating migration: $(NAME) (type: $(TYPE))"
+	@./scripts/generate_migration.sh user-service "$(NAME)" "$(TYPE)"
+
+.PHONY: db-validate
+db-validate: ## Validate migration files and dependencies
+	@echo "🔍 Validating migrations..."
+	@./scripts/validate_migration.sh user-service
+
+.PHONY: db-migration-deps
+db-migration-deps: ## Show migration dependency graph
+	@echo "🔗 Migration Dependencies:"
+	@if command -v jq &> /dev/null; then \
+		jq -r '.migrations | to_entries[] | "\(.key): \(.value.depends_on)"' services/user-service/migrations/dependencies.json; \
+	else \
+		echo "❌ jq not installed. Install jq to view dependency graph."; \
+	fi
+
+.PHONY: db-backup
+db-backup: ## Create timestamped database backup
+	@echo "💾 Creating database backup..."
+	@BACKUP_FILE="backup_$(shell date +%Y%m%d_%H%M%S).sql"; \
+	docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres pg_dump -U $(DATABASE_USER) -d $(DATABASE_NAME) --no-owner --no-privileges > "$$BACKUP_FILE" 2>/dev/null; \
+	if [ $$? -eq 0 ]; then \
+		echo "✅ Database backup created: $$BACKUP_FILE"; \
+		echo "   Size: $$(du -h "$$BACKUP_FILE" | cut -f1)"; \
+	else \
+		echo "❌ Database backup failed"; \
+	fi
+
 .PHONY: db-dump
 db-dump: ## Create database dump
 	@echo "💾 Creating database dump..."
@@ -762,10 +798,12 @@ help-db: ## Show database commands
 	@echo "  db-migrate-goto VERSION= - Go to specific version"
 	@echo "  db-migrate-validate - Validate migration files"
 	@echo "  db-migration-create NAME= - Create migration file"
+	@echo "  db-migration-generate NAME= TYPE= - Generate migration with templates"
 	@echo "  db-migration-list  - List migration files"
 	@echo ""
 	@echo "Data Management:"
 	@echo "  db-seed            - Seed database with test data"
+	@echo "  db-seed-enhanced ENV= - Environment-specific seeding"
 	@echo "  db-dump            - Create database dump"
 	@echo "  db-restore FILE=   - Restore database from dump"
 	@echo "  db-clean           - Clean all data from tables"
@@ -780,12 +818,17 @@ help-db: ## Show database commands
 	@echo "  db-reset-dev       - Reset database for development"
 	@echo "  db-fresh           - Complete reset with volume cleanup"
 	@echo ""
+	@echo "Advanced Features:"
+	@echo "  db-validate        - Validate migration files and dependencies"
+	@echo "  db-migration-deps  - Show migration dependency graph"
+	@echo "  db-backup          - Create timestamped database backup"
+	@echo ""
 	@echo "Examples:"
 	@echo "  make db-setup                    # Setup database for development"
 	@echo "  make db-connect                  # Open database shell"
 	@echo "  make db-migrate-up               # Run migrations"
-	@echo "  make db-migration-create NAME=add_users_table"
+	@echo "  make db-migration-generate NAME=add_user_preferences TYPE=table"
+	@echo "  make db-seed-enhanced ENV=development"
+	@echo "  make db-validate                 # Validate all migrations"
 	@echo "  make db-migrate-goto VERSION=001 # Go to specific version"
-	@echo "  make db-dump                     # Create backup"
-	@echo "  make db-restore FILE=dump.sql    # Restore from backup"
-	@echo "  make db-seed                     # Add test data"
+	@echo "  make db-backup                   # Create backup before changes"
