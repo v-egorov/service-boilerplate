@@ -530,7 +530,7 @@ create-service: ## Create new service (usage: make create-service SERVICE_NAME=n
 
 # Cleaning Commands
 .PHONY: clean-all
-clean-all: clean-go clean-docker clean-volumes clean-logs clean-cache clean-test ## Complete clean for fresh start
+clean-all: down clean-go clean-docker clean-volumes clean-logs clean-cache clean-test ## Complete clean for fresh start
 	@echo "✅ Complete clean finished! All artifacts removed."
 
 .PHONY: clean-go
