@@ -6,6 +6,7 @@ API_GATEWAY_DIR := api-gateway
 USER_SERVICE_DIR := services/user-service
 BUILD_DIR := build
 DOCKER_COMPOSE_FILE := docker/docker-compose.yml
+DOCKER_COMPOSE_OVERRIDE_FILE := docker/docker-compose.override.yml
 
 # Network variables (simplified for compatibility)
 NETWORK_NAME := service-boilerplate-network
@@ -135,12 +136,12 @@ down: ## Stop all services
 .PHONY: dev
 dev: create-volumes-dirs  ## Start services in development mode with hot reload
 	@echo "Starting development environment with hot reload..."
-	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f docker/docker-compose.override.yml up
+	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) up
 
 .PHONY: dev-build
 dev-build: ## Build development images with Air
 	@echo "Building development images..."
-	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f docker/docker-compose.override.yml build
+	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) build
 
 .PHONY: air-gateway
 air-gateway: ## Run API Gateway with Air locally
