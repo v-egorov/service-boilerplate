@@ -673,23 +673,30 @@ clean-volumes: ## Clean Docker volumes and persistent data
 	@echo "💾 Cleaning Docker volumes..."
 	@docker-compose --env-file .env down -v 2>/dev/null || true
 	@docker volume rm $$(docker volume ls -q | grep -E "(postgres_data|api_gateway|user_service)" 2>/dev/null) 2>/dev/null || true
-	@echo "🔧 Handling PostgreSQL volume permissions..."
+	@echo "🔧 Cleaning volume data using Docker containers..."
 	@if [ -d "docker/volumes/postgres_data" ]; then \
-		echo "   Using Docker to clean PostgreSQL data..."; \
-		docker run --rm -v $(PWD)/docker/volumes/postgres_data:/var/lib/postgresql/data alpine sh -c "rm -rf /var/lib/postgresql/data/* 2>/dev/null || true" 2>/dev/null || true; \
+		echo "   🐘 Cleaning PostgreSQL data..."; \
+		docker run --rm -v $(PWD)/docker/volumes/postgres_data:/data alpine sh -c "rm -rf /data/* 2>/dev/null || true" 2>/dev/null || true; \
 	fi
-	@echo "🗑️  Removing host volume directories..."
-	@if [ -d "docker/volumes/" ]; then \
-		echo "   Removing volume directories (may require sudo for root-owned files)..."; \
-		sudo rm -rf docker/volumes/api-gateway/ 2>/dev/null || true; \
-		sudo rm -rf docker/volumes/user-service/ 2>/dev/null || true; \
-		sudo rm -rf docker/volumes/postgres_data/ 2>/dev/null || true; \
-		sudo rm -rf docker/volumes/ 2>/dev/null || true; \
-		echo "   ✅ Host volume directories removed"; \
-	else \
-		echo "   ℹ️  No volume directories found"; \
+	@if [ -d "docker/volumes/api-gateway" ]; then \
+		echo "   🌐 Cleaning API Gateway volumes..."; \
+		docker run --rm -v $(PWD)/docker/volumes/api-gateway:/data alpine sh -c "rm -rf /data/* 2>/dev/null || true" 2>/dev/null || true; \
 	fi
-	@echo "✅ Docker volumes cleaned"
+	@if [ -d "docker/volumes/user-service" ]; then \
+		echo "   👤 Cleaning User Service volumes..."; \
+		docker run --rm -v $(PWD)/docker/volumes/user-service:/data alpine sh -c "rm -rf /data/* 2>/dev/null || true" 2>/dev/null || true; \
+	fi
+	@if [ -d "tmp" ]; then \
+		echo "   📁 Cleaning migration temp files..."; \
+		docker run --rm -v $(PWD)/tmp:/data alpine sh -c "rm -rf /data/migrations 2>/dev/null || true" 2>/dev/null || true; \
+	fi
+	@echo "🗑️  Removing empty volume directories..."
+	@rmdir docker/volumes/postgres_data 2>/dev/null || true
+	@rmdir docker/volumes/api-gateway 2>/dev/null || true
+	@rmdir docker/volumes/user-service 2>/dev/null || true
+	@rmdir docker/volumes 2>/dev/null || true
+	@rmdir tmp 2>/dev/null || true
+	@echo "✅ Docker volumes cleaned (no sudo required!)"
 
 .PHONY: clean-logs
 clean-logs: ## Clean log files
