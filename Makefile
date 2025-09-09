@@ -44,6 +44,15 @@ POSTGRES_VOLUME := $(DOCKER_VOLUME_PREFIX)-postgres-data
 API_GATEWAY_TMP_VOLUME := $(DOCKER_VOLUME_PREFIX)-api-gateway-tmp
 USER_SERVICE_TMP_VOLUME := $(DOCKER_VOLUME_PREFIX)-user-service-tmp
 
+# Base image variables for smart cleanup
+POSTGRES_IMAGE := postgres:15-alpine
+GOLANG_BUILD_IMAGE := golang:1.23-alpine
+ALPINE_RUNTIME_IMAGE := alpine:latest
+MIGRATION_IMAGE := migrate/migrate:latest
+
+# Docker cleanup configuration
+DOCKER_CLEANUP_MODE ?= smart
+
 .PHONY: help
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -546,20 +555,118 @@ clean-go: ## Clean Go build artifacts and cache
 	@find . -name "coverage.*" -type f -delete 2>/dev/null || true
 	@echo "✅ Go artifacts cleaned"
 
-.PHONY: clean-docker
-clean-docker: ## Clean project Docker containers, images, and networks
-	@echo "🐳 Cleaning project Docker artifacts..."
+# Smart Docker cleanup functions
+.PHONY: check-image-in-use
+check-image-in-use:
+	@echo "🔍 Checking if $(IMAGE) is used by running containers..."
+	@if docker ps --format "table {{.Image}}" | grep -q "^$(IMAGE)$$" 2>/dev/null; then \
+		echo "⚠️  $(IMAGE) is used by running containers - skipping removal"; \
+		exit 1; \
+	else \
+		echo "✅ $(IMAGE) not used by running containers"; \
+	fi
+
+.PHONY: check-image-dependencies
+check-image-dependencies:
+	@echo "🔗 Checking if $(IMAGE) is a base image for others..."
+	@if docker images --format "table {{.Repository}}:{{.Tag}}\t{{.ID}}" | \
+		grep -v "^$(IMAGE)" | xargs -I {} docker history {} 2>/dev/null | \
+		grep -q "$(IMAGE)" 2>/dev/null; then \
+		echo "⚠️  $(IMAGE) is a base image for other images - skipping removal"; \
+		exit 1; \
+	else \
+		echo "✅ $(IMAGE) not a base for other images"; \
+	fi
+
+.PHONY: check-image-tags
+check-image-tags:
+	@echo "🏷️  Checking if $(IMAGE) has multiple tags..."
+	@TAG_COUNT=$$(docker images $(IMAGE) --format "{{.Repository}}:{{.Tag}}" | wc -l 2>/dev/null || echo "0"); \
+	if [ "$$TAG_COUNT" -gt 1 ]; then \
+		echo "⚠️  $(IMAGE) has $$TAG_COUNT tags - likely managed by other projects"; \
+		exit 1; \
+	else \
+		echo "✅ $(IMAGE) has single tag ($$TAG_COUNT)"; \
+	fi
+
+.PHONY: safe-remove-image
+safe-remove-image:
+	@echo "🗑️  Attempting to safely remove $(IMAGE)..."
+	@if $(MAKE) check-image-in-use IMAGE=$(IMAGE) && \
+	   $(MAKE) check-image-dependencies IMAGE=$(IMAGE) && \
+	   $(MAKE) check-image-tags IMAGE=$(IMAGE); then \
+		echo "🟢 All checks passed - removing $(IMAGE)"; \
+		docker rmi $(IMAGE) 2>/dev/null || echo "ℹ️  $(IMAGE) already removed or not found"; \
+	else \
+		echo "🟡 $(IMAGE) is in use or has dependencies - keeping it"; \
+	fi
+
+.PHONY: clean-docker-smart
+clean-docker-smart: ## Smart Docker cleanup with safety checks
+	@echo "🧠 Smart cleaning of project Docker artifacts..."
+	@docker-compose --env-file .env down --volumes --remove-orphans 2>/dev/null || true
+	@docker rm $(API_GATEWAY_CONTAINER) 2>/dev/null || true
+	@docker rm $(USER_SERVICE_CONTAINER) 2>/dev/null || true
+	@docker rm $(POSTGRES_CONTAINER) 2>/dev/null || true
+	@echo "🖼️  Removing custom project images..."
+	@docker rmi $(API_GATEWAY_IMAGE) 2>/dev/null || true
+	@docker rmi $(USER_SERVICE_IMAGE) 2>/dev/null || true
+	@echo "🧠 Smart cleanup of base images..."
+	@$(MAKE) safe-remove-image IMAGE=$(MIGRATION_IMAGE)
+	@$(MAKE) safe-remove-image IMAGE=$(POSTGRES_IMAGE)
+	@$(MAKE) safe-remove-image IMAGE=$(GOLANG_BUILD_IMAGE)
+	@$(MAKE) safe-remove-image IMAGE=$(ALPINE_RUNTIME_IMAGE)
+	@docker volume rm $(POSTGRES_VOLUME) 2>/dev/null || true
+	@docker volume rm $(API_GATEWAY_TMP_VOLUME) 2>/dev/null || true
+	@docker volume rm $(USER_SERVICE_TMP_VOLUME) 2>/dev/null || true
+	@docker network rm $(NETWORK_NAME) 2>/dev/null || true
+	@echo "✅ Smart Docker cleanup completed"
+
+.PHONY: clean-docker-conservative
+clean-docker-conservative: ## Conservative Docker cleanup (keeps base images)
+	@echo "🐳 Conservative cleaning of project Docker artifacts..."
 	@docker-compose --env-file .env down --volumes --remove-orphans 2>/dev/null || true
 	@docker rm $(API_GATEWAY_CONTAINER) 2>/dev/null || true
 	@docker rm $(USER_SERVICE_CONTAINER) 2>/dev/null || true
 	@docker rm $(POSTGRES_CONTAINER) 2>/dev/null || true
 	@docker rmi $(API_GATEWAY_IMAGE) 2>/dev/null || true
 	@docker rmi $(USER_SERVICE_IMAGE) 2>/dev/null || true
+	@docker rmi $(MIGRATION_IMAGE) 2>/dev/null || true
 	@docker volume rm $(POSTGRES_VOLUME) 2>/dev/null || true
 	@docker volume rm $(API_GATEWAY_TMP_VOLUME) 2>/dev/null || true
 	@docker volume rm $(USER_SERVICE_TMP_VOLUME) 2>/dev/null || true
 	@docker network rm $(NETWORK_NAME) 2>/dev/null || true
-	@echo "✅ Project Docker artifacts cleaned"
+	@echo "✅ Conservative Docker cleanup completed (base images preserved)"
+
+.PHONY: clean-docker-aggressive
+clean-docker-aggressive: ## Aggressive Docker cleanup (removes all project images)
+	@echo "💥 Aggressive cleaning of project Docker artifacts..."
+	@docker-compose --env-file .env down --volumes --remove-orphans 2>/dev/null || true
+	@docker rm $(API_GATEWAY_CONTAINER) 2>/dev/null || true
+	@docker rm $(USER_SERVICE_CONTAINER) 2>/dev/null || true
+	@docker rm $(POSTGRES_CONTAINER) 2>/dev/null || true
+	@docker rmi $(API_GATEWAY_IMAGE) 2>/dev/null || true
+	@docker rmi $(USER_SERVICE_IMAGE) 2>/dev/null || true
+	@docker rmi $(MIGRATION_IMAGE) 2>/dev/null || true
+	@docker rmi $(POSTGRES_IMAGE) 2>/dev/null || true
+	@docker rmi $(GOLANG_BUILD_IMAGE) 2>/dev/null || true
+	@docker rmi $(ALPINE_RUNTIME_IMAGE) 2>/dev/null || true
+	@docker volume rm $(POSTGRES_VOLUME) 2>/dev/null || true
+	@docker volume rm $(API_GATEWAY_TMP_VOLUME) 2>/dev/null || true
+	@docker volume rm $(USER_SERVICE_TMP_VOLUME) 2>/dev/null || true
+	@docker network rm $(NETWORK_NAME) 2>/dev/null || true
+	@echo "✅ Aggressive Docker cleanup completed"
+
+.PHONY: clean-docker
+clean-docker: ## Clean project Docker artifacts (mode: $(DOCKER_CLEANUP_MODE))
+	@echo "🐳 Cleaning Docker artifacts (mode: $(DOCKER_CLEANUP_MODE))..."
+	@if [ "$(DOCKER_CLEANUP_MODE)" = "conservative" ]; then \
+		$(MAKE) clean-docker-conservative; \
+	elif [ "$(DOCKER_CLEANUP_MODE)" = "aggressive" ]; then \
+		$(MAKE) clean-docker-aggressive; \
+	else \
+		$(MAKE) clean-docker-smart; \
+	fi
 
 .PHONY: clean-volumes
 clean-volumes: ## Clean Docker volumes and persistent data
@@ -756,6 +863,51 @@ help-network: ## Show network commands
 	@echo "  network-clean      - Clean up unused networks"
 	@echo "  network-remove     - Remove custom network"
 
+.PHONY: clean-docker-report
+clean-docker-report: ## Report on Docker cleanup status
+	@echo "📊 Docker Cleanup Report:"
+	@echo ""
+	@echo "🔍 Current cleanup mode: $(DOCKER_CLEANUP_MODE)"
+	@echo ""
+	@echo "🖼️  Images that would be removed in $(DOCKER_CLEANUP_MODE) mode:"
+	@if [ "$(DOCKER_CLEANUP_MODE)" = "conservative" ]; then \
+		echo "  • $(API_GATEWAY_IMAGE)"; \
+		echo "  • $(USER_SERVICE_IMAGE)"; \
+		echo "  • $(MIGRATION_IMAGE)"; \
+	elif [ "$(DOCKER_CLEANUP_MODE)" = "aggressive" ]; then \
+		echo "  • $(API_GATEWAY_IMAGE)"; \
+		echo "  • $(USER_SERVICE_IMAGE)"; \
+		echo "  • $(MIGRATION_IMAGE)"; \
+		echo "  • $(POSTGRES_IMAGE)"; \
+		echo "  • $(GOLANG_BUILD_IMAGE)"; \
+		echo "  • $(ALPINE_RUNTIME_IMAGE)"; \
+	else \
+		echo "  • $(API_GATEWAY_IMAGE) (always)"; \
+		echo "  • $(USER_SERVICE_IMAGE) (always)"; \
+		echo "  • $(MIGRATION_IMAGE) (if safe)"; \
+		echo "  • $(POSTGRES_IMAGE) (if safe)"; \
+		echo "  • $(GOLANG_BUILD_IMAGE) (if safe)"; \
+		echo "  • $(ALPINE_RUNTIME_IMAGE) (if safe)"; \
+	fi
+	@echo ""
+	@echo "🏃 Running containers:"
+	@docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" 2>/dev/null || echo "  No running containers"
+	@echo ""
+	@echo "🖼️  Current project images:"
+	@docker images --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}" | grep -E "(service-boilerplate|migrate|migrate|migrate|postgres|golang|alpine)" 2>/dev/null || echo "  No project images found"
+	@echo ""
+	@echo "💡 To change cleanup mode: make clean-docker DOCKER_CLEANUP_MODE=conservative"
+
+.PHONY: clean-docker-dry-run
+clean-docker-dry-run: ## Preview what would be cleaned (dry run)
+	@echo "🔍 Docker Cleanup Dry Run (mode: $(DOCKER_CLEANUP_MODE))"
+	@echo "This shows what WOULD be cleaned, but nothing is actually removed."
+	@echo ""
+	$(MAKE) clean-docker-report
+	@echo ""
+	@echo "💡 To actually clean: make clean-docker"
+	@echo "💡 To change mode: make clean-docker DOCKER_CLEANUP_MODE=conservative"
+
 .PHONY: help-docker
 help-docker: ## Show Docker management commands
 	@echo "🐳 Docker Management Commands:"
@@ -763,6 +915,18 @@ help-docker: ## Show Docker management commands
 	@echo "  docker-reset-confirm   - Reset with confirmation prompt"
 	@echo "  docker-recreate        - Recreate project Docker environment"
 	@echo "  clean-docker           - Clean project Docker artifacts"
+	@echo "  clean-docker-report    - Report on cleanup status"
+	@echo "  clean-docker-dry-run   - Preview cleanup without removing anything"
+	@echo ""
+	@echo "🧠 Smart Cleanup Modes:"
+	@echo "  DOCKER_CLEANUP_MODE=smart       - Intelligent cleanup (default)"
+	@echo "  DOCKER_CLEANUP_MODE=conservative - Keeps base images"
+	@echo "  DOCKER_CLEANUP_MODE=aggressive   - Removes all images"
+	@echo ""
+	@echo "📝 Examples:"
+	@echo "  make clean-docker                           # Smart cleanup"
+	@echo "  make clean-docker DOCKER_CLEANUP_MODE=conservative"
+	@echo "  make clean-docker-report                    # See what would be cleaned"
 
 .PHONY: help-clean
 help-clean: ## Show cleaning commands
