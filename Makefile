@@ -678,9 +678,17 @@ clean-volumes: ## Clean Docker volumes and persistent data
 		echo "   Using Docker to clean PostgreSQL data..."; \
 		docker run --rm -v $(PWD)/docker/volumes/postgres_data:/var/lib/postgresql/data alpine sh -c "rm -rf /var/lib/postgresql/data/* 2>/dev/null || true" 2>/dev/null || true; \
 	fi
-	@rm -rf docker/volumes/api-gateway/ 2>/dev/null || true
-	@rm -rf docker/volumes/user-service/ 2>/dev/null || true
-	@rm -rf docker/volumes/ 2>/dev/null || true
+	@echo "🗑️  Removing host volume directories..."
+	@if [ -d "docker/volumes/" ]; then \
+		echo "   Removing volume directories (may require sudo for root-owned files)..."; \
+		sudo rm -rf docker/volumes/api-gateway/ 2>/dev/null || true; \
+		sudo rm -rf docker/volumes/user-service/ 2>/dev/null || true; \
+		sudo rm -rf docker/volumes/postgres_data/ 2>/dev/null || true; \
+		sudo rm -rf docker/volumes/ 2>/dev/null || true; \
+		echo "   ✅ Host volume directories removed"; \
+	else \
+		echo "   ℹ️  No volume directories found"; \
+	fi
 	@echo "✅ Docker volumes cleaned"
 
 .PHONY: clean-logs
@@ -922,6 +930,9 @@ help-docker: ## Show Docker management commands
 	@echo "  DOCKER_CLEANUP_MODE=smart       - Intelligent cleanup (default)"
 	@echo "  DOCKER_CLEANUP_MODE=conservative - Keeps base images"
 	@echo "  DOCKER_CLEANUP_MODE=aggressive   - Removes all images"
+	@echo ""
+	@echo "⚠️  Note: Volume cleanup may require sudo for root-owned files"
+	@echo "   created by Docker containers."
 	@echo ""
 	@echo "📝 Examples:"
 	@echo "  make clean-docker                           # Smart cleanup"
