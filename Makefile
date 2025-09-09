@@ -60,6 +60,14 @@ help: ## Show this help message
 	@echo 'Targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo ''
+	@echo 'Health & Monitoring:'
+	@echo '  health             - Comprehensive health check of all services'
+	@echo '  health-services    - Check HTTP health endpoints'
+	@echo '  health-containers  - Check Docker container status'
+	@echo '  health-database    - Check database connectivity'
+	@echo '  health-network     - Check Docker network status'
+	@echo '  health-volumes     - Check volume mount status'
+	@echo ''
 	@echo 'Database Commands:'
 	@echo '  db-connect         - Connect to database shell'
 	@echo '  db-status          - Show database status and connections'
@@ -878,6 +886,120 @@ help-network: ## Show network commands
 	@echo "  network-clean      - Clean up unused networks"
 	@echo "  network-remove     - Remove custom network"
 
+# ============================================================================
+# 🏥 HEALTH & MONITORING TARGETS
+# ============================================================================
+
+.PHONY: health
+health: ## Comprehensive health check of all services
+	@echo "🏥 Service Boilerplate Health Check"
+	@echo "=================================="
+	@echo ""
+	@echo "🔍 Checking container status..."
+	@$(MAKE) health-containers
+	@echo ""
+	@echo "🌐 Checking service endpoints..."
+	@$(MAKE) health-services
+	@echo ""
+	@echo "🗄️  Checking database connectivity..."
+	@$(MAKE) health-database
+	@echo ""
+	@echo "📡 Checking network status..."
+	@$(MAKE) health-network
+	@echo ""
+	@echo "💾 Checking volume mounts..."
+	@$(MAKE) health-volumes
+	@echo ""
+	@echo "✅ Health check completed!"
+
+.PHONY: health-containers
+health-containers: ## Check Docker container status
+	@echo "🐳 Container Status:"
+	@CONTAINERS="$$(docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep service-boilerplate)"; \
+	if [ -n "$$CONTAINERS" ]; then \
+		echo "$$CONTAINERS" | while read line; do \
+			if echo "$$line" | grep -q "Up"; then \
+				echo "  ✅ $$line"; \
+			else \
+				echo "  ❌ $$line"; \
+			fi; \
+		done; \
+	else \
+		echo "  ⚠️  No service-boilerplate containers running"; \
+	fi
+
+.PHONY: health-services
+health-services: ## Check HTTP health endpoints
+	@echo "🌐 Service Health Endpoints:"
+	@API_GATEWAY_HEALTH=$$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health 2>/dev/null || echo "000"); \
+	if [ "$$API_GATEWAY_HEALTH" = "200" ]; then \
+		echo "  ✅ API Gateway (localhost:8080/health) - HTTP $$API_GATEWAY_HEALTH"; \
+	else \
+		echo "  ❌ API Gateway (localhost:8080/health) - HTTP $$API_GATEWAY_HEALTH"; \
+	fi
+	@USER_SERVICE_HEALTH=$$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8081/health 2>/dev/null || echo "000"); \
+	if [ "$$USER_SERVICE_HEALTH" = "200" ]; then \
+		echo "  ✅ User Service (localhost:8081/health) - HTTP $$USER_SERVICE_HEALTH"; \
+	else \
+		echo "  ❌ User Service (localhost:8081/health) - HTTP $$USER_SERVICE_HEALTH"; \
+	fi
+
+.PHONY: health-database
+health-database: ## Check database connectivity
+	@echo "🗄️  Database Connectivity:"
+	@DB_STATUS=$$(docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres pg_isready -U $(DATABASE_USER) -d $(DATABASE_NAME) -h $(DATABASE_HOST) -p $(DATABASE_PORT) 2>/dev/null || echo "failed"); \
+	if echo "$$DB_STATUS" | grep -q "accepting connections"; then \
+		echo "  ✅ PostgreSQL accepting connections"; \
+		CONNECTIONS=$$(docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT count(*) as active_connections FROM pg_stat_activity;" 2>/dev/null | tail -3 | head -1 | tr -d ' ' || echo "unknown"); \
+		echo "  📊 Active connections: $$CONNECTIONS"; \
+	else \
+		echo "  ❌ PostgreSQL not accepting connections"; \
+	fi
+
+.PHONY: health-network
+health-network: ## Check Docker network status
+	@echo "📡 Docker Network Status:"
+	@NETWORK_STATUS=$$(docker network ls --format "table {{.Name}}\t{{.Driver}}" | grep $(NETWORK_NAME) || echo "not found"); \
+	if echo "$$NETWORK_STATUS" | grep -q $(NETWORK_NAME); then \
+		echo "  ✅ Network $(NETWORK_NAME) exists"; \
+		CONNECTED_CONTAINERS=$$(docker network inspect $(NETWORK_NAME) --format '{{range .Containers}}{{.Name}} {{end}}' 2>/dev/null || echo "unknown"); \
+		if [ "$$CONNECTED_CONTAINERS" != "unknown" ] && [ -n "$$CONNECTED_CONTAINERS" ]; then \
+			echo "  🔗 Connected containers: $$CONNECTED_CONTAINERS"; \
+		else \
+			echo "  ⚠️  No containers connected to network"; \
+		fi; \
+	else \
+		echo "  ❌ Network $(NETWORK_NAME) not found"; \
+	fi
+
+.PHONY: health-volumes
+health-volumes: ## Check volume mount status
+	@echo "💾 Docker Volume Status:"
+	@VOLUMES="$$(docker volume ls --format "table {{.Name}}" | grep service-boilerplate)"; \
+	if [ -n "$$VOLUMES" ]; then \
+		echo "$$VOLUMES" | while read volume; do \
+			if [ "$$volume" != "NAME" ]; then \
+				VOLUME_PATH=$$(docker volume inspect $$volume --format '{{.Mountpoint}}' 2>/dev/null || echo "unknown"); \
+				if [ -d "$$VOLUME_PATH" ]; then \
+					echo "  ✅ $$volume mounted at $$VOLUME_PATH"; \
+				else \
+					echo "  ❌ $$volume mount point not accessible"; \
+				fi; \
+			fi; \
+		done; \
+	else \
+		echo "  ⚠️  No service-boilerplate volumes found"; \
+	fi
+	@HOST_VOLUMES="docker/volumes/postgres_data docker/volumes/api-gateway docker/volumes/user-service tmp"; \
+	for volume in $$HOST_VOLUMES; do \
+		if [ -d "$$volume" ]; then \
+			FILE_COUNT=$$(find $$volume -type f 2>/dev/null | wc -l); \
+			echo "  📁 $$volume exists ($$FILE_COUNT files)"; \
+		else \
+			echo "  ℹ️  $$volume directory not present"; \
+		fi; \
+	done
+
 .PHONY: clean-docker-report
 clean-docker-report: ## Report on Docker cleanup status
 	@echo "📊 Docker Cleanup Report:"
@@ -959,6 +1081,24 @@ help-clean: ## Show cleaning commands
 	@echo "  clean-test         - Clean test artifacts"
 	@echo "  fresh-start        - Complete reset and setup"
 	@echo "  clean-all-confirm  - Clean all with confirmation"
+
+.PHONY: help-health
+help-health: ## Show health and monitoring commands
+	@echo "🏥 Health & Monitoring Commands:"
+	@echo "  health             - Comprehensive health check of all services"
+	@echo "  health-services    - Check HTTP health endpoints only"
+	@echo "  health-containers  - Check Docker container status only"
+	@echo "  health-database    - Check database connectivity only"
+	@echo "  health-network     - Check Docker network status only"
+	@echo "  health-volumes     - Check volume mount status only"
+	@echo ""
+	@echo "💡 Health Check Features:"
+	@echo "  • Real-time status monitoring"
+	@echo "  • HTTP endpoint validation"
+	@echo "  • Database connectivity checks"
+	@echo "  • Docker infrastructure validation"
+	@echo "  • Color-coded results (✅ ❌ ⚠️ ℹ️)"
+	@echo "  • CI/CD pipeline friendly"
 
 .PHONY: help-db
 help-db: ## Show database commands
