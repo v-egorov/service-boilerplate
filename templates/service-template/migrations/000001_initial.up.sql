@@ -1,5 +1,5 @@
--- Create services table
-CREATE TABLE IF NOT EXISTS services (
+-- Create entities table
+CREATE TABLE IF NOT EXISTS entities (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
@@ -8,11 +8,11 @@ CREATE TABLE IF NOT EXISTS services (
 );
 
 -- Create indexes
-CREATE INDEX IF NOT EXISTS idx_services_name ON services(name);
-CREATE INDEX IF NOT EXISTS idx_services_created_at ON services(created_at);
+CREATE INDEX IF NOT EXISTS idx_entities_name ON entities(name);
+CREATE INDEX IF NOT EXISTS idx_entities_created_at ON entities(created_at);
 
 -- Create updated_at trigger
-CREATE OR REPLACE FUNCTION update_updated_at_column()
+CREATE OR REPLACE FUNCTION update_entities_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
@@ -20,6 +20,6 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
-CREATE TRIGGER update_services_updated_at
-    BEFORE UPDATE ON services
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_entities_updated_at
+    BEFORE UPDATE ON entities
+    FOR EACH ROW EXECUTE FUNCTION update_entities_updated_at_column();

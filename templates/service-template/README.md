@@ -4,11 +4,11 @@ This is the SERVICE_NAME service for the service-boilerplate project.
 
 ## Overview
 
-The SERVICE_NAME service provides REST API endpoints for managing services.
+The SERVICE_NAME service provides REST API endpoints for managing entities.
 
 ## Features
 
-- RESTful API for service management
+- RESTful API for entity management
 - PostgreSQL database integration
 - Structured logging
 - Health check endpoint
@@ -20,12 +20,12 @@ The SERVICE_NAME service provides REST API endpoints for managing services.
 ### Health Check
 - `GET /health` - Service health check
 
-### Services
-- `POST /api/v1/services` - Create a new service
-- `GET /api/v1/services/:id` - Get service by ID
-- `PUT /api/v1/services/:id` - Update service
-- `DELETE /api/v1/services/:id` - Delete service
-- `GET /api/v1/services` - List services
+### Entities
+- `POST /api/v1/entities` - Create a new entity
+- `GET /api/v1/entities/:id` - Get entity by ID
+- `PUT /api/v1/entities/:id` - Update entity
+- `DELETE /api/v1/entities/:id` - Delete entity
+- `GET /api/v1/entities` - List entities
 
 ## Configuration
 
@@ -84,7 +84,7 @@ server:
 The service uses the following database schema:
 
 ```sql
-CREATE TABLE services (
+CREATE TABLE entities (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL UNIQUE,
     description TEXT,
@@ -101,13 +101,13 @@ services/SERVICE_NAME/
 │   └── main.go                 # Application entry point
 ├── internal/
 │   ├── handlers/
-│   │   └── service_handler.go  # HTTP handlers
+│   │   └── entity_handler.go   # HTTP handlers
 │   ├── models/
-│   │   └── service.go          # Data models
+│   │   └── entity.go           # Data models
 │   ├── repository/
-│   │   └── service_repository.go # Database operations
+│   │   └── entity_repository.go # Database operations
 │   └── services/
-│       └── service_service.go  # Business logic
+│       └── entity_service.go   # Business logic
 ├── migrations/                 # Database migrations
 │   ├── 000001_initial.up.sql
 │   └── 000001_initial.down.sql

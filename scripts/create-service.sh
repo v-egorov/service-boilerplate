@@ -140,15 +140,16 @@ replace_vars() {
     local file=$1
 
     # Replace import placeholders first (before PORT replacement)
-    sed -i "s|// SERVICE_IMPORT_HANDLERS|\"github.com/vegorov/service-boilerplate/services/$SERVICE_NAME/internal/handlers\"|g" "$file"
-    sed -i "s|// SERVICE_IMPORT_REPOSITORY|\"github.com/vegorov/service-boilerplate/services/$SERVICE_NAME/internal/repository\"|g" "$file"
-    sed -i "s|// SERVICE_IMPORT_SERVICES|\"github.com/vegorov/service-boilerplate/services/$SERVICE_NAME/internal/services\"|g" "$file"
+    sed -i "s|// ENTITY_IMPORT_HANDLERS|\"github.com/vegorov/service-boilerplate/services/$SERVICE_NAME/internal/handlers\"|g" "$file"
+    sed -i "s|// ENTITY_IMPORT_REPOSITORY|\"github.com/vegorov/service-boilerplate/services/$SERVICE_NAME/internal/repository\"|g" "$file"
+    sed -i "s|// ENTITY_IMPORT_SERVICES|\"github.com/vegorov/service-boilerplate/services/$SERVICE_NAME/internal/services\"|g" "$file"
+    sed -i "s|// ENTITY_IMPORT_MODELS|\"github.com/vegorov/service-boilerplate/services/$SERVICE_NAME/internal/models\"|g" "$file"
 
     # Replace other placeholders
-    sed -i "s|// SERVICE_REPO_INIT|serviceRepo := repository.NewServiceRepository(db.GetPool(), logger.Logger)|g" "$file"
-    sed -i "s|// SERVICE_SERVICE_INIT|serviceService := services.NewServiceService(serviceRepo, logger.Logger)|g" "$file"
-    sed -i "s|// SERVICE_HANDLER_INIT|serviceHandler := handlers.NewServiceHandler(serviceService, logger.Logger)|g" "$file"
-    sed -i "s|// SERVICE_ROUTES|v1 := router.Group(\"/api/v1\")\n\t{\n\t\tservices := v1.Group(\"/services\")\n\t\t{\n\t\t\tv1.POST(\"\", serviceHandler.CreateService)\n\t\t\tv1.GET(\"/:id\", serviceHandler.GetService)\n\t\t\tv1.PUT(\"/:id\", serviceHandler.UpdateService)\n\t\t\tv1.DELETE(\"/:id\", serviceHandler.DeleteService)\n\t\t\tv1.GET(\"\", serviceHandler.ListServices)\n\t\t}\n\t}|g" "$file"
+    sed -i "s|// ENTITY_REPO_INIT|entityRepo := repository.NewEntityRepository(db.GetPool(), logger.Logger)|g" "$file"
+    sed -i "s|// ENTITY_SERVICE_INIT|entityService := services.NewEntityService(entityRepo, logger.Logger)|g" "$file"
+    sed -i "s|// ENTITY_HANDLER_INIT|entityHandler := handlers.NewEntityHandler(entityService, logger.Logger)|g" "$file"
+    sed -i "s|// ENTITY_ROUTES|v1 := router.Group(\"/api/v1\")\n\t{\n\t\tentities := v1.Group(\"/entities\")\n\t\t{\n\t\t\tv1.POST(\"\", entityHandler.CreateEntity)\n\t\t\tv1.GET(\"/:id\", entityHandler.GetEntity)\n\t\t\tv1.PUT(\"/:id\", entityHandler.UpdateEntity)\n\t\t\tv1.DELETE(\"/:id\", entityHandler.DeleteEntity)\n\t\t\tv1.GET(\"\", entityHandler.ListEntities)\n\t\t}\n\t}|g" "$file"
 
     # Replace service name and port
     sed -i "s/SERVICE_NAME/$SERVICE_NAME/g" "$file"

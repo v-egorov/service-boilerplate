@@ -13,9 +13,9 @@ import (
 	"github.com/vegorov/service-boilerplate/common/config"
 	"github.com/vegorov/service-boilerplate/common/database"
 	"github.com/vegorov/service-boilerplate/common/logging"
-	// SERVICE_IMPORT_HANDLERS
-	// SERVICE_IMPORT_REPOSITORY
-	// SERVICE_IMPORT_SERVICES
+	// ENTITY_IMPORT_HANDLERS
+	// ENTITY_IMPORT_REPOSITORY
+	// ENTITY_IMPORT_SERVICES
 )
 
 func main() {
@@ -55,13 +55,13 @@ func main() {
 	defer db.Close()
 
 	// Initialize repository
-	// SERVICE_REPO_INIT
+	// ENTITY_REPO_INIT
 
 	// Initialize service
-	// SERVICE_SERVICE_INIT
+	// ENTITY_SERVICE_INIT
 
 	// Initialize handlers
-	// SERVICE_HANDLER_INIT
+	// ENTITY_HANDLER_INIT
 
 	// Setup Gin router
 	if cfg.App.Environment == "production" {
@@ -81,7 +81,17 @@ func main() {
 	})
 
 	// API routes
-	// SERVICE_ROUTES
+	v1 := router.Group("/api/v1")
+	{
+		entities := v1.Group("/entities")
+		{
+			entities.POST("", entityHandler.CreateEntity)
+			entities.GET("/:id", entityHandler.GetEntity)
+			entities.PUT("/:id", entityHandler.UpdateEntity)
+			entities.DELETE("/:id", entityHandler.DeleteEntity)
+			entities.GET("", entityHandler.ListEntities)
+		}
+	}
 
 	// Start server
 	srv := &http.Server{
