@@ -124,7 +124,7 @@ setup: ## Initialize project (download deps, setup tools)
 	@$(GOMOD) tidy
 
 .PHONY: build
-build: build-gateway build-user-service ## Build all services build-test-service build-test-service build-test-service
+build: build-gateway build-user-service ## Build all services
 
 .PHONY: build-gateway
 build-gateway: ## Build API Gateway
@@ -1155,66 +1155,3 @@ help-db: ## Show database commands
 	@echo "  make db-validate                 # Validate all migrations"
 	@echo "  make db-migrate-goto VERSION=001 # Go to specific version"
 	@echo "  make db-backup                   # Create backup before changes"
-
-.PHONY: build-test-service
-build-test-service: ## Build test-service
-	@echo "Building test-service..."
-	@mkdir -p $(BUILD_DIR)
-	@cd services/test-service && $(GOBUILD) -o ../$(BUILD_DIR)/test-service ./cmd
-
-.PHONY: run-test-service
-run-test-service: ## Run test-service
-	@echo "Running test-service..."
-	@cd services/test-service && $(GO) run ./cmd
-
-.PHONY: test-test-service
-test-test-service: ## Run test-service tests
-	@echo "Running test-service tests..."
-	@cd services/test-service && $(GOTEST) ./...
-
-.PHONY: air-test-service
-air-test-service: ## Run test-service with Air locally
-	@echo "Starting test-service with Air..."
-	@cd services/test-service && air
-
-.PHONY: build-test-service
-build-test-service: ## Build test-service
-	@echo "Building test-service..."
-	@mkdir -p $(BUILD_DIR)
-	@cd services/test-service && $(GOBUILD) -o ../$(BUILD_DIR)/test-service ./cmd
-
-.PHONY: run-test-service
-run-test-service: ## Run test-service
-	@echo "Running test-service..."
-	@cd services/test-service && $(GO) run ./cmd
-
-.PHONY: test-test-service
-test-test-service: ## Run test-service tests
-	@echo "Running test-service tests..."
-	@cd services/test-service && $(GOTEST) ./...
-
-.PHONY: air-test-service
-air-test-service: ## Run test-service with Air locally
-	@echo "Starting test-service with Air..."
-	@cd services/test-service && air
-
-.PHONY: build-test-service
-build-test-service: ## Build test-service
-	@echo "Building test-service..."
-	@mkdir -p $(BUILD_DIR)
-	@cd services/test-service && $(GOBUILD) -o ../$(BUILD_DIR)/test-service ./cmd
-
-.PHONY: run-test-service
-run-test-service: ## Run test-service
-	@echo "Running test-service..."
-	@cd services/test-service && $(GO) run ./cmd
-
-.PHONY: test-test-service
-test-test-service: ## Run test-service tests
-	@echo "Running test-service tests..."
-	@cd services/test-service && $(GOTEST) ./...
-
-.PHONY: air-test-service
-air-test-service: ## Run test-service with Air locally
-	@echo "Starting test-service with Air..."
-	@cd services/test-service && air
