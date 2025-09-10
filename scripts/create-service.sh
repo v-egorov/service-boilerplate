@@ -201,13 +201,13 @@ cat > "$SERVICE_DEF_FILE" << EOF
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      service-network:
-        aliases:
-          - \${${SERVICE_NAME_UPPER}_SERVICE_NAME}
-          - ${SERVICE_NAME}
-          - ${SERVICE_NAME}-svc
-    healthcheck:
+     networks:
+       service-network:
+         aliases:
+           - ${SERVICE_NAME}
+           - ${SERVICE_NAME}-service
+           - ${SERVICE_NAME}-svc
+     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:\${${SERVICE_NAME_UPPER}_SERVICE_PORT:-$PORT}/health"]
       interval: 30s
       timeout: 10s
@@ -275,8 +275,8 @@ cat >> docker/docker-compose.override.yml << EOF
     networks:
       service-network:
         aliases:
-          - \${${SERVICE_NAME_UPPER}_SERVICE_NAME}
           - ${SERVICE_NAME}
+          - ${SERVICE_NAME}-service
           - ${SERVICE_NAME}-svc
 EOF
 
