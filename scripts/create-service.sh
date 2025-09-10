@@ -171,7 +171,13 @@ done
 # Update docker-compose.yml
 echo "Updating docker-compose.yml..."
 SERVICE_NAME_UPPER=$(echo $SERVICE_NAME | tr '[:lower:]' '[:upper:]' | tr '-' '_')
-cat >> docker/docker-compose.yml << EOF
+
+# Create temporary files for service and volume definitions
+SERVICE_DEF_FILE=$(mktemp)
+VOLUME_DEF_FILE=$(mktemp)
+
+# Create service definition
+cat > "$SERVICE_DEF_FILE" << EOF
 
   $SERVICE_NAME:
     build:
@@ -210,9 +216,8 @@ cat >> docker/docker-compose.yml << EOF
     restart: unless-stopped
 EOF
 
-# Add volume for service
-echo "Adding volume for $SERVICE_NAME..."
-cat >> docker/docker-compose.yml << EOF
+# Create volume definition
+cat > "$VOLUME_DEF_FILE" << EOF
 
   ${SERVICE_NAME}_service_tmp:
     name: \${${SERVICE_NAME_UPPER}_SERVICE_TMP_VOLUME}
@@ -222,6 +227,33 @@ cat >> docker/docker-compose.yml << EOF
       o: bind
       device: \${PWD}/docker/volumes/${SERVICE_NAME}/tmp
 EOF
+
+# Insert service definition before volumes section
+awk '
+BEGIN { found=0 }
+/^volumes:/ && !found {
+    while ((getline line < "'$SERVICE_DEF_FILE'") > 0) {
+        print line
+    }
+    found=1
+}
+{ print }
+' docker/docker-compose.yml > docker-compose.tmp && mv docker-compose.tmp docker/docker-compose.yml
+
+# Insert volume definition before networks section
+awk '
+BEGIN { found=0 }
+/^networks:/ && !found {
+    while ((getline line < "'$VOLUME_DEF_FILE'") > 0) {
+        print line
+    }
+    found=1
+}
+{ print }
+' docker/docker-compose.yml > docker-compose.tmp && mv docker-compose.tmp docker/docker-compose.yml
+
+# Clean up temporary files
+rm -f "$SERVICE_DEF_FILE" "$VOLUME_DEF_FILE"
 
 # Update docker-compose.override.yml
 echo "Updating docker-compose.override.yml..."
