@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"github.com/vegorov/service-boilerplate/api-gateway/internal/services"
+	"github.com/v-egorov/service-boilerplate/api-gateway/internal/services"
 )
 
 type GatewayHandler struct {

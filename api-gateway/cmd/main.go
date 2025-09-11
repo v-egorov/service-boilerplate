@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/vegorov/service-boilerplate/api-gateway/internal/handlers"
-	"github.com/vegorov/service-boilerplate/api-gateway/internal/middleware"
-	"github.com/vegorov/service-boilerplate/api-gateway/internal/services"
-	"github.com/vegorov/service-boilerplate/common/config"
-	"github.com/vegorov/service-boilerplate/common/logging"
+	"github.com/v-egorov/service-boilerplate/api-gateway/internal/handlers"
+	"github.com/v-egorov/service-boilerplate/api-gateway/internal/middleware"
+	"github.com/v-egorov/service-boilerplate/api-gateway/internal/services"
+	"github.com/v-egorov/service-boilerplate/common/config"
+	"github.com/v-egorov/service-boilerplate/common/logging"
 )
 
 func main() {
