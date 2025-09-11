@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	"github.com/vegorov/service-boilerplate/services/user-service/internal/models"
-	"github.com/vegorov/service-boilerplate/services/user-service/internal/services"
+	"github.com/v-egorov/service-boilerplate/services/user-service/internal/models"
+	"github.com/v-egorov/service-boilerplate/services/user-service/internal/services"
 )
 
 type UserHandler struct {

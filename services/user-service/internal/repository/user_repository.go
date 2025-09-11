@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
-	"github.com/vegorov/service-boilerplate/services/user-service/internal/models"
+	"github.com/v-egorov/service-boilerplate/services/user-service/internal/models"
 )
 
 type UserRepository struct {

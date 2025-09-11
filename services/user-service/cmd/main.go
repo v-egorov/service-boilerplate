@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/vegorov/service-boilerplate/common/config"
-	"github.com/vegorov/service-boilerplate/common/database"
-	"github.com/vegorov/service-boilerplate/common/logging"
-	"github.com/vegorov/service-boilerplate/services/user-service/internal/handlers"
-	"github.com/vegorov/service-boilerplate/services/user-service/internal/repository"
-	"github.com/vegorov/service-boilerplate/services/user-service/internal/services"
+	"github.com/v-egorov/service-boilerplate/common/config"
+	"github.com/v-egorov/service-boilerplate/common/database"
+	"github.com/v-egorov/service-boilerplate/common/logging"
+	"github.com/v-egorov/service-boilerplate/services/user-service/internal/handlers"
+	"github.com/v-egorov/service-boilerplate/services/user-service/internal/repository"
+	"github.com/v-egorov/service-boilerplate/services/user-service/internal/services"
 )
 
 func main() {
