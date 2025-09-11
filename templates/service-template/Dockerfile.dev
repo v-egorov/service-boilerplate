@@ -1,6 +1,9 @@
 # Development stage
 FROM golang:1.23-alpine
 
+# Install curl for health checks
+RUN apk --no-cache add curl
+
 WORKDIR /app
 
 # Install Air for hot reloading
