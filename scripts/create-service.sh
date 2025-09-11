@@ -40,12 +40,12 @@ fi
 # Parse options (only at the end)
 for arg in "$@"; do
     case $arg in
-        --no-db-schema)
-            CREATE_DB_SCHEMA=false
-            ;;
-        --no-docs-update)
-            UPDATE_DOCS=false
-            ;;
+    --no-db-schema)
+        CREATE_DB_SCHEMA=false
+        ;;
+    --no-docs-update)
+        UPDATE_DOCS=false
+        ;;
     esac
 done
 
@@ -140,10 +140,10 @@ replace_vars() {
     local file=$1
 
     # Replace import placeholders first (before PORT replacement)
-    sed -i "s|// ENTITY_IMPORT_HANDLERS|\"github.com/vegorov/service-boilerplate/services/$SERVICE_NAME/internal/handlers\"|g" "$file"
-    sed -i "s|// ENTITY_IMPORT_REPOSITORY|\"github.com/vegorov/service-boilerplate/services/$SERVICE_NAME/internal/repository\"|g" "$file"
-    sed -i "s|// ENTITY_IMPORT_SERVICES|\"github.com/vegorov/service-boilerplate/services/$SERVICE_NAME/internal/services\"|g" "$file"
-    sed -i "s|// ENTITY_IMPORT_MODELS|\"github.com/vegorov/service-boilerplate/services/$SERVICE_NAME/internal/models\"|g" "$file"
+    sed -i "s|// ENTITY_IMPORT_HANDLERS|\"github.com/v-egorov/service-boilerplate/services/$SERVICE_NAME/internal/handlers\"|g" "$file"
+    sed -i "s|// ENTITY_IMPORT_REPOSITORY|\"github.com/v-egorov/service-boilerplate/services/$SERVICE_NAME/internal/repository\"|g" "$file"
+    sed -i "s|// ENTITY_IMPORT_SERVICES|\"github.com/v-egorov/service-boilerplate/services/$SERVICE_NAME/internal/services\"|g" "$file"
+    sed -i "s|// ENTITY_IMPORT_MODELS|\"github.com/v-egorov/service-boilerplate/services/$SERVICE_NAME/internal/models\"|g" "$file"
 
     # Replace other placeholders
     sed -i "s|// ENTITY_REPO_INIT|entityRepo := repository.NewEntityRepository(db.GetPool(), logger.Logger)|g" "$file"
@@ -156,7 +156,7 @@ replace_vars() {
     sed -i "s/PORT/$PORT/g" "$file"
 
     # Replace import paths
-    sed -i "s|github.com/vegorov/service-boilerplate/services/SERVICE_NAME|github.com/vegorov/service-boilerplate/services/$SERVICE_NAME|g" "$file"
+    sed -i "s|github.com/v-egorov/service-boilerplate/services/SERVICE_NAME|github.com/v-egorov/service-boilerplate/services/$SERVICE_NAME|g" "$file"
 
     # Replace service-specific placeholders
     sed -i "s/{{SERVICE_NAME}}/$SERVICE_NAME/g" "$file"
@@ -177,7 +177,7 @@ SERVICE_DEF_FILE=$(mktemp)
 VOLUME_DEF_FILE=$(mktemp)
 
 # Create service definition
-cat > "$SERVICE_DEF_FILE" << EOF
+cat >"$SERVICE_DEF_FILE" <<EOF
 
   $SERVICE_NAME:
     build:
@@ -217,7 +217,7 @@ cat > "$SERVICE_DEF_FILE" << EOF
 EOF
 
 # Create volume definition
-cat > "$VOLUME_DEF_FILE" << EOF
+cat >"$VOLUME_DEF_FILE" <<EOF
 
   ${SERVICE_NAME}_service_tmp:
     name: \${${SERVICE_NAME_UPPER}_SERVICE_TMP_VOLUME}
@@ -238,7 +238,7 @@ BEGIN { found=0 }
     found=1
 }
 { print }
-' docker/docker-compose.yml > docker-compose.tmp && mv docker-compose.tmp docker/docker-compose.yml
+' docker/docker-compose.yml >docker-compose.tmp && mv docker-compose.tmp docker/docker-compose.yml
 
 # Insert volume definition before networks section
 awk '
@@ -250,14 +250,14 @@ BEGIN { found=0 }
     found=1
 }
 { print }
-' docker/docker-compose.yml > docker-compose.tmp && mv docker-compose.tmp docker/docker-compose.yml
+' docker/docker-compose.yml >docker-compose.tmp && mv docker-compose.tmp docker/docker-compose.yml
 
 # Clean up temporary files
 rm -f "$SERVICE_DEF_FILE" "$VOLUME_DEF_FILE"
 
 # Update docker-compose.override.yml
 echo "Updating docker-compose.override.yml..."
-cat >> docker/docker-compose.override.yml << EOF
+cat >>docker/docker-compose.override.yml <<EOF
 
   $SERVICE_NAME:
     build:
@@ -284,7 +284,7 @@ EOF
 echo "Updating .env file..."
 if [ ! -f ".env" ]; then
     echo "Creating .env file..."
-    cat > .env << EOF
+    cat >.env <<EOF
 # Database Configuration
 DATABASE_NAME=service_db
 DATABASE_USER=postgres
@@ -336,18 +336,18 @@ DOCKER_ENV=false
 EOF
 else
     # Add service configuration to existing .env file
-    echo "" >> .env
-    echo "# $SERVICE_NAME Service Configuration" >> .env
-    echo "${SERVICE_NAME_UPPER}_SERVICE_NAME=$SERVICE_NAME" >> .env
-    echo "${SERVICE_NAME_UPPER}_SERVICE_PORT=$PORT" >> .env
-    echo "${SERVICE_NAME_UPPER}_SERVICE_IMAGE=docker-$SERVICE_NAME" >> .env
-    echo "${SERVICE_NAME_UPPER}_SERVICE_CONTAINER=service-boilerplate-$SERVICE_NAME" >> .env
-    echo "${SERVICE_NAME_UPPER}_SERVICE_TMP_VOLUME=service-boilerplate-${SERVICE_NAME}-tmp" >> .env
+    echo "" >>.env
+    echo "# $SERVICE_NAME Service Configuration" >>.env
+    echo "${SERVICE_NAME_UPPER}_SERVICE_NAME=$SERVICE_NAME" >>.env
+    echo "${SERVICE_NAME_UPPER}_SERVICE_PORT=$PORT" >>.env
+    echo "${SERVICE_NAME_UPPER}_SERVICE_IMAGE=docker-$SERVICE_NAME" >>.env
+    echo "${SERVICE_NAME_UPPER}_SERVICE_CONTAINER=service-boilerplate-$SERVICE_NAME" >>.env
+    echo "${SERVICE_NAME_UPPER}_SERVICE_TMP_VOLUME=service-boilerplate-${SERVICE_NAME}-tmp" >>.env
 fi
 
 # Update Makefile
 echo "Updating Makefile..."
-cat >> Makefile << EOF
+cat >>Makefile <<EOF
 
 .PHONY: build-$SERVICE_NAME
 build-$SERVICE_NAME: ## Build $SERVICE_NAME
