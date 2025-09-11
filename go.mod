@@ -1,4 +1,4 @@
-module github.com/vegorov/service-boilerplate
+module github.com/v-egorov/service-boilerplate
 
 go 1.23.0
 
