@@ -130,7 +130,7 @@ setup: ## Initialize project (download deps, setup tools)
 	@$(GOMOD) tidy
 
 .PHONY: build
-build: build-gateway build-user-service build-taxonomy-service ## Build all services
+build: build-gateway build-user-service ## Build all services
 
 .PHONY: build-gateway
 build-gateway: ## Build API Gateway
@@ -1199,45 +1199,3 @@ help-db: ## Show database commands
 	@echo "  make db-validate                 # Validate all migrations"
 	@echo "  make db-migrate-goto VERSION=001 # Go to specific version"
 	@echo "  make db-backup                   # Create backup before changes"
-
-.PHONY: build-taxonomy-service
-build-taxonomy-service: ## Build taxonomy-service
-	@echo "Building taxonomy-service..."
-	@mkdir -p $(BUILD_DIR)
-	@cd services/taxonomy-service && $(GOBUILD) -o ../$(BUILD_DIR)/taxonomy-service ./cmd
-
-.PHONY: run-taxonomy-service
-run-taxonomy-service: ## Run taxonomy-service
-	@echo "Running taxonomy-service..."
-	@cd services/taxonomy-service && $(GO) run ./cmd
-
-.PHONY: test-taxonomy-service
-test-taxonomy-service: ## Run taxonomy-service tests
-	@echo "Running taxonomy-service tests..."
-	@cd services/taxonomy-service && $(GOTEST) ./...
-
-.PHONY: air-taxonomy-service
-air-taxonomy-service: ## Run taxonomy-service with Air locally
-	@echo "Starting taxonomy-service with Air..."
-	@cd services/taxonomy-service && air
-
-.PHONY: build-test-dynamic
-build-test-dynamic: ## Build test-dynamic
-	@echo "Building test-dynamic..."
-	@mkdir -p $(BUILD_DIR)
-	@cd services/test-dynamic && $(GOBUILD) -o ../$(BUILD_DIR)/test-dynamic ./cmd
-
-.PHONY: run-test-dynamic
-run-test-dynamic: ## Run test-dynamic
-	@echo "Running test-dynamic..."
-	@cd services/test-dynamic && $(GO) run ./cmd
-
-.PHONY: test-test-dynamic
-test-test-dynamic: ## Run test-dynamic tests
-	@echo "Running test-dynamic tests..."
-	@cd services/test-dynamic && $(GOTEST) ./...
-
-.PHONY: air-test-dynamic
-air-test-dynamic: ## Run test-dynamic with Air locally
-	@echo "Starting test-dynamic with Air..."
-	@cd services/test-dynamic && air
