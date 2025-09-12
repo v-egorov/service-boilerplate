@@ -1,0 +1,32 @@
+# Boilerplate CLI Configuration
+# This file contains default configuration for the CLI utility
+
+# Environment settings
+environment: development
+
+# Service configuration
+gateway_url: "http://localhost:8080"
+service_urls:
+  user-service: "http://localhost:8081"
+  api-gateway: "http://localhost:8080"
+default_port: 8080
+timeout: 30
+retry_attempts: 3
+
+# API configuration
+base_url: "http://localhost:8080"
+version: "v1"
+api_timeout: 30
+
+# Database configuration
+db_host: "localhost"
+db_port: 5432
+db_user: "postgres"
+db_password: "postgres"
+db_database: "service_db"
+db_ssl_mode: "disable"
+
+# Logging configuration
+log_level: "info"
+log_format: "text"
+log_output: "stdout"
