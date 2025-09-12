@@ -372,8 +372,8 @@ air-$SERVICE_NAME: ## Run $SERVICE_NAME with Air locally
 EOF
 
 # Update main build and run targets
-sed -i "/^build:/ s/$/ build-$SERVICE_NAME/" Makefile
-sed -i "/^run:/ s/$/ run-$SERVICE_NAME/" Makefile
+sed -i "/^build:/ s/##.*/ build-$SERVICE_NAME&/" Makefile
+sed -i "/^run:/ s/##.*/ run-$SERVICE_NAME&/" Makefile
 
 # Register service with API gateway
 echo "Registering service with API gateway..."
