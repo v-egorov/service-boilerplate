@@ -53,6 +53,12 @@ MIGRATION_IMAGE := migrate/migrate:latest
 # Docker cleanup configuration
 DOCKER_CLEANUP_MODE ?= smart
 
+# Dynamic service variable loading from .env file
+# Extract all service containers, images, and volumes from .env
+SERVICE_CONTAINERS := $(shell grep "_CONTAINER=" .env | grep -v "POSTGRES_CONTAINER" | cut -d'=' -f2)
+SERVICE_IMAGES := $(shell grep "_IMAGE=" .env | grep -v "POSTGRES_IMAGE\|MIGRATION_IMAGE" | cut -d'=' -f2)
+SERVICE_VOLUMES := $(shell grep "_VOLUME=" .env | grep -v "POSTGRES_VOLUME\|MIGRATION_TMP_VOLUME" | cut -d'=' -f2)
+
 .PHONY: help
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -124,7 +130,7 @@ setup: ## Initialize project (download deps, setup tools)
 	@$(GOMOD) tidy
 
 .PHONY: build
-build: build-gateway build-user-service ## Build all services
+build: build-gateway build-user-service build-taxonomy-service ## Build all services
 
 .PHONY: build-gateway
 build-gateway: ## Build API Gateway
@@ -613,20 +619,32 @@ safe-remove-image:
 clean-docker-smart: ## Smart Docker cleanup with safety checks
 	@echo "🧠 Smart cleaning of project Docker artifacts..."
 	@docker-compose --env-file .env down --volumes --remove-orphans 2>/dev/null || true
-	@docker rm $(API_GATEWAY_CONTAINER) 2>/dev/null || true
-	@docker rm $(USER_SERVICE_CONTAINER) 2>/dev/null || true
-	@docker rm $(POSTGRES_CONTAINER) 2>/dev/null || true
+	@echo "🗂️  Removing service containers..."
+	@for container in $(SERVICE_CONTAINERS) $(POSTGRES_CONTAINER); do \
+		if [ -n "$$container" ]; then \
+			echo "  Removing container: $$container"; \
+			docker rm $$container 2>/dev/null || true; \
+		fi; \
+	done
 	@echo "🖼️  Removing custom project images..."
-	@docker rmi $(API_GATEWAY_IMAGE) 2>/dev/null || true
-	@docker rmi $(USER_SERVICE_IMAGE) 2>/dev/null || true
+	@for image in $(SERVICE_IMAGES); do \
+		if [ -n "$$image" ]; then \
+			echo "  Removing image: $$image"; \
+			docker rmi $$image 2>/dev/null || true; \
+		fi; \
+	done
 	@echo "🧠 Smart cleanup of base images..."
 	@$(MAKE) safe-remove-image IMAGE=$(MIGRATION_IMAGE)
 	@$(MAKE) safe-remove-image IMAGE=$(POSTGRES_IMAGE)
 	@$(MAKE) safe-remove-image IMAGE=$(GOLANG_BUILD_IMAGE)
 	@$(MAKE) safe-remove-image IMAGE=$(ALPINE_RUNTIME_IMAGE)
-	@docker volume rm $(POSTGRES_VOLUME) 2>/dev/null || true
-	@docker volume rm $(API_GATEWAY_TMP_VOLUME) 2>/dev/null || true
-	@docker volume rm $(USER_SERVICE_TMP_VOLUME) 2>/dev/null || true
+	@echo "💾 Removing service volumes..."
+	@for volume in $(SERVICE_VOLUMES) $(POSTGRES_VOLUME); do \
+		if [ -n "$$volume" ]; then \
+			echo "  Removing volume: $$volume"; \
+			docker volume rm $$volume 2>/dev/null || true; \
+		fi; \
+	done
 	@docker network rm $(NETWORK_NAME) 2>/dev/null || true
 	@echo "✅ Smart Docker cleanup completed"
 
@@ -634,15 +652,28 @@ clean-docker-smart: ## Smart Docker cleanup with safety checks
 clean-docker-conservative: ## Conservative Docker cleanup (keeps base images)
 	@echo "🐳 Conservative cleaning of project Docker artifacts..."
 	@docker-compose --env-file .env down --volumes --remove-orphans 2>/dev/null || true
-	@docker rm $(API_GATEWAY_CONTAINER) 2>/dev/null || true
-	@docker rm $(USER_SERVICE_CONTAINER) 2>/dev/null || true
-	@docker rm $(POSTGRES_CONTAINER) 2>/dev/null || true
-	@docker rmi $(API_GATEWAY_IMAGE) 2>/dev/null || true
-	@docker rmi $(USER_SERVICE_IMAGE) 2>/dev/null || true
+	@echo "🗂️  Removing service containers..."
+	@for container in $(SERVICE_CONTAINERS) $(POSTGRES_CONTAINER); do \
+		if [ -n "$$container" ]; then \
+			echo "  Removing container: $$container"; \
+			docker rm $$container 2>/dev/null || true; \
+		fi; \
+	done
+	@echo "🖼️  Removing custom project images..."
+	@for image in $(SERVICE_IMAGES); do \
+		if [ -n "$$image" ]; then \
+			echo "  Removing image: $$image"; \
+			docker rmi $$image 2>/dev/null || true; \
+		fi; \
+	done
 	@docker rmi $(MIGRATION_IMAGE) 2>/dev/null || true
-	@docker volume rm $(POSTGRES_VOLUME) 2>/dev/null || true
-	@docker volume rm $(API_GATEWAY_TMP_VOLUME) 2>/dev/null || true
-	@docker volume rm $(USER_SERVICE_TMP_VOLUME) 2>/dev/null || true
+	@echo "💾 Removing service volumes..."
+	@for volume in $(SERVICE_VOLUMES) $(POSTGRES_VOLUME); do \
+		if [ -n "$$volume" ]; then \
+			echo "  Removing volume: $$volume"; \
+			docker volume rm $$volume 2>/dev/null || true; \
+		fi; \
+	done
 	@docker network rm $(NETWORK_NAME) 2>/dev/null || true
 	@echo "✅ Conservative Docker cleanup completed (base images preserved)"
 
@@ -650,18 +681,31 @@ clean-docker-conservative: ## Conservative Docker cleanup (keeps base images)
 clean-docker-aggressive: ## Aggressive Docker cleanup (removes all project images)
 	@echo "💥 Aggressive cleaning of project Docker artifacts..."
 	@docker-compose --env-file .env down --volumes --remove-orphans 2>/dev/null || true
-	@docker rm $(API_GATEWAY_CONTAINER) 2>/dev/null || true
-	@docker rm $(USER_SERVICE_CONTAINER) 2>/dev/null || true
-	@docker rm $(POSTGRES_CONTAINER) 2>/dev/null || true
-	@docker rmi $(API_GATEWAY_IMAGE) 2>/dev/null || true
-	@docker rmi $(USER_SERVICE_IMAGE) 2>/dev/null || true
+	@echo "🗂️  Removing service containers..."
+	@for container in $(SERVICE_CONTAINERS) $(POSTGRES_CONTAINER); do \
+		if [ -n "$$container" ]; then \
+			echo "  Removing container: $$container"; \
+			docker rm $$container 2>/dev/null || true; \
+		fi; \
+	done
+	@echo "🖼️  Removing all project images..."
+	@for image in $(SERVICE_IMAGES); do \
+		if [ -n "$$image" ]; then \
+			echo "  Removing image: $$image"; \
+			docker rmi $$image 2>/dev/null || true; \
+		fi; \
+	done
 	@docker rmi $(MIGRATION_IMAGE) 2>/dev/null || true
 	@docker rmi $(POSTGRES_IMAGE) 2>/dev/null || true
 	@docker rmi $(GOLANG_BUILD_IMAGE) 2>/dev/null || true
 	@docker rmi $(ALPINE_RUNTIME_IMAGE) 2>/dev/null || true
-	@docker volume rm $(POSTGRES_VOLUME) 2>/dev/null || true
-	@docker volume rm $(API_GATEWAY_TMP_VOLUME) 2>/dev/null || true
-	@docker volume rm $(USER_SERVICE_TMP_VOLUME) 2>/dev/null || true
+	@echo "💾 Removing service volumes..."
+	@for volume in $(SERVICE_VOLUMES) $(POSTGRES_VOLUME); do \
+		if [ -n "$$volume" ]; then \
+			echo "  Removing volume: $$volume"; \
+			docker volume rm $$volume 2>/dev/null || true; \
+		fi; \
+	done
 	@docker network rm $(NETWORK_NAME) 2>/dev/null || true
 	@echo "✅ Aggressive Docker cleanup completed"
 
@@ -1155,3 +1199,45 @@ help-db: ## Show database commands
 	@echo "  make db-validate                 # Validate all migrations"
 	@echo "  make db-migrate-goto VERSION=001 # Go to specific version"
 	@echo "  make db-backup                   # Create backup before changes"
+
+.PHONY: build-taxonomy-service
+build-taxonomy-service: ## Build taxonomy-service
+	@echo "Building taxonomy-service..."
+	@mkdir -p $(BUILD_DIR)
+	@cd services/taxonomy-service && $(GOBUILD) -o ../$(BUILD_DIR)/taxonomy-service ./cmd
+
+.PHONY: run-taxonomy-service
+run-taxonomy-service: ## Run taxonomy-service
+	@echo "Running taxonomy-service..."
+	@cd services/taxonomy-service && $(GO) run ./cmd
+
+.PHONY: test-taxonomy-service
+test-taxonomy-service: ## Run taxonomy-service tests
+	@echo "Running taxonomy-service tests..."
+	@cd services/taxonomy-service && $(GOTEST) ./...
+
+.PHONY: air-taxonomy-service
+air-taxonomy-service: ## Run taxonomy-service with Air locally
+	@echo "Starting taxonomy-service with Air..."
+	@cd services/taxonomy-service && air
+
+.PHONY: build-test-dynamic
+build-test-dynamic: ## Build test-dynamic
+	@echo "Building test-dynamic..."
+	@mkdir -p $(BUILD_DIR)
+	@cd services/test-dynamic && $(GOBUILD) -o ../$(BUILD_DIR)/test-dynamic ./cmd
+
+.PHONY: run-test-dynamic
+run-test-dynamic: ## Run test-dynamic
+	@echo "Running test-dynamic..."
+	@cd services/test-dynamic && $(GO) run ./cmd
+
+.PHONY: test-test-dynamic
+test-test-dynamic: ## Run test-dynamic tests
+	@echo "Running test-dynamic tests..."
+	@cd services/test-dynamic && $(GOTEST) ./...
+
+.PHONY: air-test-dynamic
+air-test-dynamic: ## Run test-dynamic with Air locally
+	@echo "Starting test-dynamic with Air..."
+	@cd services/test-dynamic && air
