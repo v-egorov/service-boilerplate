@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/v-egorov/service-boilerplate/cli/internal/client"
 	"github.com/v-egorov/service-boilerplate/cli/internal/config"
 	"github.com/v-egorov/service-boilerplate/cli/internal/discovery"
+	"github.com/v-egorov/service-boilerplate/cli/pkg/utils"
 )
 
 var (
@@ -18,6 +18,7 @@ var (
 	appConfig  *config.Config
 	serviceReg *discovery.ServiceRegistry
 	apiClient  *client.APIClient
+	logger     *utils.Logger
 )
 
 // NewRootCmd creates the root command
@@ -54,6 +55,12 @@ data management, and operational workflows.`,
 // initConfig reads in config file and ENV variables if set
 func initConfig() error {
 	var err error
+
+	// Initialize logger first
+	logger = utils.NewLogger(verbose)
+
+	logger.Info("Initializing CLI configuration...")
+
 	appConfig, err = config.Load(cfgFile)
 	if err != nil {
 		return fmt.Errorf("failed to load configuration: %w", err)
@@ -68,10 +75,9 @@ func initConfig() error {
 	serviceReg = discovery.NewServiceRegistry(appConfig)
 	apiClient = client.NewAPIClient(appConfig)
 
-	if verbose {
-		fmt.Fprintf(os.Stderr, "Environment: %s\n", appConfig.Environment)
-		fmt.Fprintf(os.Stderr, "Gateway URL: %s\n", appConfig.Services.GatewayURL)
-	}
+	logger.Info("Configuration loaded successfully")
+	logger.Info("Environment: %s", appConfig.Environment)
+	logger.Info("Gateway URL: %s", appConfig.Services.GatewayURL)
 
 	return nil
 }
