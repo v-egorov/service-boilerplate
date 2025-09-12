@@ -74,17 +74,8 @@ func (m *Monitor) CheckServiceHealth(serviceName string) (*HealthStatus, error) 
 
 	start := time.Now()
 
-	// Perform multiple health checks
-	healthChecks := []struct {
-		name     string
-		endpoint string
-		method   string
-		required bool
-	}{
-		{"health", "/health", "GET", true},
-		{"readiness", "/api/v1/users?limit=1", "GET", false},
-		{"liveness", "/api/v1/users", "GET", false},
-	}
+	// Get health check endpoints for this service
+	healthChecks := m.getHealthChecksForService(service)
 
 	var totalResponseTime time.Duration
 	var successfulChecks int
@@ -266,6 +257,40 @@ func (m *Monitor) recordMetric(metric *ServiceMetrics) {
 	}
 
 	m.metrics[metric.ServiceName] = append(metrics, metric)
+}
+
+// getHealthChecksForService returns appropriate health check endpoints for a service
+func (m *Monitor) getHealthChecksForService(service *discovery.ServiceInfo) []struct {
+	name     string
+	endpoint string
+	method   string
+	required bool
+} {
+	// Use service-specific health checks if available
+	if service.HealthChecks.Health != "" {
+		return []struct {
+			name     string
+			endpoint string
+			method   string
+			required bool
+		}{
+			{"health", service.HealthChecks.Health, "GET", true},
+			{"readiness", service.HealthChecks.Readiness, "GET", false},
+			{"liveness", service.HealthChecks.Liveness, "GET", false},
+		}
+	}
+
+	// Fallback to default health checks
+	return []struct {
+		name     string
+		endpoint string
+		method   string
+		required bool
+	}{
+		{"health", "/health", "GET", true},
+		{"readiness", "/ready", "GET", false},
+		{"liveness", "/live", "GET", false},
+	}
 }
 
 // GetHealthStatus returns the current health status of all services

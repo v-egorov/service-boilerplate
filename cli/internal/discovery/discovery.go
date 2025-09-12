@@ -10,10 +10,18 @@ import (
 
 // ServiceInfo holds information about a service
 type ServiceInfo struct {
-	Name    string `json:"name"`
-	URL     string `json:"url"`
-	Status  string `json:"status"`
-	Version string `json:"version,omitempty"`
+	Name         string            `json:"name"`
+	URL          string            `json:"url"`
+	Status       string            `json:"status"`
+	Version      string            `json:"version,omitempty"`
+	HealthChecks HealthCheckConfig `json:"health_checks,omitempty"`
+}
+
+// HealthCheckConfig defines health check endpoints for a service
+type HealthCheckConfig struct {
+	Health    string `json:"health,omitempty"`    // /health
+	Readiness string `json:"readiness,omitempty"` // /ready or service-specific
+	Liveness  string `json:"liveness,omitempty"`  // /live or service-specific
 }
 
 // ServiceRegistry manages service discovery
@@ -45,6 +53,21 @@ func (sr *ServiceRegistry) DiscoverServices() ([]*ServiceInfo, error) {
 			URL:  url,
 		}
 
+		// Load health check configuration for this service
+		if healthConfig, exists := sr.config.Services.HealthChecks[name]; exists {
+			service.HealthChecks = HealthCheckConfig{
+				Health:    healthConfig.Health,
+				Readiness: healthConfig.Readiness,
+				Liveness:  healthConfig.Liveness,
+			}
+		} else if defaultConfig, exists := sr.config.Services.HealthChecks["default"]; exists {
+			service.HealthChecks = HealthCheckConfig{
+				Health:    defaultConfig.Health,
+				Readiness: defaultConfig.Readiness,
+				Liveness:  defaultConfig.Liveness,
+			}
+		}
+
 		// Check service health
 		if err := sr.checkServiceHealth(service); err != nil {
 			service.Status = "unhealthy"
@@ -71,6 +94,21 @@ func (sr *ServiceRegistry) GetService(name string) (*ServiceInfo, error) {
 	service := &ServiceInfo{
 		Name: name,
 		URL:  url,
+	}
+
+	// Load health check configuration for this service
+	if healthConfig, exists := sr.config.Services.HealthChecks[name]; exists {
+		service.HealthChecks = HealthCheckConfig{
+			Health:    healthConfig.Health,
+			Readiness: healthConfig.Readiness,
+			Liveness:  healthConfig.Liveness,
+		}
+	} else if defaultConfig, exists := sr.config.Services.HealthChecks["default"]; exists {
+		service.HealthChecks = HealthCheckConfig{
+			Health:    defaultConfig.Health,
+			Readiness: defaultConfig.Readiness,
+			Liveness:  defaultConfig.Liveness,
+		}
 	}
 
 	if err := sr.checkServiceHealth(service); err != nil {

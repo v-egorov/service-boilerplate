@@ -19,11 +19,19 @@ type Config struct {
 
 // ServiceConfig holds service-related configuration
 type ServiceConfig struct {
-	GatewayURL    string            `mapstructure:"gateway_url"`
-	ServiceURLs   map[string]string `mapstructure:"service_urls"`
-	DefaultPort   int               `mapstructure:"default_port"`
-	Timeout       int               `mapstructure:"timeout"`
-	RetryAttempts int               `mapstructure:"retry_attempts"`
+	GatewayURL    string                       `mapstructure:"gateway_url"`
+	ServiceURLs   map[string]string            `mapstructure:"service_urls"`
+	HealthChecks  map[string]HealthCheckConfig `mapstructure:"health_checks"`
+	DefaultPort   int                          `mapstructure:"default_port"`
+	Timeout       int                          `mapstructure:"timeout"`
+	RetryAttempts int                          `mapstructure:"retry_attempts"`
+}
+
+// HealthCheckConfig defines health check endpoints for a service
+type HealthCheckConfig struct {
+	Health    string `mapstructure:"health"`
+	Readiness string `mapstructure:"readiness"`
+	Liveness  string `mapstructure:"liveness"`
 }
 
 // APIConfig holds API-related configuration

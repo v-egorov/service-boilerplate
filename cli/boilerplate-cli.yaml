@@ -9,6 +9,21 @@ gateway_url: "http://localhost:8080"
 service_urls:
   user-service: "http://localhost:8081"
   api-gateway: "http://localhost:8080"
+# Health check endpoints per service
+health_checks:
+  user-service:
+    health: "/health"
+    readiness: "/api/v1/users?limit=1"
+    liveness: "/api/v1/users"
+  api-gateway:
+    health: "/health"
+    readiness: "/api/v1/status"
+    liveness: "/api/v1/ping"
+  # Default fallbacks for unknown services
+  default:
+    health: "/health"
+    readiness: "/ready"
+    liveness: "/live"
 default_port: 8080
 timeout: 30
 retry_attempts: 3

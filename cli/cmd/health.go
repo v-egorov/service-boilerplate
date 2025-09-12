@@ -32,6 +32,12 @@ func newHealthCheckCmd() *cobra.Command {
 		Short: "Comprehensive health check all services",
 		Long:  `Perform a comprehensive health check of all services with detailed metrics.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Discover services first
+			_, err := serviceReg.DiscoverServices()
+			if err != nil {
+				return fmt.Errorf("failed to discover services: %w", err)
+			}
+
 			monitor := monitoring.NewMonitor(appConfig, serviceReg, apiClient)
 
 			cmd.Println("🏥 Running comprehensive system health check...")
@@ -98,6 +104,12 @@ func newHealthServicesCmd() *cobra.Command {
 		Short: "Check individual service health",
 		Long:  `Check the health status of individual services with detailed metrics.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Discover services first
+			_, err := serviceReg.DiscoverServices()
+			if err != nil {
+				return fmt.Errorf("failed to discover services: %w", err)
+			}
+
 			monitor := monitoring.NewMonitor(appConfig, serviceReg, apiClient)
 
 			services := serviceReg.GetAllServices()
@@ -241,6 +253,12 @@ func newHealthDependenciesCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmd.Println("🔗 Service Dependencies Analysis")
 			cmd.Println("===============================")
+
+			// Discover services first
+			_, err := serviceReg.DiscoverServices()
+			if err != nil {
+				return fmt.Errorf("failed to discover services: %w", err)
+			}
 
 			services := serviceReg.GetAllServices()
 			monitor := monitoring.NewMonitor(appConfig, serviceReg, apiClient)
