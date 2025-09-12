@@ -44,7 +44,7 @@ func main() {
 	serviceRegistry.RegisterService("user-service", userServiceURL)
 
 	// Initialize handlers
-	gatewayHandler := handlers.NewGatewayHandler(serviceRegistry, logger.Logger)
+	gatewayHandler := handlers.NewGatewayHandler(serviceRegistry, logger.Logger, cfg)
 
 	// Setup Gin router
 	if cfg.App.Environment == "production" {
@@ -63,6 +63,10 @@ func main() {
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "gateway": "running"})
 	})
+
+	// Public monitoring endpoints (no auth required)
+	router.GET("/api/v1/status", gatewayHandler.StatusHandler)
+	router.GET("/api/v1/ping", gatewayHandler.PingHandler)
 
 	// API routes
 	api := router.Group("/api")

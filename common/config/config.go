@@ -7,10 +7,11 @@ import (
 )
 
 type Config struct {
-	App      AppConfig      `mapstructure:"app"`
-	Database DatabaseConfig `mapstructure:"database"`
-	Logging  LoggingConfig  `mapstructure:"logging"`
-	Server   ServerConfig   `mapstructure:"server"`
+	App        AppConfig        `mapstructure:"app"`
+	Database   DatabaseConfig   `mapstructure:"database"`
+	Logging    LoggingConfig    `mapstructure:"logging"`
+	Server     ServerConfig     `mapstructure:"server"`
+	Monitoring MonitoringConfig `mapstructure:"monitoring"`
 }
 
 type AppConfig struct {
@@ -41,6 +42,12 @@ type LoggingConfig struct {
 type ServerConfig struct {
 	Host string `mapstructure:"host"`
 	Port int    `mapstructure:"port"`
+}
+
+type MonitoringConfig struct {
+	HealthCheckTimeout    int  `mapstructure:"health_check_timeout"`
+	StatusCacheDuration   int  `mapstructure:"status_cache_duration"`
+	EnableDetailedMetrics bool `mapstructure:"enable_detailed_metrics"`
 }
 
 func Load(configPath string) (*Config, error) {
@@ -117,4 +124,9 @@ func setDefaults() {
 	// Server defaults
 	viper.SetDefault("server.host", "0.0.0.0")
 	viper.SetDefault("server.port", 8080)
+
+	// Monitoring defaults
+	viper.SetDefault("monitoring.health_check_timeout", 5)
+	viper.SetDefault("monitoring.status_cache_duration", 30)
+	viper.SetDefault("monitoring.enable_detailed_metrics", true)
 }
