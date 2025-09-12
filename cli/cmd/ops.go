@@ -19,6 +19,7 @@ func newOpsCmd() *cobra.Command {
 	cmd.AddCommand(
 		newOpsUserCmd(),
 		newOpsWorkflowCmd(),
+		newOpsMultiCmd(),
 	)
 
 	return cmd
@@ -38,6 +39,86 @@ func newOpsUserCmd() *cobra.Command {
 	)
 
 	return cmd
+}
+
+func newOpsMultiCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "multi",
+		Short: "Multi-service operations",
+		Long:  `Execute operations that span multiple services simultaneously.`,
+	}
+
+	cmd.AddCommand(
+		newOpsMultiExecuteCmd(),
+		newOpsMultiListCmd(),
+	)
+
+	return cmd
+}
+
+func newOpsMultiExecuteCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "execute <operation>",
+		Short: "Execute a multi-service operation",
+		Long:  `Execute a predefined multi-service operation with coordinated steps across services.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			operationName := args[0]
+
+			executor := workflows.NewMultiServiceExecutor(appConfig, apiClient)
+			operations := executor.GetPredefinedOperations()
+
+			operation, exists := operations[operationName]
+			if !exists {
+				return fmt.Errorf("multi-service operation '%s' not found", operationName)
+			}
+
+			result, err := executor.ExecuteOperation(operation)
+			if err != nil {
+				return fmt.Errorf("failed to execute multi-service operation: %w", err)
+			}
+
+			if jsonOut {
+				return printJSON(result)
+			}
+
+			return nil
+		},
+	}
+}
+
+func newOpsMultiListCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List available multi-service operations",
+		Long:  `Display all available multi-service operations with their descriptions.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			executor := workflows.NewMultiServiceExecutor(appConfig, apiClient)
+			operations := executor.GetPredefinedOperations()
+
+			if jsonOut {
+				return printJSON(operations)
+			}
+
+			cmd.Println("🔧 Available Multi-Service Operations:")
+			cmd.Println("=====================================")
+
+			for name, operation := range operations {
+				cmd.Printf("• %s\n", name)
+				cmd.Printf("  📝 %s\n", operation.Description)
+				cmd.Printf("  🎯 Services: %v\n", operation.Services)
+				cmd.Printf("  📊 Steps: %d\n", len(operation.Steps))
+				if operation.Parallel {
+					cmd.Printf("  ⚡ Execution: Parallel\n")
+				} else {
+					cmd.Printf("  🔄 Execution: Sequential\n")
+				}
+				cmd.Println()
+			}
+
+			return nil
+		},
+	}
 }
 
 func newOpsUserCreateCmd() *cobra.Command {

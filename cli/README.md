@@ -122,6 +122,13 @@ boilerplate-cli ops user delete 123
 #### Workflow Execution
 ```bash
 boilerplate-cli ops workflow user-onboarding
+boilerplate-cli ops workflow list
+```
+
+#### Multi-Service Operations
+```bash
+boilerplate-cli ops multi execute system-bootstrap
+boilerplate-cli ops multi list
 ```
 
 ### Development Commands
@@ -161,6 +168,27 @@ boilerplate-cli health check
 boilerplate-cli health services
 boilerplate-cli health database
 boilerplate-cli health dependencies
+```
+
+### Monitoring & Metrics
+
+#### System Health Overview
+```bash
+boilerplate-cli health check --verbose
+```
+
+#### Service Performance Metrics
+```bash
+boilerplate-cli health services --json
+```
+
+#### Multi-Service Operations
+```bash
+# Execute coordinated operations across services
+boilerplate-cli ops multi execute system-bootstrap
+
+# List available multi-service operations
+boilerplate-cli ops multi list
 ```
 
 ## Examples
@@ -225,7 +253,11 @@ The CLI is built with a modular architecture:
 - ✅ **User Operations**: Complete CRUD operations for user management
 - ✅ **Data Operations**: Seed, export, validate, and cleanup data
 - ✅ **Workflow Orchestration**: Predefined business workflows
-- 🚧 Advanced monitoring and logging (Phase 3)
+- ✅ **Advanced Monitoring**: Comprehensive health checks with metrics
+- ✅ **Multi-Service Operations**: Coordinated operations across services
+- ✅ **Custom Workflows**: User-defined workflow creation and execution
+- ✅ **Performance Monitoring**: Response time tracking and uptime metrics
+- 🚧 Plugin system for extensibility (Future)
 
 ## Contributing
 
