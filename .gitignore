@@ -13,6 +13,37 @@
 /bin/
 /cmd/*/main
 
+# CLI binaries (all architectures and platforms)
+cli/boilerplate-cli
+cli/boilerplate-cli.exe
+cli/boilerplate-cli-*
+boilerplate-cli
+boilerplate-cli.exe
+boilerplate-cli-*
+
+# Cross-compiled binaries
+*-linux-amd64
+*-linux-arm64
+*-darwin-amd64
+*-darwin-arm64
+*-windows-amd64.exe
+*-windows-arm64.exe
+*-freebsd-amd64
+*-freebsd-arm64
+
+# Build output directories
+build/
+dist/
+bin/
+target/
+
+# Temporary build files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
 # Go coverage files
 *.cover
 *.coverprofile
@@ -90,10 +121,32 @@ migrations/*.down.sql
 services/*/build/
 services/*/.env
 services/*/logs/
+services/*/api-gateway
+services/*/user-service
+services/*/*.exe
+services/*/*.dll
+services/*/*.so
+services/*/*.dylib
 
 # API Gateway artifacts
 api-gateway/build/
 api-gateway/logs/
+api-gateway/api-gateway
+api-gateway/*.exe
+api-gateway/*.dll
+api-gateway/*.so
+api-gateway/*.dylib
+
+# CLI artifacts
+cli/build/
+cli/logs/
+cli/boilerplate-cli
+cli/*.exe
+cli/*.dll
+cli/*.so
+cli/*.dylib
+cli/main
+cli/main.exe
 
 # Docker volumes
 docker/volumes/
@@ -135,3 +188,4 @@ __pycache__/
 tmp/
 
 backup_*.sql
+cli/boilerplate-cli

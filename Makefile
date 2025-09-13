@@ -4,6 +4,7 @@
 PROJECT_NAME := service-boilerplate
 API_GATEWAY_DIR := api-gateway
 USER_SERVICE_DIR := services/user-service
+CLI_DIR := cli
 BUILD_DIR := build
 DOCKER_COMPOSE_FILE := docker/docker-compose.yml
 DOCKER_COMPOSE_OVERRIDE_FILE := docker/docker-compose.override.yml
@@ -66,6 +67,16 @@ help: ## Show this help message
 	@echo 'Targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo ''
+	@echo 'CLI Commands:'
+	@echo '  build-cli          - Build CLI utility'
+	@echo '  build-all          - Build all services and CLI'
+	@echo '  run-cli            - Build and run CLI utility'
+	@echo '  run-cli-local      - Run CLI utility locally'
+	@echo '  test-cli           - Run CLI tests'
+	@echo '  test-all           - Run all tests (services + CLI)'
+	@echo '  clean-cli          - Clean CLI build artifacts'
+	@echo '  air-cli            - Run CLI with Air locally'
+	@echo ''
 	@echo 'Health & Monitoring:'
 	@echo '  health             - Comprehensive health check of all services'
 	@echo '  health-services    - Check HTTP health endpoints'
@@ -103,6 +114,7 @@ help: ## Show this help message
 	@echo '  clean              - Clean basic Go build artifacts'
 	@echo '  clean-all          - Complete clean for fresh start'
 	@echo '  clean-go           - Clean Go artifacts and cache'
+	@echo '  clean-cli          - Clean CLI build artifacts'
 	@echo '  clean-docker       - Clean project Docker artifacts'
 	@echo '  clean-volumes      - Clean Docker volumes'
 	@echo '  clean-logs         - Clean log files'
@@ -144,6 +156,17 @@ build-user-service: ## Build User Service
 	@mkdir -p $(BUILD_DIR)
 	@cd $(USER_SERVICE_DIR) && $(GOBUILD) -o ../$(BUILD_DIR)/user-service ./cmd
 
+.PHONY: build-cli
+build-cli: ## Build CLI utility
+	@echo "Building CLI utility..."
+	@mkdir -p $(BUILD_DIR)
+	@cd $(CLI_DIR) && $(GOBUILD) -o ../$(BUILD_DIR)/boilerplate-cli ./main.go
+	@echo "✅ CLI built successfully: $(BUILD_DIR)/boilerplate-cli"
+
+.PHONY: build-all
+build-all: build build-cli ## Build all services and CLI
+	@echo "✅ All components built successfully"
+
 .PHONY: up
 up: ## Start all services with Docker (PRIMARY)
 	@echo "Starting services with Docker..."
@@ -176,6 +199,11 @@ air-user-service: ## Run User Service with Air locally
 	@echo "Starting User Service with Air..."
 	@cd $(USER_SERVICE_DIR) && air
 
+.PHONY: air-cli
+air-cli: ## Run CLI with Air locally
+	@echo "Starting CLI with Air..."
+	@cd $(CLI_DIR) && air
+
 .PHONY: logs
 logs: ## Show service logs
 	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) logs -f
@@ -198,6 +226,16 @@ run-user-service-local: ## Run User Service locally
 	@echo "Running User Service locally..."
 	@cd $(USER_SERVICE_DIR) && $(GO) run ./cmd
 
+.PHONY: run-cli-local
+run-cli-local: ## Run CLI utility locally
+	@echo "Running CLI utility locally..."
+	@cd $(CLI_DIR) && $(GO) run ./main.go
+
+.PHONY: run-cli
+run-cli: build-cli ## Build and run CLI utility
+	@echo "Running CLI utility..."
+	@./$(BUILD_DIR)/boilerplate-cli
+
 .PHONY: stop-local
 stop-local: ## Stop all locally running services
 	@echo "Stopping local services..."
@@ -219,11 +257,30 @@ test-user-service: ## Run User Service tests
 	@echo "Running User Service tests..."
 	@cd $(USER_SERVICE_DIR) && $(GOTEST) ./...
 
+.PHONY: test-cli
+test-cli: ## Run CLI tests
+	@echo "Running CLI tests..."
+	@cd $(CLI_DIR) && $(GOTEST) ./...
+
+.PHONY: test-all
+test-all: test test-cli ## Run all tests (services + CLI)
+	@echo "✅ All tests completed"
+
 .PHONY: clean
 clean: ## Clean build artifacts
 	@echo "Cleaning build artifacts..."
 	@$(GOCLEAN)
 	@rm -rf $(BUILD_DIR)
+
+.PHONY: clean-cli
+clean-cli: ## Clean CLI build artifacts
+	@echo "Cleaning CLI artifacts..."
+	@rm -f $(BUILD_DIR)/boilerplate-cli
+	@rm -f $(CLI_DIR)/boilerplate-cli
+	@rm -f $(CLI_DIR)/main
+	@find $(CLI_DIR) -name "*.test" -type f -delete 2>/dev/null || true
+	@find $(CLI_DIR) -name "*.out" -type f -delete 2>/dev/null || true
+	@echo "✅ CLI artifacts cleaned"
 
 .PHONY: fmt
 fmt: ## Format Go code
@@ -554,7 +611,7 @@ create-service: ## Create new service (usage: make create-service SERVICE_NAME=n
 
 # Cleaning Commands
 .PHONY: clean-all
-clean-all: down clean-go clean-docker clean-volumes clean-logs clean-cache clean-test ## Complete clean for fresh start
+clean-all: down clean-go clean-cli clean-docker clean-volumes clean-logs clean-cache clean-test ## Complete clean for fresh start
 	@echo "✅ Complete clean finished! All artifacts removed."
 
 .PHONY: clean-go
@@ -564,6 +621,7 @@ clean-go: ## Clean Go build artifacts and cache
 	@rm -rf $(BUILD_DIR)
 	@rm -rf $(API_GATEWAY_DIR)/tmp
 	@rm -rf $(USER_SERVICE_DIR)/tmp
+	@rm -rf $(CLI_DIR)/tmp
 	@find . -name "*.test" -type f -delete 2>/dev/null || true
 	@find . -name "*.out" -type f -delete 2>/dev/null || true
 	@find . -name "coverage.*" -type f -delete 2>/dev/null || true
