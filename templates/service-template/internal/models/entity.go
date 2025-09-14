@@ -26,6 +26,13 @@ type CreateEntityRequest struct {
 	// Add more fields as needed for specific entity types
 }
 
+// ReplaceEntityRequest represents the request payload for replacing an entity
+type ReplaceEntityRequest struct {
+	Name        string `json:"name" binding:"required" validate:"required,min=1,max=100"`
+	Description string `json:"description" validate:"max=500"`
+	// Add more fields as needed for specific entity types
+}
+
 // UpdateEntityRequest represents the request payload for updating an entity
 type UpdateEntityRequest struct {
 	Name        *string `json:"name,omitempty" validate:"omitempty,min=1,max=100"`

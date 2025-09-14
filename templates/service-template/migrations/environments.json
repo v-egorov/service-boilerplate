@@ -1,0 +1,48 @@
+{
+  "environments": {
+    "development": {
+      "description": "Development environment with test data and debug features",
+      "migrations": [
+        "000003_dev_test_data.up.sql"
+      ],
+      "seed_files": [
+        "scripts/seeds/development/dev_entities.sql"
+      ],
+      "config": {
+        "allow_destructive_operations": true,
+        "skip_validation": false,
+        "auto_rollback_on_failure": true
+      }
+    },
+    "staging": {
+      "description": "Staging environment for pre-production testing",
+      "migrations": [],
+      "seed_files": [],
+      "config": {
+        "allow_destructive_operations": false,
+        "skip_validation": false,
+        "auto_rollback_on_failure": true,
+        "require_approval": true
+      }
+    },
+    "production": {
+      "description": "Production environment with strict controls",
+      "migrations": [],
+      "seed_files": [],
+      "config": {
+        "allow_destructive_operations": false,
+        "skip_validation": false,
+        "auto_rollback_on_failure": false,
+        "require_approval": true,
+        "maintenance_window_required": true,
+        "backup_required": true
+      }
+    }
+  },
+  "current_environment": "development",
+  "migration_locking": {
+    "enabled": true,
+    "timeout_seconds": 300,
+    "max_concurrent_migrations": 1
+  }
+}

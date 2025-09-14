@@ -145,6 +145,12 @@ replace_vars() {
     sed -i "s|// ENTITY_IMPORT_SERVICES|\"github.com/v-egorov/service-boilerplate/services/$SERVICE_NAME/internal/services\"|g" "$file"
     sed -i "s|// ENTITY_IMPORT_MODELS|\"github.com/v-egorov/service-boilerplate/services/$SERVICE_NAME/internal/models\"|g" "$file"
 
+    # Replace hardcoded template imports
+    sed -i "s|github.com/v-egorov/service-boilerplate/templates/service-template/internal/handlers|github.com/v-egorov/service-boilerplate/services/$SERVICE_NAME/internal/handlers|g" "$file"
+    # Remove aliased template imports
+    sed -i "/repository \"github.com\/v-egorov\/service-boilerplate\/templates\/service-template\/internal\/repository\"/d" "$file"
+    sed -i "/services \"github.com\/v-egorov\/service-boilerplate\/templates\/service-template\/internal\/services\"/d" "$file"
+
     # Replace other placeholders
     sed -i "s|// ENTITY_REPO_INIT|entityRepo := repository.NewEntityRepository(db.GetPool(), logger.Logger)|g" "$file"
     sed -i "s|// ENTITY_SERVICE_INIT|entityService := services.NewEntityService(entityRepo, logger.Logger)|g" "$file"

@@ -91,7 +91,19 @@ func (h *HealthHandler) LivenessHandler(c *gin.Context) {
 
 // ReadinessHandler checks if the service is ready to accept traffic
 func (h *HealthHandler) ReadinessHandler(c *gin.Context) {
-	// Check database connectivity
+	// Check database connectivity if database is available
+	if h.db == nil {
+		// No database connection, but service is still ready for basic operations
+		response := HealthResponse{
+			Status:    "ok",
+			Timestamp: time.Now().UTC(),
+			Service:   h.config.App.Name,
+			Version:   h.config.App.Version,
+		}
+		c.JSON(http.StatusOK, response)
+		return
+	}
+
 	dbHealth := h.checkDatabaseHealth()
 
 	if dbHealth.Status == "healthy" {
@@ -125,16 +137,31 @@ func (h *HealthHandler) PingHandler(c *gin.Context) {
 
 // StatusHandler provides comprehensive service status
 func (h *HealthHandler) StatusHandler(c *gin.Context) {
-	// Check database health
-	dbHealth := h.checkDatabaseHealth()
+	// Check database health if database is available
+	var dbHealth DatabaseHealth
+	var totalChecks int
+	var failedChecks int
+
+	if h.db == nil {
+		// No database connection
+		dbHealth = DatabaseHealth{
+			Status: "unavailable",
+			Error:  "Database not configured",
+		}
+		totalChecks = 0 // No database check
+	} else {
+		dbHealth = h.checkDatabaseHealth()
+		totalChecks = 1 // Database check
+
+		if dbHealth.Status != "healthy" {
+			failedChecks++
+		}
+	}
 
 	// Calculate overall status
 	overallStatus := "healthy"
-	failedChecks := 0
-
-	if dbHealth.Status != "healthy" {
+	if failedChecks > 0 {
 		overallStatus = "unhealthy"
-		failedChecks++
 	}
 
 	// Prepare response
@@ -149,8 +176,8 @@ func (h *HealthHandler) StatusHandler(c *gin.Context) {
 		},
 		Database: dbHealth,
 		Checks: CheckSummary{
-			Total:  1, // Database check
-			Passed: 1 - failedChecks,
+			Total:  totalChecks,
+			Passed: totalChecks - failedChecks,
 			Failed: failedChecks,
 		},
 	}

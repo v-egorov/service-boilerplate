@@ -13,13 +13,9 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/config"
 	"github.com/v-egorov/service-boilerplate/common/database"
 	"github.com/v-egorov/service-boilerplate/common/logging"
-	"github.com/v-egorov/service-boilerplate/templates/service-template/internal/handlers"
 	// ENTITY_IMPORT_HANDLERS
 	// ENTITY_IMPORT_REPOSITORY
 	// ENTITY_IMPORT_SERVICES
-	// Placeholder imports for template
-	repository "github.com/v-egorov/service-boilerplate/templates/service-template/internal/repository"
-	services "github.com/v-egorov/service-boilerplate/templates/service-template/internal/services"
 )
 
 func main() {
@@ -54,19 +50,31 @@ func main() {
 
 	db, err := database.NewPostgresDB(dbConfig, logger.Logger)
 	if err != nil {
-		logger.Fatal("Failed to connect to database", err)
+		logger.Warn("Failed to connect to database, running without database", err)
+		db = nil // Set to nil to indicate no database connection
+	} else {
+		defer db.Close()
 	}
-	defer db.Close()
 
-	// Initialize repository
-	entityRepo := repository.NewEntityRepository(db.GetPool(), logger.Logger)
+	// Initialize repository and service only if database is available
+	var entityHandler *handlers.EntityHandler
+	var healthHandler *handlers.HealthHandler
 
-	// Initialize service
-	entityService := services.NewEntityService(entityRepo, logger.Logger)
+	if db != nil {
+		// Initialize repository
+		entityRepo := repository.NewEntityRepository(db.GetPool(), logger.Logger)
 
-	// Initialize handlers
-	entityHandler := handlers.NewEntityHandler(entityService, logger.Logger)
-	healthHandler := handlers.NewHealthHandler(db.GetPool(), logger.Logger, cfg)
+		// Initialize service
+		entityService := services.NewEntityService(entityRepo, logger.Logger)
+
+		// Initialize handlers
+		entityHandler = handlers.NewEntityHandler(entityService, logger.Logger)
+		healthHandler = handlers.NewHealthHandler(db.GetPool(), logger.Logger, cfg)
+	} else {
+		// Initialize handlers without database
+		healthHandler = handlers.NewHealthHandler(nil, logger.Logger, cfg)
+		entityHandler = nil // Entity operations won't work without database
+	}
 
 	// Setup Gin router
 	if cfg.App.Environment == "production" {
@@ -84,6 +92,8 @@ func main() {
 	router.GET("/health", healthHandler.LivenessHandler)
 	router.GET("/ready", healthHandler.ReadinessHandler)
 	router.GET("/live", healthHandler.LivenessHandler)
+	router.GET("/status", healthHandler.StatusHandler) // Direct status endpoint
+	router.GET("/ping", healthHandler.PingHandler)     // Direct ping endpoint
 
 	// API routes
 	v1 := router.Group("/api/v1")
@@ -92,13 +102,17 @@ func main() {
 		v1.GET("/status", healthHandler.StatusHandler)
 		v1.GET("/ping", healthHandler.PingHandler)
 
-		entities := v1.Group("/entities")
-		{
-			entities.POST("", entityHandler.CreateEntity)
-			entities.GET("/:id", entityHandler.GetEntity)
-			entities.PUT("/:id", entityHandler.UpdateEntity)
-			entities.DELETE("/:id", entityHandler.DeleteEntity)
-			entities.GET("", entityHandler.ListEntities)
+		// Entity endpoints (only if database is available)
+		if entityHandler != nil {
+			entities := v1.Group("/entities")
+			{
+				entities.POST("", entityHandler.CreateEntity)
+				entities.GET("/:id", entityHandler.GetEntity)
+				entities.PUT("/:id", entityHandler.ReplaceEntity)  // Full resource replacement
+				entities.PATCH("/:id", entityHandler.UpdateEntity) // Partial resource update
+				entities.DELETE("/:id", entityHandler.DeleteEntity)
+				entities.GET("", entityHandler.ListEntities)
+			}
 		}
 	}
 

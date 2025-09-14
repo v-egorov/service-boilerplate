@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -76,6 +77,46 @@ func (r *EntityRepository) GetByID(ctx context.Context, id int64) (*models.Entit
 	}
 
 	return &entity, nil
+}
+
+func (r *EntityRepository) Replace(ctx context.Context, id int64, entity *models.Entity) (*models.Entity, error) {
+	if id <= 0 {
+		return nil, errors.New("invalid entity ID")
+	}
+
+	query := `
+		UPDATE entities
+		SET name = $1, description = $2, updated_at = $3
+		WHERE id = $4
+		RETURNING id, name, description, created_at, updated_at`
+
+	entity.UpdatedAt = time.Now()
+
+	var updatedEntity models.Entity
+	err := r.db.QueryRow(ctx, query,
+		entity.Name,
+		entity.Description,
+		entity.UpdatedAt,
+		id,
+	).Scan(
+		&updatedEntity.ID,
+		&updatedEntity.Name,
+		&updatedEntity.Description,
+		&updatedEntity.CreatedAt,
+		&updatedEntity.UpdatedAt,
+	)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			r.logger.WithField("id", id).Warn("Entity not found for replacement")
+			return nil, errors.New("entity not found")
+		}
+		r.logger.WithError(err).WithField("id", id).Error("Failed to replace entity")
+		return nil, err
+	}
+
+	r.logger.WithField("id", id).Info("Entity replaced in database")
+	return &updatedEntity, nil
 }
 
 func (r *EntityRepository) Update(ctx context.Context, id int64, updates map[string]interface{}) (*models.Entity, error) {
