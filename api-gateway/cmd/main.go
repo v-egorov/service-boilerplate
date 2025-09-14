@@ -59,10 +59,12 @@ func main() {
 	router.Use(middleware.CORSMiddleware())
 	router.Use(middleware.RequestIDMiddleware())
 
-	// Health check
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "gateway": "running"})
-	})
+	// Health check endpoints (public, no auth required)
+	router.GET("/health", gatewayHandler.LivenessHandler)
+	router.GET("/ready", gatewayHandler.ReadinessHandler)
+	router.GET("/live", gatewayHandler.LivenessHandler)
+	router.GET("/status", gatewayHandler.StatusHandler) // Direct status endpoint
+	router.GET("/ping", gatewayHandler.PingHandler)     // Direct ping endpoint
 
 	// Public monitoring endpoints (no auth required)
 	router.GET("/api/v1/status", gatewayHandler.StatusHandler)

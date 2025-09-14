@@ -13,9 +13,13 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/config"
 	"github.com/v-egorov/service-boilerplate/common/database"
 	"github.com/v-egorov/service-boilerplate/common/logging"
+	"github.com/v-egorov/service-boilerplate/templates/service-template/internal/handlers"
 	// ENTITY_IMPORT_HANDLERS
 	// ENTITY_IMPORT_REPOSITORY
 	// ENTITY_IMPORT_SERVICES
+	// Placeholder imports for template
+	repository "github.com/v-egorov/service-boilerplate/templates/service-template/internal/repository"
+	services "github.com/v-egorov/service-boilerplate/templates/service-template/internal/services"
 )
 
 func main() {
@@ -55,13 +59,14 @@ func main() {
 	defer db.Close()
 
 	// Initialize repository
-	// ENTITY_REPO_INIT
+	entityRepo := repository.NewEntityRepository(db.GetPool(), logger.Logger)
 
 	// Initialize service
-	// ENTITY_SERVICE_INIT
+	entityService := services.NewEntityService(entityRepo, logger.Logger)
 
 	// Initialize handlers
-	// ENTITY_HANDLER_INIT
+	entityHandler := handlers.NewEntityHandler(entityService, logger.Logger)
+	healthHandler := handlers.NewHealthHandler(db.GetPool(), logger.Logger, cfg)
 
 	// Setup Gin router
 	if cfg.App.Environment == "production" {
@@ -75,14 +80,18 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(corsMiddleware())
 
-	// Health check
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": "SERVICE_NAME"})
-	})
+	// Health check endpoints (public, no auth required)
+	router.GET("/health", healthHandler.LivenessHandler)
+	router.GET("/ready", healthHandler.ReadinessHandler)
+	router.GET("/live", healthHandler.LivenessHandler)
 
 	// API routes
 	v1 := router.Group("/api/v1")
 	{
+		// Health endpoints
+		v1.GET("/status", healthHandler.StatusHandler)
+		v1.GET("/ping", healthHandler.PingHandler)
+
 		entities := v1.Group("/entities")
 		{
 			entities.POST("", entityHandler.CreateEntity)

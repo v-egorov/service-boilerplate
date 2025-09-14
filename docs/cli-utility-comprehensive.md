@@ -446,9 +446,26 @@ boilerplate-cli ops multi execute service-migration
 
 ### Health Commands
 
+#### Health Check Endpoints
+
+The CLI supports multiple health check endpoints per service for comprehensive monitoring:
+
+| Endpoint | Purpose | Description |
+|----------|---------|-------------|
+| `/health` | Liveness | Basic service availability check |
+| `/ready` | Readiness | Service ready to accept traffic (includes database) |
+| `/live` | Liveness | Service is alive (same as /health) |
+| `/api/v1/status` | Status | Comprehensive status with metrics |
+| `/api/v1/ping` | Ping | Simple ping/pong response |
+
+**Health Check Flow:**
+1. **Liveness** (`/health`): Basic service availability
+2. **Readiness** (`/ready`): Service ready for traffic (includes dependencies)
+3. **Status** (`/api/v1/status`): Detailed health with metrics and database info
+
 #### `health check`
 
-Comprehensive system health check.
+Comprehensive system health check that tests all configured endpoints.
 
 ```bash
 boilerplate-cli health check
@@ -481,32 +498,172 @@ boilerplate-cli health check --json
 🎉 System Health: EXCELLENT
 ```
 
+**Health Status Levels:**
+- **🟢 EXCELLENT**: All services healthy, uptime > 99%
+- **🟡 GOOD**: All services healthy, uptime 95-99%
+- **🟠 DEGRADED**: Some services unhealthy or uptime 90-95%
+- **🔴 NEEDS ATTENTION**: Multiple unhealthy services or uptime < 90%
+
 #### `health services`
 
-Check individual service health.
+Check individual service health with detailed endpoint testing.
 
 ```bash
 boilerplate-cli health services
+boilerplate-cli health services --service user-service
 boilerplate-cli health services --json
+```
+
+**Output:**
+```
+🔍 Checking service health...
+============================
+✅ user-service (http://localhost:8081)
+  ├── /health: ✅ 12ms
+  ├── /readiness: ✅ 45ms
+  ├── /liveness: ✅ 8ms
+  └── /api/v1/status: ✅ 67ms
+
+📊 Health Summary:
+  • Total Checks: 4
+  • Passed: 4
+  • Failed: 0
+  • Average Response: 33ms
 ```
 
 #### `health database`
 
-Check database connectivity and health.
+Check database connectivity and performance metrics.
 
 ```bash
 boilerplate-cli health database
+boilerplate-cli health database --service user-service
 boilerplate-cli health database --json
+```
+
+**Output:**
+```
+🗄️ Checking database health...
+==============================
+✅ user-service Database
+  ├── Connection: ✅ Healthy
+  ├── Response Time: 23ms
+  ├── Active Connections: 2
+  ├── Idle Connections: 5
+  └── Total Connections: 7
+
+📈 Database Metrics:
+  • Connection Pool: 71% utilized
+  • Average Query Time: 12ms
+  • Connection Errors: 0
 ```
 
 #### `health dependencies`
 
-Analyze service dependencies.
+Analyze service dependencies and inter-service relationships.
 
 ```bash
 boilerplate-cli health dependencies
 boilerplate-cli health dependencies --json
 ```
+
+**Output:**
+```
+🔗 Analyzing service dependencies...
+===================================
+📋 Dependency Map:
+user-service
+├── Database: ✅ PostgreSQL (healthy)
+├── API Gateway: ✅ api-gateway (healthy)
+└── External APIs: ✅ 2/2 healthy
+
+api-gateway
+├── user-service: ✅ (healthy)
+├── Database: ✅ PostgreSQL (healthy)
+└── Load Balancer: ✅ (healthy)
+
+🚨 Critical Dependencies:
+  • Database connectivity: ✅ All services
+  • Inter-service communication: ✅ All pairs
+  • External API availability: ✅ 100%
+```
+
+#### `health monitor`
+
+Continuous health monitoring with alerts.
+
+```bash
+boilerplate-cli health monitor
+boilerplate-cli health monitor --interval 30
+boilerplate-cli health monitor --alert-threshold 95
+```
+
+**Flags:**
+- `--interval`, `-i`: Monitoring interval in seconds (default: 60)
+- `--alert-threshold`: Uptime percentage threshold for alerts (default: 95)
+- `--services`: Comma-separated list of services to monitor
+
+#### Health Check Configuration
+
+Configure health check endpoints in `boilerplate-cli.yaml`:
+
+```yaml
+health_checks:
+  user-service:
+    health: "/health"
+    readiness: "/readiness"
+    liveness: "/liveness"
+    status: "/api/v1/status"
+    ping: "/api/v1/ping"
+  api-gateway:
+    health: "/health"
+    readiness: "/api/v1/status"
+    liveness: "/api/v1/ping"
+    status: "/api/v1/status"
+    ping: "/api/v1/ping"
+  default:
+    health: "/health"
+    readiness: "/ready"
+    liveness: "/live"
+    status: "/api/v1/status"
+    ping: "/api/v1/ping"
+```
+
+#### Troubleshooting Health Checks
+
+**Common Issues:**
+
+1. **404 Errors on Health Endpoints**
+   ```bash
+   # Check if service implements the expected endpoints
+   curl http://localhost:8081/health
+   curl http://localhost:8081/ready
+   curl http://localhost:8081/api/v1/status
+   ```
+
+2. **Database Connection Failures**
+   ```bash
+   # Verify database connectivity
+   boilerplate-cli health database --verbose
+   # Check database service status
+   docker ps | grep postgres
+   ```
+
+3. **Service Unavailable**
+   ```bash
+   # Check service logs
+   docker logs service-boilerplate-user-service
+   # Verify service is running
+   boilerplate-cli services status user-service
+   ```
+
+4. **Slow Response Times**
+   ```bash
+   # Check individual endpoint performance
+   boilerplate-cli health services --service user-service --verbose
+   # Monitor system resources
+   docker stats
+   ```
 
 ### Development Commands
 

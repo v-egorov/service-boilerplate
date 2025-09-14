@@ -50,18 +50,31 @@ func main() {
 
 	db, err := database.NewPostgresDB(dbConfig, logger.Logger)
 	if err != nil {
-		logger.Fatal("Failed to connect to database", err)
+		logger.Warn("Failed to connect to database, running without database", err)
+		db = nil // Set to nil to indicate no database connection
+	} else {
+		defer db.Close()
 	}
-	defer db.Close()
 
-	// Initialize repository
-	userRepo := repository.NewUserRepository(db.GetPool(), logger.Logger)
+	// Initialize repository and service only if database is available
+	var userHandler *handlers.UserHandler
+	var healthHandler *handlers.HealthHandler
 
-	// Initialize service
-	userService := services.NewUserService(userRepo, logger.Logger)
+	if db != nil {
+		// Initialize repository
+		userRepo := repository.NewUserRepository(db.GetPool(), logger.Logger)
 
-	// Initialize handlers
-	userHandler := handlers.NewUserHandler(userService, logger.Logger)
+		// Initialize service
+		userService := services.NewUserService(userRepo, logger.Logger)
+
+		// Initialize handlers
+		userHandler = handlers.NewUserHandler(userService, logger.Logger)
+		healthHandler = handlers.NewHealthHandler(db.GetPool(), logger.Logger, cfg)
+	} else {
+		// Initialize handlers without database
+		healthHandler = handlers.NewHealthHandler(nil, logger.Logger, cfg)
+		userHandler = nil // User operations won't work without database
+	}
 
 	// Setup Gin router
 	if cfg.App.Environment == "production" {
@@ -75,21 +88,30 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(corsMiddleware())
 
-	// Health check
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
+	// Health check endpoints (public, no auth required)
+	router.GET("/health", healthHandler.LivenessHandler)
+	router.GET("/ready", healthHandler.ReadinessHandler)
+	router.GET("/live", healthHandler.LivenessHandler)
+	router.GET("/status", healthHandler.StatusHandler) // Direct status endpoint
+	router.GET("/ping", healthHandler.PingHandler)     // Direct ping endpoint
 
 	// API routes
 	v1 := router.Group("/api/v1")
 	{
-		users := v1.Group("/users")
-		{
-			users.POST("", userHandler.CreateUser)
-			users.GET("/:id", userHandler.GetUser)
-			users.PUT("/:id", userHandler.UpdateUser)
-			users.DELETE("/:id", userHandler.DeleteUser)
-			users.GET("", userHandler.ListUsers)
+		// Health endpoints
+		v1.GET("/status", healthHandler.StatusHandler)
+		v1.GET("/ping", healthHandler.PingHandler)
+
+		// User endpoints (only if database is available)
+		if userHandler != nil {
+			users := v1.Group("/users")
+			{
+				users.POST("", userHandler.CreateUser)
+				users.GET("/:id", userHandler.GetUser)
+				users.PUT("/:id", userHandler.UpdateUser)
+				users.DELETE("/:id", userHandler.DeleteUser)
+				users.GET("", userHandler.ListUsers)
+			}
 		}
 	}
 

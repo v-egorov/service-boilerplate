@@ -100,6 +100,38 @@ func (h *GatewayHandler) ProxyRequest(serviceName string) gin.HandlerFunc {
 	}
 }
 
+// LivenessHandler provides basic liveness check
+func (h *GatewayHandler) LivenessHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status":    "ok",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"gateway":   h.config.App.Name,
+		"version":   h.config.App.Version,
+	})
+}
+
+// ReadinessHandler checks if the gateway is ready to accept traffic
+func (h *GatewayHandler) ReadinessHandler(c *gin.Context) {
+	// Check if services are available
+	services := h.registry.ListServices()
+	if len(services) == 0 {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"status":    "error",
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+			"gateway":   h.config.App.Name,
+			"message":   "No services registered",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":    "ok",
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+		"gateway":   h.config.App.Name,
+		"version":   h.config.App.Version,
+	})
+}
+
 // PingHandler provides a simple liveness check
 func (h *GatewayHandler) PingHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
