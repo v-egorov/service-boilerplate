@@ -387,8 +387,18 @@ db-recreate: db-drop db-create ## Recreate database from scratch
 	@echo "🔄 Database $(DATABASE_NAME) recreated successfully"
 
 ## Migration Management (Docker-Based)
+.PHONY: db-migrate-prepare
+db-migrate-prepare: ## Prepare migration environment (create required directories)
+	@echo "📁 Preparing migration environment..."
+	@mkdir -p tmp/migrations
+	@if [ ! -d "tmp/migrations" ]; then \
+		echo "❌ Failed to create tmp/migrations directory"; \
+		exit 1; \
+	fi
+	@echo "✅ Migration environment ready"
+
 .PHONY: db-migrate-up
-db-migrate-up: ## Run migrations up using migration container
+db-migrate-up: db-migrate-prepare ## Run migrations up using migration container
 	@echo "📈 Running migrations up..."
 	@docker run --rm --network service-boilerplate-network \
 		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
@@ -398,7 +408,7 @@ db-migrate-up: ## Run migrations up using migration container
 		up
 
 .PHONY: db-migrate-down
-db-migrate-down: ## Run migrations down using migration container
+db-migrate-down: db-migrate-prepare ## Run migrations down using migration container
 	@echo "⏪ Running migrations down..."
 	@docker run --rm --network service-boilerplate-network \
 		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
@@ -408,7 +418,7 @@ db-migrate-down: ## Run migrations down using migration container
 		down 1
 
 .PHONY: db-migrate-status
-db-migrate-status: ## Show migration status using migration container
+db-migrate-status: db-migrate-prepare ## Show migration status using migration container
 	@echo "📋 Migration status:"
 	@docker run --rm --network service-boilerplate-network \
 		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
@@ -424,7 +434,7 @@ db-migrate: db-migrate-up ## Run all pending migrations (alias for db-migrate-up
 db-rollback: db-migrate-down ## Rollback last migration (alias for db-migrate-down)
 
 .PHONY: db-migrate-goto
-db-migrate-goto: ## Go to specific migration version (VERSION=001)
+db-migrate-goto: db-migrate-prepare ## Go to specific migration version (VERSION=001)
 	@echo "🎯 Going to migration version $(VERSION)..."
 	@if [ -z "$(VERSION)" ]; then \
 		echo "❌ Error: Please specify VERSION (e.g., make db-migrate-goto VERSION=001)"; \
@@ -438,7 +448,7 @@ db-migrate-goto: ## Go to specific migration version (VERSION=001)
 		goto $(VERSION)
 
 .PHONY: db-migrate-validate
-db-migrate-validate: ## Validate migration files
+db-migrate-validate: db-migrate-prepare ## Validate migration files
 	@echo "✅ Validating migration files..."
 	@docker run --rm --network service-boilerplate-network \
 		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
@@ -448,7 +458,7 @@ db-migrate-validate: ## Validate migration files
 		up --dry-run
 
 .PHONY: db-migration-create
-db-migration-create: ## Create new migration file (NAME=add_users_table)
+db-migration-create: db-migrate-prepare ## Create new migration file (NAME=add_users_table)
 	@echo "📝 Creating migration: $(NAME)"
 	@if [ -z "$(NAME)" ]; then \
 		echo "❌ Error: Please specify NAME (e.g., make db-migration-create NAME=add_users_table)"; \
