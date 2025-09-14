@@ -19,10 +19,10 @@ health_checks:
     ping: "/api/v1/ping"
   api-gateway:
     health: "/health"
-    readiness: "/api/v1/status"
-    liveness: "/api/v1/ping"
-    status: "/api/v1/status"
-    ping: "/api/v1/ping"
+    readiness: "/ready"
+    liveness: "/live"
+    status: "/status"
+    ping: "/ping"
   # Default fallbacks for unknown services
   default:
     health: "/health"

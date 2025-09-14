@@ -116,8 +116,8 @@ func setDefaults(v *viper.Viper) {
 		},
 		"api-gateway": map[string]string{
 			"health":    "/health",
-			"readiness": "/api/v1/status",
-			"liveness":  "/api/v1/ping",
+			"readiness": "/ready",
+			"liveness":  "/live",
 		},
 		"default": map[string]string{
 			"health":    "/health",

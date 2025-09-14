@@ -132,16 +132,29 @@ func (sr *ServiceRegistry) GetAllServices() []*ServiceInfo {
 
 // checkServiceHealth checks if a service is healthy
 func (sr *ServiceRegistry) checkServiceHealth(service *ServiceInfo) error {
-	healthURL := fmt.Sprintf("%s/health", service.URL)
-
-	resp, err := sr.client.Get(healthURL)
-	if err != nil {
-		return err
+	// Check all configured health endpoints for consistency
+	endpoints := []string{
+		service.HealthChecks.Health,
+		service.HealthChecks.Readiness,
+		service.HealthChecks.Liveness,
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("service returned status %d", resp.StatusCode)
+	for _, endpoint := range endpoints {
+		if endpoint == "" {
+			continue // Skip empty endpoints
+		}
+
+		healthURL := fmt.Sprintf("%s%s", service.URL, endpoint)
+
+		resp, err := sr.client.Get(healthURL)
+		if err != nil {
+			return fmt.Errorf("endpoint %s failed: %w", endpoint, err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("endpoint %s returned status %d", endpoint, resp.StatusCode)
+		}
 	}
 
 	return nil
