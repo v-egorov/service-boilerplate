@@ -108,6 +108,23 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("service_urls", map[string]string{
 		"user-service": "http://localhost:8081",
 	})
+	v.SetDefault("health_checks", map[string]interface{}{
+		"user-service": map[string]string{
+			"health":    "/health",
+			"readiness": "/ready",
+			"liveness":  "/live",
+		},
+		"api-gateway": map[string]string{
+			"health":    "/health",
+			"readiness": "/api/v1/status",
+			"liveness":  "/api/v1/ping",
+		},
+		"default": map[string]string{
+			"health":    "/health",
+			"readiness": "/ready",
+			"liveness":  "/live",
+		},
+	})
 	v.SetDefault("default_port", 8080)
 	v.SetDefault("timeout", 30)
 	v.SetDefault("retry_attempts", 3)

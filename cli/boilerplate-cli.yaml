@@ -13,17 +13,23 @@ service_urls:
 health_checks:
   user-service:
     health: "/health"
-    readiness: "/api/v1/users?limit=1"
-    liveness: "/api/v1/users"
+    readiness: "/ready"
+    liveness: "/live"
+    status: "/api/v1/status"
+    ping: "/api/v1/ping"
   api-gateway:
     health: "/health"
     readiness: "/api/v1/status"
     liveness: "/api/v1/ping"
+    status: "/api/v1/status"
+    ping: "/api/v1/ping"
   # Default fallbacks for unknown services
   default:
     health: "/health"
     readiness: "/ready"
     liveness: "/live"
+    status: "/api/v1/status"
+    ping: "/api/v1/ping"
 default_port: 8080
 timeout: 30
 retry_attempts: 3
