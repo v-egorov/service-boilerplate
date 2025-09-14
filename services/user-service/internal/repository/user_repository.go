@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -48,7 +49,9 @@ func (r *UserRepository) GetByID(ctx context.Context, id int) (*models.User, err
 		&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		r.logger.WithError(err).WithField("error_type", fmt.Sprintf("%T", err)).Error("Failed to get user by ID - checking error type")
+		if strings.Contains(err.Error(), "no rows in result set") {
+			r.logger.WithField("user_id", id).Info("User not found - no rows detected")
 			return nil, fmt.Errorf("user not found")
 		}
 		r.logger.WithError(err).Error("Failed to get user by ID")
@@ -69,6 +72,9 @@ func (r *UserRepository) Update(ctx context.Context, id int, user *models.User) 
 		&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("user not found")
+		}
 		r.logger.WithError(err).Error("Failed to update user")
 		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
