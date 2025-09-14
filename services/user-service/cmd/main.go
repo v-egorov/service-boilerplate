@@ -108,7 +108,8 @@ func main() {
 			{
 				users.POST("", userHandler.CreateUser)
 				users.GET("/:id", userHandler.GetUser)
-				users.PUT("/:id", userHandler.UpdateUser)
+				users.PUT("/:id", userHandler.ReplaceUser)  // Full resource replacement
+				users.PATCH("/:id", userHandler.UpdateUser) // Partial resource update
 				users.DELETE("/:id", userHandler.DeleteUser)
 				users.GET("", userHandler.ListUsers)
 			}

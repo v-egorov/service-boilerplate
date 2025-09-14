@@ -133,6 +133,53 @@ func (s *UserService) GetUser(ctx context.Context, id int) (*models.UserResponse
 	return s.toResponse(user), nil
 }
 
+func (s *UserService) ReplaceUser(ctx context.Context, id int, req *models.ReplaceUserRequest) (*models.UserResponse, error) {
+	if id <= 0 {
+		return nil, models.NewValidationError("id", "user ID must be positive")
+	}
+
+	// Validate replace request (all fields required)
+	if err := s.validateReplaceUserRequest(req); err != nil {
+		return nil, err
+	}
+
+	// Check if user exists
+	existing, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get existing user for replacement")
+
+		if strings.Contains(err.Error(), "not found") {
+			return nil, models.NewNotFoundError("User", "id", fmt.Sprintf("%d", id))
+		}
+
+		return nil, models.NewInternalError("getting user for replacement", err)
+	}
+
+	// Replace all fields (full replacement)
+	user := &models.User{
+		ID:        id,
+		Email:     req.Email,
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+		CreatedAt: existing.CreatedAt, // Preserve creation time
+	}
+
+	updated, err := s.repo.Update(ctx, id, user)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to replace user in repository")
+
+		// Check for constraint violations
+		if strings.Contains(err.Error(), "duplicate key") ||
+			strings.Contains(err.Error(), "unique constraint") {
+			return nil, models.NewConflictError("User", "email", req.Email)
+		}
+
+		return nil, models.NewInternalError("replacing user", err)
+	}
+
+	return s.toResponse(updated), nil
+}
+
 func (s *UserService) UpdateUser(ctx context.Context, id int, req *models.UpdateUserRequest) (*models.UserResponse, error) {
 	if id <= 0 {
 		return nil, models.NewValidationError("id", "user ID must be positive")
@@ -180,6 +227,32 @@ func (s *UserService) UpdateUser(ctx context.Context, id int, req *models.Update
 	}
 
 	return s.toResponse(updated), nil
+}
+
+// validateReplaceUserRequest validates the user replace request (all fields required)
+func (s *UserService) validateReplaceUserRequest(req *models.ReplaceUserRequest) error {
+	// Validate email (required)
+	if _, err := mail.ParseAddress(req.Email); err != nil {
+		return models.NewValidationError("email", "invalid email format")
+	}
+
+	// Validate first name (required)
+	if len(req.FirstName) < 2 {
+		return models.NewValidationError("first_name", "first name must be at least 2 characters")
+	}
+	if len(req.FirstName) > 100 {
+		return models.NewValidationError("first_name", "first name must be less than 100 characters")
+	}
+
+	// Validate last name (required)
+	if len(req.LastName) < 2 {
+		return models.NewValidationError("last_name", "last name must be at least 2 characters")
+	}
+	if len(req.LastName) > 100 {
+		return models.NewValidationError("last_name", "last name must be less than 100 characters")
+	}
+
+	return nil
 }
 
 // validateUpdateUserRequest validates the user update request

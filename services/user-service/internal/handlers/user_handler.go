@@ -124,6 +124,44 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	})
 }
 
+func (h *UserHandler) ReplaceUser(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		h.logger.WithError(err).Error("Invalid user ID format")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid user ID format",
+			"details": "User ID must be a valid integer",
+			"type":    "validation_error",
+			"field":   "id",
+		})
+		return
+	}
+
+	var req models.ReplaceUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.WithError(err).Error("Invalid request body")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request format",
+			"details": err.Error(),
+			"type":    "validation_error",
+		})
+		return
+	}
+
+	user, err := h.service.ReplaceUser(c.Request.Context(), id, &req)
+	if err != nil {
+		h.handleServiceError(c, err, "Failed to replace user")
+		return
+	}
+
+	h.logger.WithField("user_id", user.ID).Info("User replaced successfully")
+	c.JSON(http.StatusOK, gin.H{
+		"data":    user,
+		"message": "User replaced successfully",
+	})
+}
+
 func (h *UserHandler) UpdateUser(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)

@@ -25,6 +25,12 @@ type UpdateUserRequest struct {
 	LastName  string `json:"last_name" binding:"omitempty"`
 }
 
+type ReplaceUserRequest struct {
+	Email     string `json:"email" binding:"required,email"`
+	FirstName string `json:"first_name" binding:"required"`
+	LastName  string `json:"last_name" binding:"required"`
+}
+
 type UserResponse struct {
 	ID        int       `json:"id"`
 	Email     string    `json:"email"`
