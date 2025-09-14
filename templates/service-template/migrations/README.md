@@ -33,10 +33,15 @@ The development environment includes test data that can be loaded using:
 make db-seed SERVICE_NAME=SERVICE_NAME ENV=development
 ```
 
+## Schema Information
+
+This service uses the `SCHEMA_NAME` database schema. All tables are created within this schema to ensure proper isolation between services.
+
 ## Migration Guidelines
 
 1. Each migration should be numbered sequentially
 2. Include both up and down migrations
-3. Test migrations thoroughly before committing
-4. Document complex migrations in the `docs/` directory
-5. Update `dependencies.json` with new migration metadata
+3. Always use schema-qualified table names (e.g., `SCHEMA_NAME.table_name`)
+4. Test migrations thoroughly before committing
+5. Document complex migrations in the `docs/` directory
+6. Update `dependencies.json` with new migration metadata

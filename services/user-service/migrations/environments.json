@@ -3,8 +3,7 @@
     "development": {
       "description": "Development environment with test data and debug features",
       "migrations": [
-        "000003_dev_test_data.up.sql",
-        "000004_dev_indexes.up.sql"
+        "development/000003_dev_test_data.up.sql"
       ],
       "seed_files": [
         "scripts/seeds/development/dev_users.sql",
@@ -18,9 +17,7 @@
     },
     "staging": {
       "description": "Staging environment for pre-production testing",
-      "migrations": [
-        "000005_staging_performance.up.sql"
-      ],
+      "migrations": [],
       "seed_files": [
         "scripts/seeds/staging/staging_users.sql"
       ],
@@ -33,10 +30,7 @@
     },
     "production": {
       "description": "Production environment with strict controls",
-      "migrations": [
-        "000006_prod_optimizations.up.sql",
-        "000007_prod_monitoring.up.sql"
-      ],
+      "migrations": [],
       "seed_files": [],
       "config": {
         "allow_destructive_operations": false,

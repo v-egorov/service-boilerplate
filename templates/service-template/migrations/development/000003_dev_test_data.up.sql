@@ -5,7 +5,7 @@
 -- The down migration will remove all test data
 
 -- Insert test entities
-INSERT INTO entities (name, description, created_at, updated_at) VALUES
+INSERT INTO SCHEMA_NAME.entities (name, description, created_at, updated_at) VALUES
 ('Test Entity 1', 'This is a test entity for development purposes', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
 ('Test Entity 2', 'Another test entity with different description', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
 ('Sample Item', 'A sample entity to demonstrate functionality', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),

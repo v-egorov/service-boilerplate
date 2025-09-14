@@ -888,6 +888,63 @@ network-remove: ## Remove custom network
 	@echo "🗑️  Removing service network..."
 	@docker network rm $(NETWORK_NAME) 2>/dev/null || echo "Network $(NETWORK_NAME) not found or in use"
 
+# Database Migration Management
+SERVICE_NAME ?= user-service
+MIGRATION_PATH = services/$(SERVICE_NAME)/migrations
+DATABASE_URL = postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@postgres:$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)
+
+.PHONY: db-migrate-up
+db-migrate-up: ## Run migrations up
+	@echo "Running migrations up for $(SERVICE_NAME)..."
+	@docker run --rm --network $(NETWORK_NAME) \
+		-v $(PWD)/$(MIGRATION_PATH):/migrations \
+		$(MIGRATION_IMAGE) \
+		-path=/migrations -database "$(DATABASE_URL)" up
+
+.PHONY: db-migrate-down
+db-migrate-down: ## Run migrations down
+	@echo "Running migrations down for $(SERVICE_NAME)..."
+	@docker run --rm --network $(NETWORK_NAME) \
+		-v $(PWD)/$(MIGRATION_PATH):/migrations \
+		$(MIGRATION_IMAGE) \
+		-path=/migrations -database "$(DATABASE_URL)" down 1
+
+.PHONY: db-migrate-status
+db-migrate-status: ## Show migration status
+	@echo "Migration status for $(SERVICE_NAME):"
+	@docker run --rm --network $(NETWORK_NAME) \
+		-v $(PWD)/$(MIGRATION_PATH):/migrations \
+		$(MIGRATION_IMAGE) \
+		-path=/migrations -database "$(DATABASE_URL)" version
+
+.PHONY: db-migrate-goto
+db-migrate-goto: ## Go to specific migration version (VERSION=xxx)
+	@echo "Going to migration version $(VERSION) for $(SERVICE_NAME)..."
+	@docker run --rm --network $(NETWORK_NAME) \
+		-v $(PWD)/$(MIGRATION_PATH):/migrations \
+		$(MIGRATION_IMAGE) \
+		-path=/migrations -database "$(DATABASE_URL)" goto $(VERSION)
+
+.PHONY: db-migrate-validate
+db-migrate-validate: ## Validate migration files
+	@echo "Validating migrations for $(SERVICE_NAME)..."
+	@./scripts/validate_migration.sh $(SERVICE_NAME)
+
+.PHONY: db-migration-create
+db-migration-create: ## Create migration file (NAME=xxx)
+	@echo "Creating migration file for $(SERVICE_NAME)..."
+	@./scripts/generate_migration.sh $(SERVICE_NAME) "$(NAME)"
+
+.PHONY: db-migration-generate
+db-migration-generate: ## Generate migration with templates (NAME=xxx, TYPE=table)
+	@echo "Generating migration template for $(SERVICE_NAME)..."
+	@./scripts/generate_migration.sh $(SERVICE_NAME) "$(NAME)" "$(TYPE)"
+
+.PHONY: db-migration-list
+db-migration-list: ## List migration files
+	@echo "Migration files for $(SERVICE_NAME):"
+	@find $(MIGRATION_PATH) -name "*.sql" | sort
+
 # Docker Environment Management
 .PHONY: docker-reset
 docker-reset: ## Complete project Docker environment reset

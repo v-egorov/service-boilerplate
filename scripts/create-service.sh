@@ -161,6 +161,10 @@ replace_vars() {
     sed -i "s/SERVICE_NAME/$SERVICE_NAME/g" "$file"
     sed -i "s/PORT/$PORT/g" "$file"
 
+    # Replace schema name
+    SCHEMA_VALUE=$(echo "$SERVICE_NAME" | sed 's/-/_/g')
+    sed -i "s/SCHEMA_NAME/$SCHEMA_VALUE/g" "$file"
+
     # Replace import paths
     sed -i "s|github.com/v-egorov/service-boilerplate/services/SERVICE_NAME|github.com/v-egorov/service-boilerplate/services/$SERVICE_NAME|g" "$file"
 
@@ -398,10 +402,24 @@ mkdir -p "docker/volumes/$SERVICE_NAME/tmp"
 
 # Database schema creation (optional)
 if [ "$CREATE_DB_SCHEMA" = true ]; then
-    echo "Creating database schema..."
+    echo "Creating database schema for $SERVICE_NAME..."
+
+    # Add schema to .env
+    SCHEMA_VAR="${SERVICE_NAME_UPPER}_SCHEMA"
+    SCHEMA_VALUE=$(echo "$SERVICE_NAME" | sed 's/-/_/g')
+
+    if ! grep -q "^${SCHEMA_VAR}=" .env; then
+        echo "${SCHEMA_VAR}=${SCHEMA_VALUE}" >> .env
+        echo "Added ${SCHEMA_VAR}=${SCHEMA_VALUE} to .env"
+    fi
+
+    # Actually create the schema in database
+    echo "Creating schema $SCHEMA_VALUE in database..."
+    docker-compose exec postgres psql -U postgres -d service_db -c "CREATE SCHEMA IF NOT EXISTS $SCHEMA_VALUE;" 2>/dev/null || \
+    echo "Note: Database may not be running yet. Schema will be created when migrations run."
+
     if [ -f "services/$SERVICE_NAME/migrations/000001_initial.up.sql" ]; then
-        echo "Database migration file created. Run the following to apply:"
-        echo "  make db-migrate-up SERVICE_NAME=$SERVICE_NAME"
+        echo "Database schema created. Run migrations with: make db-migrate-up SERVICE_NAME=$SERVICE_NAME"
     fi
 fi
 

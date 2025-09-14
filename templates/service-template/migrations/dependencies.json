@@ -1,10 +1,10 @@
 {
   "migrations": {
     "000001": {
-      "description": "Create SERVICE_NAME schema and entities table",
+      "description": "Create SCHEMA_NAME schema and entities table",
       "depends_on": [],
       "affects_tables": [
-        "SERVICE_NAME.entities"
+        "SCHEMA_NAME.entities"
       ],
       "estimated_duration": "30s",
       "risk_level": "low",
@@ -16,7 +16,7 @@
         "000001"
       ],
       "affects_tables": [
-        "SERVICE_NAME.entities"
+        "SCHEMA_NAME.entities"
       ],
       "estimated_duration": "15s",
       "risk_level": "low",
