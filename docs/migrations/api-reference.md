@@ -247,15 +247,20 @@ make db-tables
  users
 (2 rows)
 
-                                          Table "user_service.users"
-   Column   |           Type           | Collation | Nullable |                    Default
+                                           Table "user_service.users"
+    Column   |           Type           | Collation | Nullable |                    Default
 ------------+--------------------------+-----------+----------+------------------------------------------------
- id         | integer                  |           | not null | nextval('user_service.users_id_seq'::regclass)
- email      | character varying(255)   |           | not null |
- first_name | character varying(100)   |           | not null |
- last_name  | character varying(100)   |           | not null |
- created_at | timestamp with time zone |           |          | CURRENT_TIMESTAMP
- updated_at | timestamp with time zone |           |          | CURRENT_TIMESTAMP
+  id         | integer                  |           | not null | nextval('user_service.users_id_seq'::regclass)
+  email      | character varying(255)   |           | not null |
+  first_name | character varying(100)   |           | not null |
+  last_name  | character varying(100)   |           | not null |
+  created_at | timestamp with time zone |           |          | CURRENT_TIMESTAMP
+  updated_at | timestamp with time zone |           |          | CURRENT_TIMESTAMP
+
+Service-Specific Migration Tracking:
+- user_service_schema_migrations (tracks user-service migrations)
+- dynamic_service_schema_migrations (tracks dynamic-service migrations)
+- Each service maintains independent migration history
 ```
 
 **Information Provided:**

@@ -142,7 +142,7 @@ setup: ## Initialize project (download deps, setup tools)
 	@$(GOMOD) tidy
 
 .PHONY: build
-build: build-gateway build-user-service ## Build all services
+build: build-gateway build-user-service  build-dynamic-service## Build all services
 
 .PHONY: build-gateway
 build-gateway: ## Build API Gateway
@@ -377,6 +377,9 @@ db-recreate: db-drop db-create ## Recreate database from scratch
 	@echo "🔄 Database $(DATABASE_NAME) recreated successfully"
 
 ## Migration Management (Docker-Based)
+# Service-specific migration table name (e.g., user_service_schema_migrations)
+MIGRATION_TABLE = $(shell echo $(SERVICE_NAME) | sed 's/-/_/g')_schema_migrations
+
 .PHONY: db-migrate-prepare
 db-migrate-prepare: ## Prepare migration environment (create required directories)
 	@echo "📁 Preparing migration environment..."
@@ -389,32 +392,32 @@ db-migrate-prepare: ## Prepare migration environment (create required directorie
 
 .PHONY: db-migrate-up
 db-migrate-up: db-migrate-prepare ## Run migrations up using migration container
-	@echo "📈 Running migrations up..."
+	@echo "📈 Running migrations up for $(SERVICE_NAME) (table: $(MIGRATION_TABLE))..."
 	@docker run --rm --network service-boilerplate-network \
 		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
 		$(MIGRATION_IMAGE) \
 		-path /migrations \
-		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)" \
+		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)&x-migrations-table=$(MIGRATION_TABLE)" \
 		up
 
 .PHONY: db-migrate-down
 db-migrate-down: db-migrate-prepare ## Run migrations down using migration container
-	@echo "⏪ Running migrations down..."
+	@echo "⏪ Running migrations down for $(SERVICE_NAME) (table: $(MIGRATION_TABLE))..."
 	@docker run --rm --network service-boilerplate-network \
 		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
 		$(MIGRATION_IMAGE) \
 		-path /migrations \
-		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)" \
+		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)&x-migrations-table=$(MIGRATION_TABLE)" \
 		down 1
 
 .PHONY: db-migrate-status
 db-migrate-status: db-migrate-prepare ## Show migration status using migration container
-	@echo "📋 Migration status:"
+	@echo "📋 Migration status for $(SERVICE_NAME) (table: $(MIGRATION_TABLE)):"
 	@docker run --rm --network service-boilerplate-network \
 		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
 		$(MIGRATION_IMAGE) \
 		-path /migrations \
-		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)" \
+		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)&x-migrations-table=$(MIGRATION_TABLE)" \
 		version
 
 .PHONY: db-migrate
@@ -425,7 +428,7 @@ db-rollback: db-migrate-down ## Rollback last migration (alias for db-migrate-do
 
 .PHONY: db-migrate-goto
 db-migrate-goto: db-migrate-prepare ## Go to specific migration version (VERSION=001)
-	@echo "🎯 Going to migration version $(VERSION)..."
+	@echo "🎯 Going to migration version $(VERSION) for $(SERVICE_NAME) (table: $(MIGRATION_TABLE))..."
 	@if [ -z "$(VERSION)" ]; then \
 		echo "❌ Error: Please specify VERSION (e.g., make db-migrate-goto VERSION=001)"; \
 		exit 1; \
@@ -434,17 +437,17 @@ db-migrate-goto: db-migrate-prepare ## Go to specific migration version (VERSION
 		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
 		$(MIGRATION_IMAGE) \
 		-path /migrations \
-		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)" \
+		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)&x-migrations-table=$(MIGRATION_TABLE)" \
 		goto $(VERSION)
 
 .PHONY: db-migrate-validate
 db-migrate-validate: db-migrate-prepare ## Validate migration files
-	@echo "✅ Validating migration files..."
+	@echo "✅ Validating migration files for $(SERVICE_NAME) (table: $(MIGRATION_TABLE))..."
 	@docker run --rm --network service-boilerplate-network \
 		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
 		$(MIGRATION_IMAGE) \
 		-path /migrations \
-		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)" \
+		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)&x-migrations-table=$(MIGRATION_TABLE)" \
 		up --dry-run
 
 .PHONY: db-migration-create

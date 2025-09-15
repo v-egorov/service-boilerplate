@@ -1,10 +1,46 @@
 # Advanced Migration Features
 
+## Service-Specific Migration Tracking
+
+### Overview
+
+Each service maintains its own migration tracking table to ensure complete isolation between services. This allows multiple services to coexist in the same database with independent migration histories.
+
+### Migration Table Naming
+
+Migration tables follow the pattern: `{service_name}_schema_migrations`
+
+Examples:
+- `user_service_schema_migrations` - Tracks user-service migrations
+- `dynamic_service_schema_migrations` - Tracks dynamic-service migrations
+- `product_service_schema_migrations` - Tracks product-service migrations
+
+### Benefits
+
+- **Service Isolation**: Each service can migrate independently
+- **Version Independence**: Services can have different migration versions
+- **Rollback Safety**: Rolling back one service doesn't affect others
+- **Parallel Development**: Multiple services can be developed simultaneously
+
+### Database Architecture
+
+```
+service_db (PostgreSQL)
+├── public
+│   ├── user_service_schema_migrations
+│   ├── dynamic_service_schema_migrations
+│   └── [other_service]_schema_migrations
+├── user_service
+│   ├── users, user_profiles, user_settings
+├── dynamic_service
+│   └── entities
+```
+
 ## Migration Dependencies
 
 ### Overview
 
-Migration dependencies ensure that migrations are applied in the correct order. The system automatically tracks and validates dependencies to prevent inconsistent database states.
+Migration dependencies ensure that migrations are applied in the correct order within each service. The system automatically tracks and validates dependencies to prevent inconsistent database states.
 
 ### Dependency Configuration
 

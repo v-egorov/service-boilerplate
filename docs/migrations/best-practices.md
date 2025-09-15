@@ -40,14 +40,14 @@ SELECT * FROM users;  -- Assumes public schema
 
 **Pre-Commit Checklist:**
 ```bash
-# 1. Validate syntax and dependencies
-make db-validate
+# 1. Validate syntax and dependencies (specify service)
+make db-validate SERVICE_NAME=user-service
 
 # 2. Test migration application
-make db-migrate-up
+make db-migrate-up SERVICE_NAME=user-service
 
 # 3. Test rollback
-make db-migrate-down
+make db-migrate-down SERVICE_NAME=user-service
 
 # 4. Verify data integrity
 make db-tables

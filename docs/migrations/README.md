@@ -22,12 +22,13 @@ The Database Migrations System is a comprehensive, enterprise-grade solution for
 ```
 service_db (PostgreSQL)
 ├── public
-│   ├── schema_migrations (migration tracking)
 │   └── system tables
 ├── user_service
+│   ├── user_service_schema_migrations (service-specific tracking)
 │   ├── users
 │   └── user-related tables
 └── [future_service]
+    ├── [service]_schema_migrations (service-specific tracking)
     └── service-specific tables
 ```
 
@@ -52,37 +53,37 @@ services/{service}/migrations/
 ### 1. Generate a New Migration
 
 ```bash
-# Generate a table migration
-make db-migration-generate NAME=add_user_profiles TYPE=table
+# Generate a table migration (specify service)
+make db-migration-generate NAME=add_user_profiles TYPE=table SERVICE_NAME=user-service
 
 # Generate an index migration
-make db-migration-generate NAME=optimize_user_queries TYPE=index
+make db-migration-generate NAME=optimize_user_queries TYPE=index SERVICE_NAME=user-service
 
 # Generate a data migration
-make db-migration-generate NAME=migrate_user_data TYPE=data
+make db-migration-generate NAME=migrate_user_data TYPE=data SERVICE_NAME=user-service
 ```
 
 ### 2. Validate Migration
 
 ```bash
-# Validate all migrations
-make db-validate
+# Validate all migrations (specify service)
+make db-validate SERVICE_NAME=user-service
 
 # Check dependencies
-make db-migration-deps
+make db-migration-deps SERVICE_NAME=user-service
 ```
 
 ### 3. Run Migrations
 
 ```bash
-# Apply all pending migrations
-make db-migrate-up
+# Apply all pending migrations (specify service)
+make db-migrate-up SERVICE_NAME=user-service
 
 # Check migration status
-make db-migrate-status
+make db-migrate-status SERVICE_NAME=user-service
 
 # Rollback if needed
-make db-migrate-down
+make db-migrate-down SERVICE_NAME=user-service
 ```
 
 ### 4. Seed Data

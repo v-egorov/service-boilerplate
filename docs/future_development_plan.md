@@ -30,6 +30,7 @@ Detailed plan for adding authentication service:
 - [ ] Update documentation with auth service details
 
 ## Planned Features
+- [x] Add dynamic-service service (completed)
 
 - [ ] Implement API rate limiting
 - [ ] Add comprehensive logging and monitoring
