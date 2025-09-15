@@ -310,18 +310,12 @@ docker-logs: ## Show Docker container logs (legacy)
 	@echo "Showing container logs..."
 	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) logs -f
 
-.PHONY: migrate-up
-migrate-up: ## Run database migrations (legacy - use db-migrate-up)
-	@echo "⚠️  This target is deprecated. Use 'make db-migrate-up' instead."
-	$(MAKE) db-migrate-up
-
-.PHONY: migrate-down
-migrate-down: ## Rollback database migrations (legacy - use db-migrate-down)
-	@echo "⚠️  This target is deprecated. Use 'make db-migrate-down' instead."
-	$(MAKE) db-migrate-down
-
 .PHONY: db-reset
 db-reset: db-rollback db-migrate ## Reset database (down + up) - Updated to use new targets
+
+# ============================================================================
+# 🗄️  DATABASE MANAGEMENT TARGETS
+# ============================================================================
 
 # Database variables (loaded from .env file at runtime)
 DATABASE_USER ?= postgres
@@ -336,10 +330,6 @@ POSTGRES_NAME ?= postgres
 
 # Database URL construction for targets
 DATABASE_URL := postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)
-
-# ============================================================================
-# 🗄️  DATABASE MANAGEMENT TARGETS
-# ============================================================================
 
 ## Database Connection & Access
 .PHONY: db-connect
@@ -493,12 +483,12 @@ db-seed-enhanced: ## Environment-specific seeding (ENV=development)
 .PHONY: db-migration-generate
 db-migration-generate: ## Generate new migration with templates (NAME=add_feature TYPE=table)
 	@echo "🚀 Generating migration: $(NAME) (type: $(TYPE))"
-	@./scripts/generate_migration.sh user-service "$(NAME)" "$(TYPE)"
+	@./scripts/generate_migration.sh $(SERVICE_NAME) "$(NAME)" "$(TYPE)"
 
 .PHONY: db-validate
 db-validate: ## Validate migration files and dependencies
 	@echo "🔍 Validating migrations..."
-	@./scripts/validate_migration.sh user-service
+	@./scripts/validate_migration.sh $(SERVICE_NAME)
 
 .PHONY: db-migration-deps
 db-migration-deps: ## Show migration dependency graph
@@ -897,63 +887,6 @@ network-clean: ## Clean up Docker networks
 network-remove: ## Remove custom network
 	@echo "🗑️  Removing service network..."
 	@docker network rm $(NETWORK_NAME) 2>/dev/null || echo "Network $(NETWORK_NAME) not found or in use"
-
-# Database Migration Management
-SERVICE_NAME ?= user-service
-MIGRATION_PATH = services/$(SERVICE_NAME)/migrations
-DATABASE_URL = postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@postgres:$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)
-
-.PHONY: db-migrate-up-2
-db-migrate-up-2: ## Run migrations up
-	@echo "Running migrations up for $(SERVICE_NAME)..."
-	@docker run --rm --network $(NETWORK_NAME) \
-		-v $(PWD)/$(MIGRATION_PATH):/migrations \
-		$(MIGRATION_IMAGE) \
-		-path=/migrations -database "$(DATABASE_URL)" up
-
-.PHONY: db-migrate-down-2
-db-migrate-down-2: ## Run migrations down
-	@echo "Running migrations down for $(SERVICE_NAME)..."
-	@docker run --rm --network $(NETWORK_NAME) \
-		-v $(PWD)/$(MIGRATION_PATH):/migrations \
-		$(MIGRATION_IMAGE) \
-		-path=/migrations -database "$(DATABASE_URL)" down 1
-
-.PHONY: db-migrate-status-2
-db-migrate-status-2: ## Show migration status
-	@echo "Migration status for $(SERVICE_NAME):"
-	@docker run --rm --network $(NETWORK_NAME) \
-		-v $(PWD)/$(MIGRATION_PATH):/migrations \
-		$(MIGRATION_IMAGE) \
-		-path=/migrations -database "$(DATABASE_URL)" version
-
-.PHONY: db-migrate-goto-2
-db-migrate-goto-2: ## Go to specific migration version (VERSION=xxx)
-	@echo "Going to migration version $(VERSION) for $(SERVICE_NAME)..."
-	@docker run --rm --network $(NETWORK_NAME) \
-		-v $(PWD)/$(MIGRATION_PATH):/migrations \
-		$(MIGRATION_IMAGE) \
-		-path=/migrations -database "$(DATABASE_URL)" goto $(VERSION)
-
-.PHONY: db-migrate-validate-2
-db-migrate-validate-2: ## Validate migration files
-	@echo "Validating migrations for $(SERVICE_NAME)..."
-	@./scripts/validate_migration.sh $(SERVICE_NAME)
-
-.PHONY: db-migration-create-2
-db-migration-create-2: ## Create migration file (NAME=xxx)
-	@echo "Creating migration file for $(SERVICE_NAME)..."
-	@./scripts/generate_migration.sh $(SERVICE_NAME) "$(NAME)"
-
-.PHONY: db-migration-generate-2
-db-migration-generate-2: ## Generate migration with templates (NAME=xxx, TYPE=table)
-	@echo "Generating migration template for $(SERVICE_NAME)..."
-	@./scripts/generate_migration.sh $(SERVICE_NAME) "$(NAME)" "$(TYPE)"
-
-.PHONY: db-migration-list-2
-db-migration-list-2: ## List migration files
-	@echo "Migration files for $(SERVICE_NAME):"
-	@find $(MIGRATION_PATH) -name "*.sql" | sort
 
 # Docker Environment Management
 .PHONY: docker-reset
