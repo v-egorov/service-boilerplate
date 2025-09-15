@@ -903,55 +903,55 @@ SERVICE_NAME ?= user-service
 MIGRATION_PATH = services/$(SERVICE_NAME)/migrations
 DATABASE_URL = postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@postgres:$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)
 
-.PHONY: db-migrate-up
-db-migrate-up: ## Run migrations up
+.PHONY: db-migrate-up-2
+db-migrate-up-2: ## Run migrations up
 	@echo "Running migrations up for $(SERVICE_NAME)..."
 	@docker run --rm --network $(NETWORK_NAME) \
 		-v $(PWD)/$(MIGRATION_PATH):/migrations \
 		$(MIGRATION_IMAGE) \
 		-path=/migrations -database "$(DATABASE_URL)" up
 
-.PHONY: db-migrate-down
-db-migrate-down: ## Run migrations down
+.PHONY: db-migrate-down-2
+db-migrate-down-2: ## Run migrations down
 	@echo "Running migrations down for $(SERVICE_NAME)..."
 	@docker run --rm --network $(NETWORK_NAME) \
 		-v $(PWD)/$(MIGRATION_PATH):/migrations \
 		$(MIGRATION_IMAGE) \
 		-path=/migrations -database "$(DATABASE_URL)" down 1
 
-.PHONY: db-migrate-status
-db-migrate-status: ## Show migration status
+.PHONY: db-migrate-status-2
+db-migrate-status-2: ## Show migration status
 	@echo "Migration status for $(SERVICE_NAME):"
 	@docker run --rm --network $(NETWORK_NAME) \
 		-v $(PWD)/$(MIGRATION_PATH):/migrations \
 		$(MIGRATION_IMAGE) \
 		-path=/migrations -database "$(DATABASE_URL)" version
 
-.PHONY: db-migrate-goto
-db-migrate-goto: ## Go to specific migration version (VERSION=xxx)
+.PHONY: db-migrate-goto-2
+db-migrate-goto-2: ## Go to specific migration version (VERSION=xxx)
 	@echo "Going to migration version $(VERSION) for $(SERVICE_NAME)..."
 	@docker run --rm --network $(NETWORK_NAME) \
 		-v $(PWD)/$(MIGRATION_PATH):/migrations \
 		$(MIGRATION_IMAGE) \
 		-path=/migrations -database "$(DATABASE_URL)" goto $(VERSION)
 
-.PHONY: db-migrate-validate
-db-migrate-validate: ## Validate migration files
+.PHONY: db-migrate-validate-2
+db-migrate-validate-2: ## Validate migration files
 	@echo "Validating migrations for $(SERVICE_NAME)..."
 	@./scripts/validate_migration.sh $(SERVICE_NAME)
 
-.PHONY: db-migration-create
-db-migration-create: ## Create migration file (NAME=xxx)
+.PHONY: db-migration-create-2
+db-migration-create-2: ## Create migration file (NAME=xxx)
 	@echo "Creating migration file for $(SERVICE_NAME)..."
 	@./scripts/generate_migration.sh $(SERVICE_NAME) "$(NAME)"
 
-.PHONY: db-migration-generate
-db-migration-generate: ## Generate migration with templates (NAME=xxx, TYPE=table)
+.PHONY: db-migration-generate-2
+db-migration-generate-2: ## Generate migration with templates (NAME=xxx, TYPE=table)
 	@echo "Generating migration template for $(SERVICE_NAME)..."
 	@./scripts/generate_migration.sh $(SERVICE_NAME) "$(NAME)" "$(TYPE)"
 
-.PHONY: db-migration-list
-db-migration-list: ## List migration files
+.PHONY: db-migration-list-2
+db-migration-list-2: ## List migration files
 	@echo "Migration files for $(SERVICE_NAME):"
 	@find $(MIGRATION_PATH) -name "*.sql" | sort
 
