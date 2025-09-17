@@ -142,7 +142,7 @@ setup: ## Initialize project (download deps, setup tools)
 	@$(GOMOD) tidy
 
 .PHONY: build
-build: build-gateway build-user-service  build-dynamic-service## Build all services
+build: build-gateway build-user-service build-auth-service ## Build all services
 
 .PHONY: build-gateway
 build-gateway: ## Build API Gateway
@@ -962,8 +962,10 @@ create-volumes-dirs: ## (Re)create volumes directories
 	# Create volume directories
 	@echo "   Creating volume directories..."
 	@mkdir -p docker/volumes/postgres_data
-	@mkdir -p docker/volumes/api-gateway/tmp
-	@mkdir -p docker/volumes/user-service/tmp
+	@for service in $$(grep "_TMP_VOLUME=" .env | cut -d'=' -f2 | sed 's/service-boilerplate-//' | sed 's/-tmp$$//'); do \
+		echo "   Creating directory for $$service..."; \
+		mkdir -p docker/volumes/$$service/tmp; \
+	done
 
 .PHONY: docker-recreate
 docker-recreate: create-volumes-dirs ## Recreate project Docker environment from scratch
