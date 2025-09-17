@@ -142,7 +142,7 @@ setup: ## Initialize project (download deps, setup tools)
 	@$(GOMOD) tidy
 
 .PHONY: build
-build: build-gateway build-user-service build-auth-service ## Build all services
+build: build-gateway build-user-service ## Build all services
 
 .PHONY: build-gateway
 build-gateway: ## Build API Gateway
