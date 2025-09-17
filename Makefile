@@ -785,28 +785,29 @@ clean-docker: ## Clean project Docker artifacts (mode: $(DOCKER_CLEANUP_MODE))
 clean-volumes: ## Clean Docker volumes and persistent data
 	@echo "💾 Cleaning Docker volumes..."
 	@docker-compose --env-file .env down -v 2>/dev/null || true
-	@docker volume rm $$(docker volume ls -q | grep -E "(postgres_data|api_gateway|user_service)" 2>/dev/null) 2>/dev/null || true
+	@echo "🗂️  Removing service volumes..."
+	@for volume in $(SERVICE_VOLUMES) $(POSTGRES_VOLUME); do \
+		if [ -n "$$volume" ]; then \
+			echo "  Removing volume: $$volume"; \
+			docker volume rm $$volume 2>/dev/null || true; \
+		fi; \
+	done
 	@echo "🔧 Cleaning volume data using Docker containers..."
-	@if [ -d "docker/volumes/postgres_data" ]; then \
-		echo "   🐘 Cleaning PostgreSQL data..."; \
-		docker run --rm -v $(PWD)/docker/volumes/postgres_data:/data alpine sh -c "rm -rf /data/* 2>/dev/null || true" 2>/dev/null || true; \
-	fi
-	@if [ -d "docker/volumes/api-gateway" ]; then \
-		echo "   🌐 Cleaning API Gateway volumes..."; \
-		docker run --rm -v $(PWD)/docker/volumes/api-gateway:/data alpine sh -c "rm -rf /data/* 2>/dev/null || true" 2>/dev/null || true; \
-	fi
-	@if [ -d "docker/volumes/user-service" ]; then \
-		echo "   👤 Cleaning User Service volumes..."; \
-		docker run --rm -v $(PWD)/docker/volumes/user-service:/data alpine sh -c "rm -rf /data/* 2>/dev/null || true" 2>/dev/null || true; \
+	@if [ -d "docker/volumes" ]; then \
+		for dir in docker/volumes/*/; do \
+			if [ -d "$$dir" ]; then \
+				service_name=$$(basename "$$dir"); \
+				echo "  Cleaning $$service_name volumes..."; \
+				docker run --rm -v $(PWD)/$$dir:/data alpine sh -c "rm -rf /data/* 2>/dev/null || true" 2>/dev/null || true; \
+			fi; \
+		done; \
 	fi
 	@if [ -d "tmp" ]; then \
-		echo "   📁 Cleaning migration temp files..."; \
+		echo "  📁 Cleaning migration temp files..."; \
 		docker run --rm -v $(PWD)/tmp:/data alpine sh -c "rm -rf /data/migrations 2>/dev/null || true" 2>/dev/null || true; \
 	fi
 	@echo "🗑️  Removing empty volume directories..."
-	@rmdir docker/volumes/postgres_data 2>/dev/null || true
-	@rmdir docker/volumes/api-gateway 2>/dev/null || true
-	@rmdir docker/volumes/user-service 2>/dev/null || true
+	@find docker/volumes -type d -empty -delete 2>/dev/null || true
 	@rmdir docker/volumes 2>/dev/null || true
 	@rmdir tmp 2>/dev/null || true
 	@echo "✅ Docker volumes cleaned (no sudo required!)"
