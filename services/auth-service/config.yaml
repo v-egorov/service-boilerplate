@@ -1,0 +1,25 @@
+app:
+  name: "auth-service"
+  version: "1.0.0"
+  environment: "development"
+
+database:
+  host: "localhost"  # Local development default
+  port: 5432
+  user: "postgres"
+  password: "postgres"
+  database: "service_db"
+  ssl_mode: "disable"
+  max_conns: 10
+  min_conns: 2
+  max_conn_idle: 300
+  max_conn_life: 3600
+
+logging:
+  level: "debug"
+  format: "json"
+  output: "stdout"
+
+server:
+  host: "0.0.0.0"
+  port: 8083

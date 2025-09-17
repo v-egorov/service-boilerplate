@@ -1263,3 +1263,24 @@ help-db: ## Show database commands
 	@echo "  make db-validate                 # Validate all migrations"
 	@echo "  make db-migrate-goto VERSION=001 # Go to specific version"
 	@echo "  make db-backup                   # Create backup before changes"
+
+.PHONY: build-auth-service
+build-auth-service: ## Build auth-service
+	@echo "Building auth-service..."
+	@mkdir -p $(BUILD_DIR)
+	@cd services/auth-service && $(GOBUILD) -o ../$(BUILD_DIR)/auth-service ./cmd
+
+.PHONY: run-auth-service
+run-auth-service: ## Run auth-service
+	@echo "Running auth-service..."
+	@cd services/auth-service && $(GO) run ./cmd
+
+.PHONY: test-auth-service
+test-auth-service: ## Run auth-service tests
+	@echo "Running auth-service tests..."
+	@cd services/auth-service && $(GOTEST) ./...
+
+.PHONY: air-auth-service
+air-auth-service: ## Run auth-service with Air locally
+	@echo "Starting auth-service with Air..."
+	@cd services/auth-service && air

@@ -43,6 +43,9 @@ func main() {
 	}
 	serviceRegistry.RegisterService("user-service", userServiceURL)
 
+	// Register auth-service
+	serviceRegistry.RegisterService("auth-service", "http://auth-service:8083")
+
 	// Initialize handlers
 	gatewayHandler := handlers.NewGatewayHandler(serviceRegistry, logger.Logger, cfg)
 
@@ -70,10 +73,25 @@ func main() {
 	router.GET("/api/v1/status", gatewayHandler.StatusHandler)
 	router.GET("/api/v1/ping", gatewayHandler.PingHandler)
 
-	// API routes
+	// Public auth endpoints (no auth required)
+	auth := router.Group("/api/v1/auth")
+	{
+		auth.POST("/login", gatewayHandler.ProxyRequest("auth-service"))
+		auth.POST("/register", gatewayHandler.ProxyRequest("auth-service"))
+		auth.POST("/refresh", gatewayHandler.ProxyRequest("auth-service"))
+		auth.POST("/logout", gatewayHandler.ProxyRequest("auth-service"))
+	}
+
+	// API routes (require authentication)
 	api := router.Group("/api")
 	api.Use(middleware.AuthMiddleware())
 	{
+		// Protected auth routes
+		protectedAuth := api.Group("/v1/auth")
+		{
+			protectedAuth.GET("/me", gatewayHandler.ProxyRequest("auth-service"))
+		}
+
 		// User service routes
 		users := api.Group("/v1/users")
 		{

@@ -1,0 +1,23 @@
+# Development stage
+FROM golang:1.23-alpine
+
+# Install curl for health checks
+RUN apk --no-cache add curl
+
+WORKDIR /app
+
+# Install Air for hot reloading
+RUN GOPROXY=$GOPROXY go install github.com/air-verse/air@v1.52.3
+
+# Copy go mod files from project root
+COPY ../../go.mod ../../go.sum ./
+RUN GOPROXY=$GOPROXY go mod download
+
+# Copy source code
+COPY ../.. .
+
+# Expose port
+EXPOSE 8083
+
+# Default command for development
+CMD ["air"]

@@ -1,0 +1,33 @@
+{
+  "migrations": {
+    "000001": {
+      "description": "Create SCHEMA_NAME schema and entities table",
+      "depends_on": [],
+      "affects_tables": [
+        "SCHEMA_NAME.entities"
+      ],
+      "estimated_duration": "30s",
+      "risk_level": "low",
+      "rollback_safe": true
+    },
+    "000003": {
+      "description": "Add development test data",
+      "depends_on": [
+        "000001"
+      ],
+      "affects_tables": [
+        "SCHEMA_NAME.entities"
+      ],
+      "estimated_duration": "15s",
+      "risk_level": "low",
+      "rollback_safe": true,
+      "environment": "development"
+    }
+  },
+  "global_config": {
+    "max_parallel_migrations": 1,
+    "require_approval_for_high_risk": true,
+    "auto_backup_before_destructive": true,
+    "validate_after_migration": true
+  }
+}

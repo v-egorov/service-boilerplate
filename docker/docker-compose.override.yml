@@ -54,3 +54,23 @@ services:
           - db
           - database
 
+
+  auth-service:
+    build:
+      context: ..
+      dockerfile: services/auth-service/Dockerfile.dev
+    environment:
+      - APP_ENV=development
+      - LOGGING_LEVEL=debug
+    volumes:
+      - ../services/auth-service:/app/services/auth-service
+      - auth-service_service_tmp:/app/services/auth-service/tmp
+    ports:
+      - "${AUTH_SERVICE_SERVICE_PORT}:${AUTH_SERVICE_SERVICE_PORT}"
+    working_dir: /app/services/auth-service
+    networks:
+      service-network:
+        aliases:
+          - auth-service
+          - auth-service-service
+          - auth-service-svc
