@@ -5,16 +5,18 @@ import (
 )
 
 type User struct {
-	ID        int       `json:"id" db:"id"`
-	Email     string    `json:"email" db:"email"`
-	FirstName string    `json:"first_name" db:"first_name"`
-	LastName  string    `json:"last_name" db:"last_name"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
+	ID           int       `json:"id" db:"id"`
+	Email        string    `json:"email" db:"email"`
+	PasswordHash *string   `json:"-" db:"password_hash"`
+	FirstName    string    `json:"first_name" db:"first_name"`
+	LastName     string    `json:"last_name" db:"last_name"`
+	CreatedAt    time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
 }
 
 type CreateUserRequest struct {
 	Email     string `json:"email" binding:"required,email"`
+	Password  string `json:"password" binding:"required,min=6"`
 	FirstName string `json:"first_name" binding:"required"`
 	LastName  string `json:"last_name" binding:"required"`
 }
@@ -38,4 +40,14 @@ type UserResponse struct {
 	LastName  string    `json:"last_name"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type UserLoginRequest struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+type UserLoginResponse struct {
+	User         *UserResponse `json:"user"`
+	PasswordHash string        `json:"password_hash"`
 }

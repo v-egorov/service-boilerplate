@@ -98,6 +98,7 @@ func main() {
 			users.POST("", gatewayHandler.ProxyRequest("user-service"))
 			users.GET("/:id", gatewayHandler.ProxyRequest("user-service"))
 			users.PUT("/:id", gatewayHandler.ProxyRequest("user-service"))
+			users.PATCH("/:id", gatewayHandler.ProxyRequest("user-service"))
 			users.DELETE("/:id", gatewayHandler.ProxyRequest("user-service"))
 			users.GET("", gatewayHandler.ProxyRequest("user-service"))
 		}

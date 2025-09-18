@@ -106,25 +106,26 @@ services:
        - postgres
 
 
-  auth-service:
-    build:
-      context: ..
-      dockerfile: services/auth-service/Dockerfile
-    image: ${AUTH_SERVICE_SERVICE_IMAGE}
-    container_name: ${AUTH_SERVICE_SERVICE_CONTAINER}
-    ports:
-      - "${AUTH_SERVICE_SERVICE_PORT:-8083}:${AUTH_SERVICE_SERVICE_PORT:-8083}"
-    environment:
-      - APP_ENV=${APP_ENV:-production}
-      - SERVER_PORT=${AUTH_SERVICE_SERVICE_PORT:-8083}
-      - DATABASE_HOST=${POSTGRES_NAME}
-      - DATABASE_PORT=5432
-      - DATABASE_USER=${DATABASE_USER:-postgres}
-      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-postgres}
-      - DATABASE_NAME=${DATABASE_NAME:-service_db}
-      - DATABASE_SSL_MODE=disable
-      - LOGGING_LEVEL=${LOGGING_LEVEL:-info}
-      - LOGGING_FORMAT=${LOGGING_FORMAT:-json}
+   auth-service:
+     build:
+       context: ..
+       dockerfile: services/auth-service/Dockerfile
+     image: ${AUTH_SERVICE_SERVICE_IMAGE}
+     container_name: ${AUTH_SERVICE_SERVICE_CONTAINER}
+     ports:
+       - "${AUTH_SERVICE_SERVICE_PORT:-8083}:${AUTH_SERVICE_SERVICE_PORT:-8083}"
+     environment:
+       - APP_ENV=${APP_ENV:-production}
+       - SERVER_PORT=${AUTH_SERVICE_SERVICE_PORT:-8083}
+       - DATABASE_HOST=${POSTGRES_NAME}
+       - DATABASE_PORT=5432
+       - DATABASE_USER=${DATABASE_USER:-postgres}
+       - DATABASE_PASSWORD=${DATABASE_PASSWORD:-postgres}
+       - DATABASE_NAME=${DATABASE_NAME:-service_db}
+       - DATABASE_SSL_MODE=disable
+       - LOGGING_LEVEL=${LOGGING_LEVEL:-info}
+       - LOGGING_FORMAT=${LOGGING_FORMAT:-json}
+       - DOCKER_ENV=true
     depends_on:
       postgres:
         condition: service_healthy

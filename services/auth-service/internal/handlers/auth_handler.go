@@ -120,7 +120,21 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 		return
 	}
 
-	user, err := h.authService.GetCurrentUser(c.Request.Context(), userID)
+	// Get user email from context
+	userEmailValue, exists := c.Get("user_email")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User email not found"})
+		return
+	}
+
+	userEmail, ok := userEmailValue.(string)
+	if !ok {
+		h.logger.Error("Invalid user email in context")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		return
+	}
+
+	user, err := h.authService.GetCurrentUser(c.Request.Context(), userID, userEmail)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get current user")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user information"})

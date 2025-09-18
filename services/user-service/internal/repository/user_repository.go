@@ -25,11 +25,11 @@ func NewUserRepository(db *pgxpool.Pool, logger *logrus.Logger) *UserRepository 
 
 func (r *UserRepository) Create(ctx context.Context, user *models.User) (*models.User, error) {
 	query := `
-		INSERT INTO user_service.users (email, first_name, last_name, created_at, updated_at)
-		VALUES ($1, $2, $3, NOW(), NOW())
+		INSERT INTO user_service.users (email, password_hash, first_name, last_name, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, NOW(), NOW())
 		RETURNING id, created_at, updated_at`
 
-	err := r.db.QueryRow(ctx, query, user.Email, user.FirstName, user.LastName).Scan(
+	err := r.db.QueryRow(ctx, query, user.Email, user.PasswordHash, user.FirstName, user.LastName).Scan(
 		&user.ID, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
@@ -42,11 +42,11 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) (*models
 }
 
 func (r *UserRepository) GetByID(ctx context.Context, id int) (*models.User, error) {
-	query := `SELECT id, email, first_name, last_name, created_at, updated_at FROM user_service.users WHERE id = $1`
+	query := `SELECT id, email, password_hash, first_name, last_name, created_at, updated_at FROM user_service.users WHERE id = $1`
 
 	user := &models.User{}
 	err := r.db.QueryRow(ctx, query, id).Scan(
-		&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.CreatedAt, &user.UpdatedAt)
+		&user.ID, &user.Email, &user.PasswordHash, &user.FirstName, &user.LastName, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
 		r.logger.WithError(err).WithField("error_type", fmt.Sprintf("%T", err)).Error("Failed to get user by ID - checking error type")
@@ -64,12 +64,12 @@ func (r *UserRepository) GetByID(ctx context.Context, id int) (*models.User, err
 func (r *UserRepository) Update(ctx context.Context, id int, user *models.User) (*models.User, error) {
 	query := `
 		UPDATE user_service.users
-		SET email = $1, first_name = $2, last_name = $3, updated_at = NOW()
-		WHERE id = $4
-		RETURNING id, email, first_name, last_name, created_at, updated_at`
+		SET email = $1, password_hash = $2, first_name = $3, last_name = $4, updated_at = NOW()
+		WHERE id = $5
+		RETURNING id, email, password_hash, first_name, last_name, created_at, updated_at`
 
-	err := r.db.QueryRow(ctx, query, user.Email, user.FirstName, user.LastName, id).Scan(
-		&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.CreatedAt, &user.UpdatedAt)
+	err := r.db.QueryRow(ctx, query, user.Email, user.PasswordHash, user.FirstName, user.LastName, id).Scan(
+		&user.ID, &user.Email, &user.PasswordHash, &user.FirstName, &user.LastName, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -101,7 +101,7 @@ func (r *UserRepository) Delete(ctx context.Context, id int) error {
 }
 
 func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*models.User, error) {
-	query := `SELECT id, email, first_name, last_name, created_at, updated_at FROM user_service.users ORDER BY created_at DESC LIMIT $1 OFFSET $2`
+	query := `SELECT id, email, password_hash, first_name, last_name, created_at, updated_at FROM user_service.users ORDER BY created_at DESC LIMIT $1 OFFSET $2`
 
 	rows, err := r.db.Query(ctx, query, limit, offset)
 	if err != nil {
@@ -113,7 +113,7 @@ func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*models
 	var users []*models.User
 	for rows.Next() {
 		user := &models.User{}
-		err := rows.Scan(&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.CreatedAt, &user.UpdatedAt)
+		err := rows.Scan(&user.ID, &user.Email, &user.PasswordHash, &user.FirstName, &user.LastName, &user.CreatedAt, &user.UpdatedAt)
 		if err != nil {
 			r.logger.WithError(err).Error("Failed to scan user")
 			return nil, fmt.Errorf("failed to scan user: %w", err)
@@ -130,11 +130,11 @@ func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*models
 }
 
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.User, error) {
-	query := `SELECT id, email, first_name, last_name, created_at, updated_at FROM user_service.users WHERE email = $1`
+	query := `SELECT id, email, password_hash, first_name, last_name, created_at, updated_at FROM user_service.users WHERE email = $1`
 
 	user := &models.User{}
 	err := r.db.QueryRow(ctx, query, email).Scan(
-		&user.ID, &user.Email, &user.FirstName, &user.LastName, &user.CreatedAt, &user.UpdatedAt)
+		&user.ID, &user.Email, &user.PasswordHash, &user.FirstName, &user.LastName, &user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
 		if err == sql.ErrNoRows {

@@ -2,6 +2,15 @@
 
 This document provides practical examples of authenticating with the API gateway and making authenticated calls to microservices using JWT tokens.
 
+## 📢 Phase 2 Updates
+
+**Important Changes in Phase 2:**
+- User creation now goes through the auth service registration endpoint (`POST /api/v1/auth/register`)
+- Users are no longer created directly through the user service (`POST /api/v1/users`)
+- Password hashing and validation is now handled by the auth service
+- Auth service communicates with user service for user data management
+- All user operations (CRUD) are now properly separated between auth and user services
+
 ## 📋 Available Endpoints
 
 ### Authentication Endpoints (Public)
@@ -13,10 +22,11 @@ This document provides practical examples of authenticating with the API gateway
 ### Protected Endpoints (Require Authentication)
 - `GET /api/v1/auth/me` - Get current user info
 - `GET /api/v1/users` - List all users
-- `POST /api/v1/users` - Create new user
 - `GET /api/v1/users/{id}` - Get user by ID
 - `PUT /api/v1/users/{id}` - Update user
 - `DELETE /api/v1/users/{id}` - Delete user
+
+**Note**: Users are created through the auth service registration endpoint (`POST /api/v1/auth/register`), not directly through the user service.
 
 ## 🛠️ Bash/Curl Examples
 
@@ -77,10 +87,9 @@ USERS_LIST=$(curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
 echo "Users List: $USERS_LIST"
 echo
 
-# 5. Create a new user (protected endpoint)
-echo "➕ Creating a new user..."
-CREATE_USER_RESPONSE=$(curl -s -X POST $API_BASE/api/v1/users \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
+# 5. Create a new user through auth service registration (public endpoint)
+echo "➕ Creating a new user through registration..."
+CREATE_USER_RESPONSE=$(curl -s -X POST $API_BASE/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "newuser@example.com",
@@ -92,7 +101,7 @@ CREATE_USER_RESPONSE=$(curl -s -X POST $API_BASE/api/v1/users \
 echo "Create User Response: $CREATE_USER_RESPONSE"
 
 # Extract the new user ID (assuming response contains user data)
-NEW_USER_ID=$(echo $CREATE_USER_RESPONSE | jq -r '.id')
+NEW_USER_ID=$(echo $CREATE_USER_RESPONSE | jq -r '.user.id')
 echo "New User ID: $NEW_USER_ID"
 echo
 
@@ -301,8 +310,9 @@ class AuthenticatedAPIClient:
         return response.json()
 
     def create_user(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a new user"""
-        response = self._make_request("POST", "/api/v1/users", json=user_data)
+        """Create a new user through auth service registration"""
+        # Note: Users are created through registration, not directly through user service
+        response = self.session.post(f"{self.base_url}/api/v1/auth/register", json=user_data)
         response.raise_for_status()
         return response.json()
 
@@ -355,8 +365,8 @@ def main():
         users = client.get_users()
         print(f"Users count: {len(users)}")
 
-        # Create a new user
-        print("➕ Creating new user...")
+        # Create a new user through registration
+        print("➕ Creating new user through registration...")
         new_user = client.create_user({
             "email": "created@example.com",
             "password": "created123",
@@ -365,7 +375,7 @@ def main():
         })
         print(f"Created user: {new_user}")
 
-        user_id = new_user.get("id")
+        user_id = new_user.get("user", {}).get("id")
         if user_id:
             # Get specific user
             print(f"🔍 Getting user {user_id}...")

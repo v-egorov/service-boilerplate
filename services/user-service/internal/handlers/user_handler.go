@@ -264,3 +264,47 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 		},
 	})
 }
+
+func (h *UserHandler) GetUserByEmail(c *gin.Context) {
+	email := c.Param("email")
+	if email == "" {
+		h.logger.Error("Email parameter is required")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Email parameter is required",
+			"type":  "validation_error",
+			"field": "email",
+		})
+		return
+	}
+
+	user, err := h.service.GetUserByEmail(c.Request.Context(), email)
+	if err != nil {
+		h.handleServiceError(c, err, "Failed to get user by email")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": user,
+	})
+}
+
+func (h *UserHandler) GetUserWithPasswordByEmail(c *gin.Context) {
+	email := c.Param("email")
+	if email == "" {
+		h.logger.Error("Email parameter is required")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Email parameter is required",
+			"type":  "validation_error",
+			"field": "email",
+		})
+		return
+	}
+
+	userLogin, err := h.service.GetUserWithPasswordByEmail(c.Request.Context(), email)
+	if err != nil {
+		h.handleServiceError(c, err, "Failed to get user with password by email")
+		return
+	}
+
+	c.JSON(http.StatusOK, userLogin)
+}

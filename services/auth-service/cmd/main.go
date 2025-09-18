@@ -13,6 +13,7 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/config"
 	"github.com/v-egorov/service-boilerplate/common/database"
 	"github.com/v-egorov/service-boilerplate/common/logging"
+	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/client"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/handlers"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/repository"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/services"
@@ -71,8 +72,13 @@ func main() {
 		// Initialize repository
 		authRepo := repository.NewAuthRepository(db.GetPool())
 
+		// Initialize user service client
+		// Always use Docker service name since we're running in containers
+		userServiceURL := "http://user-service:8081/api/v1"
+		userClient := client.NewUserClient(userServiceURL, logger.Logger)
+
 		// Initialize service
-		authService := services.NewAuthService(authRepo, jwtUtils, logger.Logger)
+		authService := services.NewAuthService(authRepo, userClient, jwtUtils, logger.Logger)
 
 		// Initialize handlers
 		authHandler = handlers.NewAuthHandler(authService, logger.Logger)

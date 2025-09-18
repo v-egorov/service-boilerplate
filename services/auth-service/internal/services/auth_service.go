@@ -8,22 +8,26 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/client"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/repository"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/utils"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthService struct {
-	repo     *repository.AuthRepository
-	jwtUtils *utils.JWTUtils
-	logger   *logrus.Logger
+	repo       *repository.AuthRepository
+	userClient *client.UserClient
+	jwtUtils   *utils.JWTUtils
+	logger     *logrus.Logger
 }
 
-func NewAuthService(repo *repository.AuthRepository, jwtUtils *utils.JWTUtils, logger *logrus.Logger) *AuthService {
+func NewAuthService(repo *repository.AuthRepository, userClient *client.UserClient, jwtUtils *utils.JWTUtils, logger *logrus.Logger) *AuthService {
 	return &AuthService{
-		repo:     repo,
-		jwtUtils: jwtUtils,
-		logger:   logger,
+		repo:       repo,
+		userClient: userClient,
+		jwtUtils:   jwtUtils,
+		logger:     logger,
 	}
 }
 
@@ -33,10 +37,23 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 		"ip":    ipAddress,
 	}).Info("Login attempt")
 
-	// TODO: Call user service to validate credentials
-	// For now, we'll simulate user validation
-	userID := uuid.New() // This should come from user service
-	email := req.Email
+	// Call user service to get user with password hash
+	userLogin, err := s.userClient.GetUserWithPasswordByEmail(ctx, req.Email)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get user from user service")
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Verify password
+	if err := bcrypt.CompareHashAndPassword([]byte(userLogin.PasswordHash), []byte(req.Password)); err != nil {
+		s.logger.WithField("email", req.Email).Warn("Invalid password")
+		return nil, fmt.Errorf("invalid credentials")
+	}
+
+	// Convert user ID from int to UUID (for now, we'll create a UUID based on the int ID)
+	// TODO: Consider using email as primary key or implement proper ID mapping
+	userID := uuid.New() // In production, this should be a proper mapping
+	email := userLogin.User.Email
 
 	// Get user roles
 	roles, err := s.repo.GetUserRoles(ctx, userID)
@@ -118,9 +135,11 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 		TokenType:    "Bearer",
 		ExpiresIn:    900, // 15 minutes
 		User: models.UserInfo{
-			ID:    userID,
-			Email: email,
-			Roles: roleNames,
+			ID:        userID,
+			Email:     email,
+			FirstName: userLogin.User.FirstName,
+			LastName:  userLogin.User.LastName,
+			Roles:     roleNames,
 		},
 	}, nil
 }
@@ -128,8 +147,21 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 func (s *AuthService) Register(ctx context.Context, req *models.RegisterRequest) (*models.UserInfo, error) {
 	s.logger.WithField("email", req.Email).Info("Registration attempt")
 
-	// TODO: Call user service to create user
-	// For now, we'll simulate user creation
+	// Call user service to create user
+	createUserReq := &client.CreateUserRequest{
+		Email:     req.Email,
+		Password:  req.Password,
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+	}
+
+	userData, err := s.userClient.CreateUser(ctx, createUserReq)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to create user in user service")
+		return nil, fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// For now, create a UUID for auth service (TODO: implement proper ID mapping)
 	userID := uuid.New()
 
 	// Assign default role
@@ -151,9 +183,9 @@ func (s *AuthService) Register(ctx context.Context, req *models.RegisterRequest)
 
 	return &models.UserInfo{
 		ID:        userID,
-		Email:     req.Email,
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
+		Email:     userData.Email,
+		FirstName: userData.FirstName,
+		LastName:  userData.LastName,
 		Roles:     []string{"user"},
 	}, nil
 }
@@ -281,9 +313,16 @@ func (s *AuthService) RefreshToken(ctx context.Context, req *models.RefreshToken
 	}, nil
 }
 
-func (s *AuthService) GetCurrentUser(ctx context.Context, userID uuid.UUID) (*models.UserInfo, error) {
-	// TODO: Call user service to get user details
-	// For now, return basic info
+func (s *AuthService) GetCurrentUser(ctx context.Context, userID uuid.UUID, email string) (*models.UserInfo, error) {
+	// Call user service to get user details by email
+	userData, err := s.userClient.GetUserByEmail(ctx, email)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get user from user service")
+		// Fallback to basic info if user service call fails
+		s.logger.Warn("Falling back to basic user info due to user service error")
+	}
+
+	// Get user roles
 	roles, err := s.repo.GetUserRoles(ctx, userID)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to get user roles")
@@ -295,11 +334,19 @@ func (s *AuthService) GetCurrentUser(ctx context.Context, userID uuid.UUID) (*mo
 		roleNames[i] = role.Name
 	}
 
-	return &models.UserInfo{
+	userInfo := &models.UserInfo{
 		ID:    userID,
+		Email: email,
 		Roles: roleNames,
-		// TODO: Get email, first_name, last_name from user service
-	}, nil
+	}
+
+	// Populate user details from user service if available
+	if userData != nil {
+		userInfo.FirstName = userData.FirstName
+		userInfo.LastName = userData.LastName
+	}
+
+	return userInfo, nil
 }
 
 func (s *AuthService) ValidateToken(ctx context.Context, tokenString string) (*utils.JWTClaims, error) {
