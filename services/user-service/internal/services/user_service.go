@@ -6,6 +6,7 @@ import (
 	"net/mail"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/v-egorov/service-boilerplate/services/user-service/internal/models"
 	"github.com/v-egorov/service-boilerplate/services/user-service/internal/repository"
@@ -183,9 +184,9 @@ func (s *UserService) validateCreateUserRequest(req *models.CreateUserRequest) e
 	return nil
 }
 
-func (s *UserService) GetUser(ctx context.Context, id int) (*models.UserResponse, error) {
-	if id <= 0 {
-		return nil, models.NewValidationError("id", "user ID must be positive")
+func (s *UserService) GetUser(ctx context.Context, id uuid.UUID) (*models.UserResponse, error) {
+	if id == uuid.Nil {
+		return nil, models.NewValidationError("id", "user ID is required")
 	}
 
 	user, err := s.repo.GetByID(ctx, id)
@@ -204,9 +205,9 @@ func (s *UserService) GetUser(ctx context.Context, id int) (*models.UserResponse
 	return s.toResponse(user), nil
 }
 
-func (s *UserService) ReplaceUser(ctx context.Context, id int, req *models.ReplaceUserRequest) (*models.UserResponse, error) {
-	if id <= 0 {
-		return nil, models.NewValidationError("id", "user ID must be positive")
+func (s *UserService) ReplaceUser(ctx context.Context, id uuid.UUID, req *models.ReplaceUserRequest) (*models.UserResponse, error) {
+	if id == uuid.Nil {
+		return nil, models.NewValidationError("id", "user ID is required")
 	}
 
 	// Validate replace request (all fields required)
@@ -251,9 +252,9 @@ func (s *UserService) ReplaceUser(ctx context.Context, id int, req *models.Repla
 	return s.toResponse(updated), nil
 }
 
-func (s *UserService) UpdateUser(ctx context.Context, id int, req *models.UpdateUserRequest) (*models.UserResponse, error) {
-	if id <= 0 {
-		return nil, models.NewValidationError("id", "user ID must be positive")
+func (s *UserService) UpdateUser(ctx context.Context, id uuid.UUID, req *models.UpdateUserRequest) (*models.UserResponse, error) {
+	if id == uuid.Nil {
+		return nil, models.NewValidationError("id", "user ID is required")
 	}
 
 	// Validate update request
@@ -363,9 +364,9 @@ func (s *UserService) validateUpdateUserRequest(req *models.UpdateUserRequest) e
 	return nil
 }
 
-func (s *UserService) DeleteUser(ctx context.Context, id int) error {
-	if id <= 0 {
-		return models.NewValidationError("id", "user ID must be positive")
+func (s *UserService) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	if id == uuid.Nil {
+		return models.NewValidationError("id", "user ID is required")
 	}
 
 	err := s.repo.Delete(ctx, id)

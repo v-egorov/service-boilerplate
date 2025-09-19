@@ -50,9 +50,8 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 		return nil, fmt.Errorf("invalid credentials")
 	}
 
-	// Convert user ID from int to UUID (for now, we'll create a UUID based on the int ID)
-	// TODO: Consider using email as primary key or implement proper ID mapping
-	userID := uuid.New() // In production, this should be a proper mapping
+	// Use the actual user ID from user service
+	userID := userLogin.User.ID
 	email := userLogin.User.Email
 
 	// Get user roles
@@ -161,8 +160,8 @@ func (s *AuthService) Register(ctx context.Context, req *models.RegisterRequest)
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 
-	// For now, create a UUID for auth service (TODO: implement proper ID mapping)
-	userID := uuid.New()
+	// Use the actual user ID from user service
+	userID := userData.ID
 
 	// Assign default role
 	defaultRole, err := s.repo.GetRoleByName(ctx, "user")

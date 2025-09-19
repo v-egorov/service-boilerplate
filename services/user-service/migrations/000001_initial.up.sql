@@ -3,7 +3,7 @@ CREATE SCHEMA IF NOT EXISTS user_service;
 
 -- Create users table in user_service schema
 CREATE TABLE IF NOT EXISTS user_service.users (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR(255) UNIQUE NOT NULL,
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,

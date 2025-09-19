@@ -5,7 +5,7 @@
 -- Create user settings table
 CREATE TABLE IF NOT EXISTS user_service.user_settings (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES user_service.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES user_service.users(id) ON DELETE CASCADE,
     setting_key VARCHAR(100) NOT NULL,
     setting_value TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,

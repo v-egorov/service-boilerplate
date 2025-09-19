@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -23,10 +24,10 @@ type UserServiceResponse struct {
 }
 
 type UserData struct {
-	ID        int    `json:"id"`
-	Email     string `json:"email"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
+	ID        uuid.UUID `json:"id"`
+	Email     string    `json:"email"`
+	FirstName string    `json:"first_name"`
+	LastName  string    `json:"last_name"`
 }
 
 type UserLoginResponse struct {
@@ -161,8 +162,8 @@ func (c *UserClient) GetUserWithPasswordByEmail(ctx context.Context, email strin
 	return &response, nil
 }
 
-func (c *UserClient) GetUserByID(ctx context.Context, id int) (*UserData, error) {
-	url := fmt.Sprintf("%s/users/%d", c.baseURL, id)
+func (c *UserClient) GetUserByID(ctx context.Context, id uuid.UUID) (*UserData, error) {
+	url := fmt.Sprintf("%s/users/%s", c.baseURL, id.String())
 
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/v-egorov/service-boilerplate/services/user-service/internal/models"
 	"github.com/v-egorov/service-boilerplate/services/user-service/internal/services"
@@ -101,12 +102,12 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 
 func (h *UserHandler) GetUser(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		h.logger.WithError(err).Error("Invalid user ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid user ID format",
-			"details": "User ID must be a valid integer",
+			"details": "User ID must be a valid UUID",
 			"type":    "validation_error",
 			"field":   "id",
 		})
@@ -126,12 +127,12 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 
 func (h *UserHandler) ReplaceUser(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		h.logger.WithError(err).Error("Invalid user ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid user ID format",
-			"details": "User ID must be a valid integer",
+			"details": "User ID must be a valid UUID",
 			"type":    "validation_error",
 			"field":   "id",
 		})
@@ -164,12 +165,12 @@ func (h *UserHandler) ReplaceUser(c *gin.Context) {
 
 func (h *UserHandler) UpdateUser(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		h.logger.WithError(err).Error("Invalid user ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid user ID format",
-			"details": "User ID must be a valid integer",
+			"details": "User ID must be a valid UUID",
 			"type":    "validation_error",
 			"field":   "id",
 		})
@@ -202,12 +203,12 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		h.logger.WithError(err).Error("Invalid user ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid user ID format",
-			"details": "User ID must be a valid integer",
+			"details": "User ID must be a valid UUID",
 			"type":    "validation_error",
 			"field":   "id",
 		})

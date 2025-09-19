@@ -2,10 +2,12 @@ package models
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type User struct {
-	ID           int       `json:"id" db:"id"`
+	ID           uuid.UUID `json:"id" db:"id"`
 	Email        string    `json:"email" db:"email"`
 	PasswordHash *string   `json:"-" db:"password_hash"`
 	FirstName    string    `json:"first_name" db:"first_name"`
@@ -34,7 +36,7 @@ type ReplaceUserRequest struct {
 }
 
 type UserResponse struct {
-	ID        int       `json:"id"`
+	ID        uuid.UUID `json:"id"`
 	Email     string    `json:"email"`
 	FirstName string    `json:"first_name"`
 	LastName  string    `json:"last_name"`

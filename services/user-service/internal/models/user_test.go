@@ -3,11 +3,13 @@ package models
 import (
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 func TestUserModel(t *testing.T) {
 	user := &User{
-		ID:        1,
+		ID:        uuid.New(),
 		Email:     "test@example.com",
 		FirstName: "John",
 		LastName:  "Doe",

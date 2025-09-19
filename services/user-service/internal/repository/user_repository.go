@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 	"github.com/v-egorov/service-boilerplate/services/user-service/internal/models"
@@ -41,7 +42,7 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) (*models
 	return user, nil
 }
 
-func (r *UserRepository) GetByID(ctx context.Context, id int) (*models.User, error) {
+func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
 	query := `SELECT id, email, password_hash, first_name, last_name, created_at, updated_at FROM user_service.users WHERE id = $1`
 
 	user := &models.User{}
@@ -61,7 +62,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id int) (*models.User, err
 	return user, nil
 }
 
-func (r *UserRepository) Update(ctx context.Context, id int, user *models.User) (*models.User, error) {
+func (r *UserRepository) Update(ctx context.Context, id uuid.UUID, user *models.User) (*models.User, error) {
 	query := `
 		UPDATE user_service.users
 		SET email = $1, password_hash = $2, first_name = $3, last_name = $4, updated_at = NOW()
@@ -83,7 +84,7 @@ func (r *UserRepository) Update(ctx context.Context, id int, user *models.User) 
 	return user, nil
 }
 
-func (r *UserRepository) Delete(ctx context.Context, id int) error {
+func (r *UserRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM user_service.users WHERE id = $1`
 
 	result, err := r.db.Exec(ctx, query, id)
