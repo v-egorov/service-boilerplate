@@ -71,11 +71,10 @@ help: ## Show this help message
 	@echo '  build-cli          - Build CLI utility'
 	@echo '  build-all          - Build all services and CLI'
 	@echo '  run-cli            - Build and run CLI utility'
-	@echo '  run-cli-local      - Run CLI utility locally'
 	@echo '  test-cli           - Run CLI tests'
 	@echo '  test-all           - Run all tests (services + CLI)'
 	@echo '  clean-cli          - Clean CLI build artifacts'
-	@echo '  air-cli            - Run CLI with Air locally'
+	@echo '  air-cli            - Run CLI with Air in Docker'
 	@echo ''
 	@echo 'Health & Monitoring:'
 	@echo '  health             - Comprehensive health check of all services'
@@ -190,17 +189,17 @@ dev-build: ## Build development images with Air
 	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) build
 
 .PHONY: air-gateway
-air-gateway: ## Run API Gateway with Air locally
+air-gateway: ## Run API Gateway with Air in Docker
 	@echo "Starting API Gateway with Air..."
 	@cd $(API_GATEWAY_DIR) && air
 
 .PHONY: air-user-service
-air-user-service: ## Run User Service with Air locally
+air-user-service: ## Run User Service with Air in Docker
 	@echo "Starting User Service with Air..."
 	@cd $(USER_SERVICE_DIR) && air
 
 .PHONY: air-cli
-air-cli: ## Run CLI with Air locally
+air-cli: ## Run CLI with Air in Docker
 	@echo "Starting CLI with Air..."
 	@cd $(CLI_DIR) && air
 
@@ -208,39 +207,20 @@ air-cli: ## Run CLI with Air locally
 logs: ## Show service logs
 	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) logs -f
 
-.PHONY: run-local
-run-local: ## Run all services locally (SECONDARY)
-	@echo "Starting all services locally..."
-	@cd $(API_GATEWAY_DIR) && $(GO) run ./cmd &
-	@sleep 2
-	@cd $(USER_SERVICE_DIR) && $(GO) run ./cmd &
-	@echo "All services started locally. Use 'make stop-local' to stop them."
 
-.PHONY: run-gateway-local
-run-gateway-local: ## Run API Gateway locally
-	@echo "Running API Gateway locally..."
-	@cd $(API_GATEWAY_DIR) && $(GO) run ./cmd
 
-.PHONY: run-user-service-local
-run-user-service-local: ## Run User Service locally
-	@echo "Running User Service locally..."
-	@cd $(USER_SERVICE_DIR) && $(GO) run ./cmd
 
-.PHONY: run-cli-local
-run-cli-local: ## Run CLI utility locally
-	@echo "Running CLI utility locally..."
-	@cd $(CLI_DIR) && $(GO) run ./main.go
+
+
+
+
 
 .PHONY: run-cli
 run-cli: build-cli ## Build and run CLI utility
 	@echo "Running CLI utility..."
 	@./$(BUILD_DIR)/boilerplate-cli
 
-.PHONY: stop-local
-stop-local: ## Stop all locally running services
-	@echo "Stopping local services..."
-	@pkill -f "go run ./cmd" || true
-	@echo "Local services stopped."
+
 
 .PHONY: test
 test: ## Run all tests
@@ -1281,6 +1261,6 @@ test-auth-service: ## Run auth-service tests
 	@cd services/auth-service && $(GOTEST) ./...
 
 .PHONY: air-auth-service
-air-auth-service: ## Run auth-service with Air locally
+air-auth-service: ## Run auth-service with Air in Docker
 	@echo "Starting auth-service with Air..."
 	@cd services/auth-service && air
