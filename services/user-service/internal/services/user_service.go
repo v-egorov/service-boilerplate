@@ -60,7 +60,7 @@ func (s *UserService) CreateUser(ctx context.Context, req *models.CreateUserRequ
 
 	user := &models.User{
 		Email:        req.Email,
-		PasswordHash: func() *string { s := string(passwordHash); return &s }(),
+		PasswordHash: string(passwordHash),
 		FirstName:    req.FirstName,
 		LastName:     req.LastName,
 	}
@@ -121,13 +121,9 @@ func (s *UserService) GetUserWithPasswordByEmail(ctx context.Context, email stri
 		return nil, models.NewInternalError("getting user by email", err)
 	}
 
-	passwordHash := ""
-	if user.PasswordHash != nil {
-		passwordHash = *user.PasswordHash
-	}
 	return &models.UserLoginResponse{
 		User:         s.toResponse(user),
-		PasswordHash: passwordHash,
+		PasswordHash: user.PasswordHash,
 	}, nil
 }
 

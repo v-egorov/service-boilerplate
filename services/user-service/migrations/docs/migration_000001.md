@@ -15,8 +15,9 @@ Initial migration that creates the user_service schema and the users table with 
 ### Database Changes
 - Create `user_service` schema
 - Create `user_service.users` table with the following columns:
-  - `id` (SERIAL PRIMARY KEY)
+  - `id` (UUID PRIMARY KEY, defaults to gen_random_uuid())
   - `email` (VARCHAR(255) UNIQUE NOT NULL)
+  - `password_hash` (VARCHAR(255) NOT NULL)
   - `first_name` (VARCHAR(100) NOT NULL)
   - `last_name` (VARCHAR(100) NOT NULL)
   - `created_at` (TIMESTAMP WITH TIME ZONE, defaults to CURRENT_TIMESTAMP)
