@@ -60,26 +60,31 @@ service-boilerplate/
 ### 🚀 Recommended: Docker Development (Primary)
 
 1. **Start all services:**
+
    ```bash
    make up
    ```
 
 2. **Development with hot reload:**
+
    ```bash
    make dev
    ```
 
 3. **View service logs:**
+
    ```bash
    make logs
    ```
 
 4. **Stop services:**
+
    ```bash
    make down
    ```
 
 5. **Interactive development menu:**
+
    ```bash
    ./scripts/dev.sh
    ```
@@ -87,31 +92,35 @@ service-boilerplate/
 ### 🔧 Development Workflows
 
 #### **Hot Reload Development**
+
 The project includes **Air** for hot reloading during development:
 
 - **Docker Hot Reload**: `make dev` - Services automatically restart on file changes
 
-
 #### **Development Tools**
+
 - **Air**: Live reloading for Go applications
 - **Development Script**: `./scripts/dev.sh` - Interactive development menu
 - **Structured Logging**: JSON logging with configurable levels
 - **Health Checks**: Automatic service health monitoring
 - **Environment Configuration**: Flexible config management
 
-1. **Start all services:**
+1. **Start all services with Air hot-reload:**
+
    ```bash
-   make docker-run
+   make dev
    ```
 
-2. **View logs:**
+2. **View logs for running services:**
+
    ```bash
-   make docker-logs
+   make logs
    ```
 
 3. **Stop services:**
+
    ```bash
-   make docker-stop
+   make down
    ```
 
 ## API Usage
@@ -121,6 +130,7 @@ The project includes **Air** for hot reloading during development:
 The API Gateway runs on `http://localhost:8080` and proxies requests to individual services.
 
 **Health Check:**
+
 ```bash
 curl http://localhost:8080/health
 ```
@@ -128,6 +138,7 @@ curl http://localhost:8080/health
 ### User Service
 
 **Create User:**
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/users \
   -H "Content-Type: application/json" \
@@ -140,12 +151,14 @@ curl -X POST http://localhost:8080/api/v1/users \
 ```
 
 **Get User:**
+
 ```bash
 curl http://localhost:8080/api/v1/users/1 \
   -H "Authorization: Bearer your-token"
 ```
 
 **List Users:**
+
 ```bash
 curl http://localhost:8080/api/v1/users \
   -H "Authorization: Bearer your-token"
@@ -160,6 +173,7 @@ make create-service SERVICE_NAME=product-service PORT=8082
 ```
 
 This will:
+
 - Create the service directory structure
 - Copy boilerplate code with proper naming
 - Update docker-compose.yml
@@ -264,3 +278,4 @@ LOGGING_LEVEL=info
 ## License
 
 This project is licensed under the MIT License.
+
