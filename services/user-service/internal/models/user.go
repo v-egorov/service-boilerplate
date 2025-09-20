@@ -9,7 +9,7 @@ import (
 type User struct {
 	ID           uuid.UUID `json:"id" db:"id"`
 	Email        string    `json:"email" db:"email"`
-	PasswordHash string    `json:"-" db:"password_hash"`
+	PasswordHash string    `json:"-" db:"password_hash"` // json:"-" prevents accidental JSON exposure
 	FirstName    string    `json:"first_name" db:"first_name"`
 	LastName     string    `json:"last_name" db:"last_name"`
 	CreatedAt    time.Time `json:"created_at" db:"created_at"`
@@ -35,6 +35,10 @@ type ReplaceUserRequest struct {
 	LastName  string `json:"last_name" binding:"required"`
 }
 
+// UserResponse contains public user information safe for API responses.
+// IMPORTANT: This struct intentionally excludes sensitive fields like PasswordHash
+// to prevent accidental exposure in JSON responses. For authentication flows,
+// use UserLoginResponse which includes password data only where needed.
 type UserResponse struct {
 	ID        uuid.UUID `json:"id"`
 	Email     string    `json:"email"`
@@ -49,6 +53,9 @@ type UserLoginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
+// UserLoginResponse is used specifically for authentication flows where
+// password verification is required. The PasswordHash field is intentionally
+// separate from UserResponse for security - it should only be used in auth contexts.
 type UserLoginResponse struct {
 	User         *UserResponse `json:"user"`
 	PasswordHash string        `json:"password_hash"`
