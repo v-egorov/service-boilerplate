@@ -57,7 +57,7 @@ service-boilerplate/
 - Go 1.23+ (for local development)
 - PostgreSQL 15+ (for local development)
 
-### 🚀 Recommended: Docker Development (Primary)
+### 🚀 Docker Development
 
 1. **Start all services:**
 
@@ -184,7 +184,7 @@ This will:
 
 ```bash
 # Primary Docker Commands
-make up                # Start all services with Docker (RECOMMENDED)
+make up                # Start all services with Docker
 make down              # Stop all services
 make logs              # View service logs
 make dev               # Start development environment with hot reload
@@ -278,4 +278,3 @@ LOGGING_LEVEL=info
 ## License
 
 This project is licensed under the MIT License.
-

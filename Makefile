@@ -290,8 +290,11 @@ DATABASE_HOST ?= postgres
 DATABASE_PORT ?= 5432
 DATABASE_NAME ?= service_db
 DATABASE_SSL_MODE ?= disable
-SERVICE_NAME ?= user-service
+# SERVICE_NAME defaults to empty (run all services) or can be set to specific service
 MIGRATION_IMAGE ?= migrate/migrate:latest
+
+# Auto-detect services with migrations
+SERVICES_WITH_MIGRATIONS := $(shell find services -name "migrations" -type d 2>/dev/null | sed 's|/migrations||' | sed 's|services/||' | sort)
 POSTGRES_NAME ?= postgres
 
 # Database URL construction for targets
@@ -387,7 +390,22 @@ db-migrate-status: db-migrate-prepare ## Show migration status using migration c
 		version
 
 .PHONY: db-migrate
-db-migrate: db-migrate-up ## Run all pending migrations (alias for db-migrate-up)
+db-migrate: ## Run migrations for all services (or specific service if SERVICE_NAME is set)
+	@if [ -n "$(SERVICE_NAME)" ]; then \
+		echo "📈 Running migrations for service: $(SERVICE_NAME)"; \
+		$(MAKE) db-migrate-up SERVICE_NAME=$(SERVICE_NAME); \
+	else \
+		echo "📈 Running migrations for all services: $(SERVICES_WITH_MIGRATIONS)"; \
+		$(MAKE) db-migrate-all; \
+	fi
+
+.PHONY: db-migrate-all
+db-migrate-all: ## Run migrations for all services with migrations
+	@for service in $(SERVICES_WITH_MIGRATIONS); do \
+		echo "📈 Running migrations for $$service..."; \
+		$(MAKE) db-migrate-up SERVICE_NAME=$$service || { echo "❌ Failed to migrate $$service"; exit 1; }; \
+	done; \
+	echo "✅ All service migrations completed successfully"
 
 .PHONY: db-rollback
 db-rollback: db-migrate-down ## Rollback last migration (alias for db-migrate-down)
@@ -1189,9 +1207,10 @@ help-db: ## Show database commands
 	@echo "  db-recreate        - Recreate database from scratch"
 	@echo ""
 	@echo "Migration Management:"
-	@echo "  db-migrate-up      - Run migrations up"
-	@echo "  db-migrate-down    - Run migrations down"
-	@echo "  db-migrate-status  - Show migration status"
+	@echo "  db-migrate         - Run migrations for all services (or specific with SERVICE_NAME=)"
+	@echo "  db-migrate-up      - Run migrations up for specific service"
+	@echo "  db-migrate-down    - Run migrations down for specific service"
+	@echo "  db-migrate-status  - Show migration status for specific service"
 	@echo "  db-migrate-goto VERSION= - Go to specific version"
 	@echo "  db-migrate-validate - Validate migration files"
 	@echo "  db-migration-create NAME= - Create migration file"
