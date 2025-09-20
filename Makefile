@@ -74,7 +74,6 @@ help: ## Show this help message
 	@echo '  test-cli           - Run CLI tests'
 	@echo '  test-all           - Run all tests (services + CLI)'
 	@echo '  clean-cli          - Clean CLI build artifacts'
-	@echo '  air-cli            - Run CLI with Air in Docker'
 	@echo ''
 	@echo 'Health & Monitoring:'
 	@echo '  health             - Comprehensive health check of all services'
@@ -188,20 +187,7 @@ dev-build: ## Build development images with Air
 	@echo "Building development images..."
 	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) build
 
-.PHONY: air-gateway
-air-gateway: ## Run API Gateway with Air in Docker
-	@echo "Starting API Gateway with Air..."
-	@cd $(API_GATEWAY_DIR) && air
 
-.PHONY: air-user-service
-air-user-service: ## Run User Service with Air in Docker
-	@echo "Starting User Service with Air..."
-	@cd $(USER_SERVICE_DIR) && air
-
-.PHONY: air-cli
-air-cli: ## Run CLI with Air in Docker
-	@echo "Starting CLI with Air..."
-	@cd $(CLI_DIR) && air
 
 .PHONY: logs
 logs: ## Show service logs

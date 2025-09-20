@@ -90,7 +90,7 @@ service-boilerplate/
 The project includes **Air** for hot reloading during development:
 
 - **Docker Hot Reload**: `make dev` - Services automatically restart on file changes
-- **Individual Service Hot Reload**: `make air-gateway` or `make air-user-service` - Run individual services with hot reload in Docker
+
 
 #### **Development Tools**
 - **Air**: Live reloading for Go applications
