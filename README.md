@@ -84,65 +84,13 @@ service-boilerplate/
    ./scripts/dev.sh
    ```
 
-### 💻 Alternative: Local Development (Secondary)
-   ```bash
-   make up
-   ```
-
-3. **View service logs:**
-   ```bash
-   make logs
-   ```
-
-4. **Stop services:**
-   ```bash
-   make down
-   ```
-
-**That's it!** All services (PostgreSQL, API Gateway, User Service) will start automatically with proper networking and health checks.
-
-### 💻 Alternative: Local Development (Secondary)
-
-1. **Setup local environment:**
-   ```bash
-   make setup
-   ```
-
-2. **Start PostgreSQL locally:**
-   ```bash
-   docker run -d --name postgres \
-     -e POSTGRES_DB=service_db \
-     -e POSTGRES_USER=postgres \
-     -e POSTGRES_PASSWORD=postgres \
-     -p 5432:5432 postgres:15-alpine
-   ```
-
-3. **Run database migrations:**
-   ```bash
-   make migrate-up
-   ```
-
-4. **Build and run services locally:**
-   ```bash
-   make build
-   make run-local     # Runs all services locally
-   # OR run individually:
-   make run-gateway-local
-   make run-user-service-local
-   ```
-
-5. **Stop local services:**
-   ```bash
-   make stop-local
-   ```
-
 ### 🔧 Development Workflows
 
 #### **Hot Reload Development**
 The project includes **Air** for hot reloading during development:
 
 - **Docker Hot Reload**: `make dev` - Services automatically restart on file changes
-- **Local Hot Reload**: `make air-gateway` or `make air-user-service` - Run individual services with hot reload
+
 
 #### **Development Tools**
 - **Air**: Live reloading for Go applications
@@ -227,14 +175,6 @@ make down              # Stop all services
 make logs              # View service logs
 make dev               # Start development environment with hot reload
 make dev-build         # Build development images with Air
-
-# Local Development (Secondary)
-make setup             # Initialize project
-make build             # Build all services
-make run-local         # Run all services locally
-make stop-local        # Stop local services
-make run-gateway-local # Run API Gateway locally
-make run-user-service-local # Run User Service locally
 
 # Testing & Maintenance
 make test              # Run all tests
