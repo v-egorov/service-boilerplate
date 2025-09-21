@@ -768,21 +768,16 @@ clean-docker: ## Clean project Docker artifacts (mode: $(DOCKER_CLEANUP_MODE))
 .PHONY: clean-volumes
 clean-volumes: ## Clean Docker volumes and persistent data
 	@echo "💾 Cleaning Docker volumes..."
-	@docker-compose --env-file .env down -v 2>/dev/null || true
-	@echo "🗂️  Removing service volumes..."
-	@for volume in $(SERVICE_VOLUMES) $(POSTGRES_VOLUME); do \
-		if [ -n "$$volume" ]; then \
-			echo "  Removing volume: $$volume"; \
-			docker volume rm $$volume 2>/dev/null || true; \
-		fi; \
-	done
+	@docker-compose --env-file .env --file $(DOCKER_COMPOSE_FILE) --file $(DOCKER_COMPOSE_OVERRIDE_FILE) down --volumes
 	@echo "🔧 Cleaning volume data using Docker containers..."
+	@echo "📁 Removing postgres volume..."
+	@docker run --rm -v $(PWD)/docker/volumes:/data alpine sh -c "rm -rf /data/postgres_data";
 	@if [ -d "docker/volumes" ]; then \
 		for dir in docker/volumes/*/; do \
 			if [ -d "$$dir" ]; then \
 				service_name=$$(basename "$$dir"); \
-				echo "  Cleaning $$service_name volumes..."; \
-				docker run --rm -v $(PWD)/$$dir:/data alpine sh -c "rm -rf /data/* 2>/dev/null || true" 2>/dev/null || true; \
+				echo " 📁 Cleaning $$service_name volumes..."; \
+				docker run --rm -v $(PWD)/$$dir:/data alpine sh -c "rm -rf /data/*"; \
 			fi; \
 		done; \
 	fi
@@ -794,7 +789,7 @@ clean-volumes: ## Clean Docker volumes and persistent data
 	@find docker/volumes -type d -empty -delete 2>/dev/null || true
 	@rmdir docker/volumes 2>/dev/null || true
 	@rmdir tmp 2>/dev/null || true
-	@echo "✅ Docker volumes cleaned (no sudo required!)"
+	@echo "✅ Docker volumes cleaned"
 
 .PHONY: clean-logs
 clean-logs: ## Clean log files

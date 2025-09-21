@@ -59,13 +59,28 @@ service-boilerplate/
 
 ### 🚀 Docker Development
 
-1. **Start all services:**
+1. **Quick start:**
 
    ```bash
-   make up
+   # create volumes dirs and start dev environment with hot reload
+   # logs will be shown in current terminal window
+   make dev
+   
+   # then swich to other terminal window - since `make dev` 
+   # will continue to stream logs 
+   # and run database migrations:
+   make db-migrate
+   
+   # create test users and check auth flow
+   ./scripts/test-auth-flow.sh
+
+   # watch logs and then look 
+   # at the database service_db.auth_service schema:
+   # tables user_sessions and auth_tokens,
+   # in service_db.user_service schema: users table
    ```
 
-2. **Development with hot reload:**
+2. **Development with hot reload (starts all services):**
 
    ```bash
    make dev
