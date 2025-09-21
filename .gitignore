@@ -189,3 +189,6 @@ tmp/
 
 backup_*.sql
 cli/boilerplate-cli
+
+# Agents prompts work-in-progress
+prompt*.md
