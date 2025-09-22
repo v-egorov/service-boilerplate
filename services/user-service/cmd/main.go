@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/v-egorov/service-boilerplate/common/alerting"
 	"github.com/v-egorov/service-boilerplate/common/config"
 	"github.com/v-egorov/service-boilerplate/common/database"
 	"github.com/v-egorov/service-boilerplate/common/logging"
@@ -76,6 +77,23 @@ func main() {
 		userHandler = nil // User operations won't work without database
 	}
 
+	// Initialize service request logger
+	serviceLogger := logging.NewServiceRequestLogger(logger.Logger, "user-service")
+
+	// Initialize alert manager
+	alertManager := alerting.NewAlertManager(logger.Logger, "user-service", &cfg.Alerting, serviceLogger.GetMetricsCollector())
+
+	// Start alert checking goroutine
+	if cfg.Alerting.Enabled {
+		go func() {
+			ticker := time.NewTicker(1 * time.Minute)
+			defer ticker.Stop()
+			for range ticker.C {
+				alertManager.CheckMetrics()
+			}
+		}()
+	}
+
 	// Setup Gin router
 	if cfg.App.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -84,9 +102,9 @@ func main() {
 	router := gin.New()
 
 	// Middleware
-	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 	router.Use(corsMiddleware())
+	router.Use(serviceLogger.RequestResponseLogger())
 
 	// Health check endpoints (public, no auth required)
 	router.GET("/health", healthHandler.LivenessHandler)
@@ -101,6 +119,18 @@ func main() {
 		// Health endpoints
 		v1.GET("/status", healthHandler.StatusHandler)
 		v1.GET("/ping", healthHandler.PingHandler)
+
+		// Metrics endpoint
+		v1.GET("/metrics", func(c *gin.Context) {
+			metrics := serviceLogger.GetMetricsCollector().GetMetrics()
+			c.JSON(http.StatusOK, metrics)
+		})
+
+		// Alerts endpoint
+		v1.GET("/alerts", func(c *gin.Context) {
+			alerts := alertManager.GetActiveAlerts()
+			c.JSON(http.StatusOK, gin.H{"alerts": alerts})
+		})
 
 		// User endpoints (only if database is available)
 		if userHandler != nil {

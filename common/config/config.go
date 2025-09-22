@@ -12,6 +12,7 @@ type Config struct {
 	Logging    LoggingConfig    `mapstructure:"logging"`
 	Server     ServerConfig     `mapstructure:"server"`
 	Monitoring MonitoringConfig `mapstructure:"monitoring"`
+	Alerting   AlertingConfig   `mapstructure:"alerting"`
 }
 
 type AppConfig struct {
@@ -48,6 +49,13 @@ type MonitoringConfig struct {
 	HealthCheckTimeout    int  `mapstructure:"health_check_timeout"`
 	StatusCacheDuration   int  `mapstructure:"status_cache_duration"`
 	EnableDetailedMetrics bool `mapstructure:"enable_detailed_metrics"`
+}
+
+type AlertingConfig struct {
+	Enabled               bool    `mapstructure:"enabled"`
+	ErrorRateThreshold    float64 `mapstructure:"error_rate_threshold"`
+	ResponseTimeThreshold int     `mapstructure:"response_time_threshold_ms"`
+	AlertIntervalMinutes  int     `mapstructure:"alert_interval_minutes"`
 }
 
 func Load(configPath string) (*Config, error) {
@@ -129,4 +137,10 @@ func setDefaults() {
 	viper.SetDefault("monitoring.health_check_timeout", 5)
 	viper.SetDefault("monitoring.status_cache_duration", 30)
 	viper.SetDefault("monitoring.enable_detailed_metrics", true)
+
+	// Alerting defaults
+	viper.SetDefault("alerting.enabled", false)
+	viper.SetDefault("alerting.error_rate_threshold", 0.1)        // 10% error rate
+	viper.SetDefault("alerting.response_time_threshold_ms", 5000) // 5 seconds
+	viper.SetDefault("alerting.alert_interval_minutes", 5)        // Alert every 5 minutes max
 }

@@ -7,19 +7,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"github.com/v-egorov/service-boilerplate/common/logging"
 	"github.com/v-egorov/service-boilerplate/services/user-service/internal/models"
 	"github.com/v-egorov/service-boilerplate/services/user-service/internal/services"
 )
 
 type UserHandler struct {
-	service *services.UserService
-	logger  *logrus.Logger
+	service     *services.UserService
+	logger      *logrus.Logger
+	auditLogger *logging.AuditLogger
 }
 
 func NewUserHandler(service *services.UserService, logger *logrus.Logger) *UserHandler {
 	return &UserHandler{
-		service: service,
-		logger:  logger,
+		service:     service,
+		logger:      logger,
+		auditLogger: logging.NewAuditLogger(logger, "user-service"),
 	}
 }
 
@@ -79,6 +82,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	var req models.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithError(err).Error("Invalid request body")
+		h.auditLogger.LogUserCreation(c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), false, "Invalid request format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
 			"details": err.Error(),
@@ -87,13 +91,19 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
+	ipAddress := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+	requestID := c.GetHeader("X-Request-ID")
+
 	user, err := h.service.CreateUser(c.Request.Context(), &req)
 	if err != nil {
 		h.handleServiceError(c, err, "Failed to create user")
+		h.auditLogger.LogUserCreation(requestID, "", ipAddress, userAgent, false, err.Error())
 		return
 	}
 
 	h.logger.WithField("user_id", user.ID).Info("User created successfully")
+	h.auditLogger.LogUserCreation(requestID, user.ID.String(), ipAddress, userAgent, true, "")
 	c.JSON(http.StatusCreated, gin.H{
 		"data":    user,
 		"message": "User created successfully",

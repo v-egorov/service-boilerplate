@@ -49,6 +49,9 @@ func main() {
 	// Initialize handlers
 	gatewayHandler := handlers.NewGatewayHandler(serviceRegistry, logger.Logger, cfg)
 
+	// Initialize request logger
+	requestLogger := middleware.NewRequestLogger(logger.Logger)
+
 	// Setup Gin router
 	if cfg.App.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -57,10 +60,10 @@ func main() {
 	router := gin.New()
 
 	// Middleware
-	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 	router.Use(middleware.CORSMiddleware())
 	router.Use(middleware.RequestIDMiddleware())
+	router.Use(requestLogger.DetailedRequestLogger())
 
 	// Health check endpoints (public, no auth required)
 	router.GET("/health", gatewayHandler.LivenessHandler)

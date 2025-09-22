@@ -7,19 +7,24 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"github.com/v-egorov/service-boilerplate/common/logging"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/services"
 )
 
 type AuthHandler struct {
-	authService *services.AuthService
-	logger      *logrus.Logger
+	authService    *services.AuthService
+	logger         *logrus.Logger
+	auditLogger    *logging.AuditLogger
+	standardLogger *logging.StandardLogger
 }
 
 func NewAuthHandler(authService *services.AuthService, logger *logrus.Logger) *AuthHandler {
 	return &AuthHandler{
-		authService: authService,
-		logger:      logger,
+		authService:    authService,
+		logger:         logger,
+		auditLogger:    logging.NewAuditLogger(logger, "auth-service"),
+		standardLogger: logging.NewStandardLogger(logger, "auth-service"),
 	}
 }
 
@@ -27,20 +32,25 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	var req models.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithError(err).Warn("Invalid login request")
+		h.auditLogger.LogAuthAttempt(c.GetHeader("X-Request-ID"), c.ClientIP(), c.GetHeader("User-Agent"), req.Email, false, "Invalid request format")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
 
 	ipAddress := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
+	requestID := c.GetHeader("X-Request-ID")
 
 	response, err := h.authService.Login(c.Request.Context(), &req, ipAddress, userAgent)
 	if err != nil {
-		h.logger.WithError(err).Error("Login failed")
+		h.standardLogger.AuthOperation(requestID, "", req.Email, "login", false, err)
+		h.auditLogger.LogAuthAttempt(requestID, ipAddress, userAgent, req.Email, false, err.Error())
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}
 
+	h.standardLogger.AuthOperation(requestID, response.User.ID.String(), req.Email, "login", true, nil)
+	h.auditLogger.LogAuthAttempt(requestID, ipAddress, userAgent, req.Email, true, "")
 	c.JSON(http.StatusOK, response)
 }
 
@@ -48,17 +58,25 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	var req models.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithError(err).Warn("Invalid register request")
+		h.auditLogger.LogUserCreation(c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), false, "Invalid request format")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
 
+	ipAddress := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+	requestID := c.GetHeader("X-Request-ID")
+
 	user, err := h.authService.Register(c.Request.Context(), &req)
 	if err != nil {
-		h.logger.WithError(err).Error("Registration failed")
+		h.standardLogger.AuthOperation(requestID, "", req.Email, "register", false, err)
+		h.auditLogger.LogUserCreation(requestID, "", ipAddress, userAgent, false, err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration failed"})
 		return
 	}
 
+	h.standardLogger.AuthOperation(requestID, user.ID.String(), req.Email, "register", true, nil)
+	h.auditLogger.LogUserCreation(requestID, user.ID.String(), ipAddress, userAgent, true, "")
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "User registered successfully",
 		"user":    user,
@@ -68,20 +86,29 @@ func (h *AuthHandler) Register(c *gin.Context) {
 func (h *AuthHandler) Logout(c *gin.Context) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
+		h.auditLogger.LogTokenOperation(c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "logout", false, "Authorization header required")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
 		return
 	}
 
 	tokenParts := strings.Split(authHeader, " ")
 	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+		h.auditLogger.LogTokenOperation(c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "logout", false, "Invalid authorization header format")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
 		return
 	}
 
+	ipAddress := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+	requestID := c.GetHeader("X-Request-ID")
+
 	tokenString := tokenParts[1]
 	if err := h.authService.Logout(c.Request.Context(), tokenString); err != nil {
 		h.logger.WithError(err).Warn("Logout failed")
+		h.auditLogger.LogTokenOperation(requestID, "", ipAddress, userAgent, "logout", false, err.Error())
 		// Don't return error for logout failures to avoid leaking information
+	} else {
+		h.auditLogger.LogTokenOperation(requestID, "", ipAddress, userAgent, "logout", true, "")
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
@@ -91,17 +118,24 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req models.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithError(err).Warn("Invalid refresh token request")
+		h.auditLogger.LogTokenOperation(c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "refresh", false, "Invalid request format")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
 
+	ipAddress := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+	requestID := c.GetHeader("X-Request-ID")
+
 	response, err := h.authService.RefreshToken(c.Request.Context(), &req)
 	if err != nil {
 		h.logger.WithError(err).Warn("Token refresh failed")
+		h.auditLogger.LogTokenOperation(requestID, "", ipAddress, userAgent, "refresh", false, err.Error())
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid refresh token"})
 		return
 	}
 
+	h.auditLogger.LogTokenOperation(requestID, "", ipAddress, userAgent, "refresh", true, "")
 	c.JSON(http.StatusOK, response)
 }
 

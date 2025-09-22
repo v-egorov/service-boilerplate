@@ -16,3 +16,9 @@ monitoring:
   health_check_timeout: 5
   status_cache_duration: 30
   enable_detailed_metrics: true
+
+alerting:
+  enabled: false
+  error_rate_threshold: 0.1  # 10% error rate
+  response_time_threshold_ms: 5000  # 5 seconds
+  alert_interval_minutes: 5  # Alert every 5 minutes max
