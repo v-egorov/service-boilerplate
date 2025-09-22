@@ -129,7 +129,7 @@ docker-compose exec api-gateway ls -la /app
 docker-compose exec api-gateway chown -R $(id -u):$(id -g) /app
 
 # Or rebuild containers
-make dev-build
+make build-dev
 ```
 
 **Verify Air installation in container:**
@@ -502,7 +502,7 @@ docker system prune -f
 docker volume prune -f
 
 # Rebuild from scratch
-make dev-build
+make build-dev
 make dev
 ```
 
@@ -567,8 +567,8 @@ air -v
 
 4. **Test Changes**
    ```bash
-   # Test before committing
-   make dev-build
+    # Test before committing
+    make build-dev
    make dev
    ```
 

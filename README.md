@@ -134,9 +134,54 @@ The project includes **Air** for hot reloading during development:
 
 3. **Stop services:**
 
-   ```bash
-   make down
-   ```
+    ```bash
+    make down
+    ```
+
+### 🏭 Production Deployment
+
+For production deployment with optimized Docker images:
+
+1. **Build and start production services:**
+
+    ```bash
+    # Build optimized production images and start services
+    make start
+
+    # Or build and start separately:
+    make build-prod  # Build production images
+    make up          # Start production containers
+    ```
+
+2. **Switch from development to production:**
+
+    ```bash
+    # Stop development environment
+    make down
+
+    # Build and start production
+    make start
+    ```
+
+3. **Switch from production to development:**
+
+    ```bash
+    # Stop production environment
+    make down
+
+    # Build development images and start
+    make build-dev
+    make dev
+    ```
+
+### 🔄 Environment Modes
+
+| Mode | Build Target | Start Target | Hot Reload | Image Size |
+|------|-------------|--------------|------------|------------|
+| **Development** | `make build-dev` | `make dev` | ✅ Air | ~1.2GB |
+| **Production** | `make build-prod` | `make up` | ❌ Static | ~15MB |
+
+**Note:** Always run `make down` before switching between development and production modes to avoid image conflicts.
 
 ## API Usage
 

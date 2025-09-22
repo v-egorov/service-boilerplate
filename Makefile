@@ -171,6 +171,10 @@ up: ## Start all services with Docker (PRIMARY)
 	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) up -d
 	@echo "Services started! Use 'make logs' to view logs."
 
+.PHONY: start
+start: build-prod up ## Build and start all services (convenience target)
+	@echo "✅ Services built and started successfully"
+
 .PHONY: down
 down: ## Stop all services
 	@echo "Stopping services..."
@@ -182,8 +186,8 @@ dev: create-volumes-dirs  ## Start services in development mode with hot reload
 	@echo "Starting development environment with hot reload..."
 	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) up
 
-.PHONY: dev-build
-dev-build: ## Build development images with Air
+.PHONY: build-dev
+build-dev: ## Build development images with Air
 	@echo "Building development images..."
 	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) build
 
@@ -266,9 +270,9 @@ lint: ## Run golangci-lint
 .PHONY: check
 check: fmt vet lint ## Run fmt, vet, and lint
 
-.PHONY: docker-build
-docker-build: ## Build all Docker images
-	@echo "Building Docker images..."
+.PHONY: build-prod
+build-prod: ## Build production Docker images
+	@echo "Building production Docker images..."
 	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) build
 
 .PHONY: docker-logs

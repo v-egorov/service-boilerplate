@@ -252,7 +252,7 @@ curl http://localhost:8081/health
 | `make air-user-service` | Start User Service with Air |
 | `make logs` | View all service logs |
 | `make down` | Stop all services |
-| `make dev-build` | Rebuild development images |
+| `make build-dev` | Rebuild development images |
 
 ### Docker Commands
 

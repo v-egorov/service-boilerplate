@@ -32,7 +32,7 @@ APP_ENV=production make up
 
 ```bash
 # Build optimized production images
-make docker-build
+make build-prod
 ```
 
 ## Production Docker Configuration
@@ -170,7 +170,7 @@ The `APP_ENV` variable controls the mode:
 
 ```bash
 # Build optimized images
-make docker-build
+make build-prod
 
 # Or manually
 docker-compose build
@@ -379,7 +379,7 @@ FROM scratch AS runtime
 ```yaml
 # .github/workflows/deploy.yml
 - name: Build production images
-  run: make docker-build
+  run: make build-prod
 
 - name: Deploy to production
   run: |
@@ -390,7 +390,7 @@ FROM scratch AS runtime
 
 ```bash
 # Test production build
-make docker-build
+make build-prod
 make up
 # Run integration tests
 make test-integration
@@ -717,7 +717,7 @@ I've created comprehensive production mode documentation covering:
 - **Security**: Non-root user, minimal Alpine base
 
 #### **🚀 Deployment Workflow**
-- **Build Commands**: `make docker-build` for optimized images
+- **Build Commands**: `make build-prod` for optimized images
 - **Environment Variables**: Production-specific configuration
 - **Health Monitoring**: Automatic service health checks
 - **Log Management**: Structured JSON logging
