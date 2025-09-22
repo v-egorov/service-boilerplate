@@ -7,19 +7,22 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+	"github.com/v-egorov/service-boilerplate/common/logging"
 	// ENTITY_IMPORT_MODELS
 	// ENTITY_IMPORT_SERVICES
 )
 
 type EntityHandler struct {
-	service Service
-	logger  *logrus.Logger
+	service     Service
+	logger      *logrus.Logger
+	auditLogger *logging.AuditLogger
 }
 
 func NewEntityHandler(service Service, logger *logrus.Logger) *EntityHandler {
 	return &EntityHandler{
-		service: service,
-		logger:  logger,
+		service:     service,
+		logger:      logger,
+		auditLogger: logging.NewAuditLogger(logger, "SERVICE_NAME"),
 	}
 }
 
