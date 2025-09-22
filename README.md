@@ -179,7 +179,7 @@ For production deployment with optimized Docker images:
 | Mode | Build Target | Start Target | Hot Reload | Image Size |
 |------|-------------|--------------|------------|------------|
 | **Development** | `make build-dev` | `make dev` | ✅ Air | ~1.2GB |
-| **Production** | `make build-prod` | `make up` | ❌ Static | ~15MB |
+| **Production** | `make build-prod` | `make up` | ❌ None | ~15MB |
 
 **Note:** Always run `make down` before switching between development and production modes to avoid image conflicts.
 
