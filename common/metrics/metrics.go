@@ -172,19 +172,22 @@ func (mc *MetricsCollector) recordEndpointMetrics(metrics RequestMetrics) {
 
 // normalizePath normalizes parameterized paths for consistent grouping
 func normalizePath(path string) string {
-	// Replace numeric IDs with {id}
-	re := regexp.MustCompile(`/\d+`)
-	path = re.ReplaceAllString(path, "/{id}")
+	if path == "" {
+		return path
+	}
 
-	// Replace UUIDs with {uuid}
-	uuidRegex := regexp.MustCompile(`/[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}`)
-	path = uuidRegex.ReplaceAllString(path, "/{uuid}")
-
-	// Replace common parameter patterns
-	path = strings.ReplaceAll(path, "/:id", "/{id}")
-	path = strings.ReplaceAll(path, "/:uuid", "/{uuid}")
-
-	return path
+	parts := strings.Split(path, "/")
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+		if regexp.MustCompile(`^\d+$`).MatchString(part) {
+			parts[i] = "{id}"
+		} else if regexp.MustCompile(`^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$`).MatchString(part) {
+			parts[i] = "{uuid}"
+		}
+	}
+	return strings.Join(parts, "/")
 }
 
 // IncrementBusinessMetric increments a business metric counter
