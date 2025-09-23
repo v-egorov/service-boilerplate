@@ -7,10 +7,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+	"github.com/v-egorov/service-boilerplate/common/metrics"
 )
 
 type RequestLogger struct {
-	logger *logrus.Logger
+	logger           *logrus.Logger
+	serviceName      string
+	metricsCollector *metrics.MetricsCollector
 }
 
 type LogFields struct {
@@ -32,8 +35,15 @@ type LogFields struct {
 
 func NewRequestLogger(logger *logrus.Logger) *RequestLogger {
 	return &RequestLogger{
-		logger: logger,
+		logger:           logger,
+		serviceName:      "api-gateway",
+		metricsCollector: metrics.NewMetricsCollector(logger, "api-gateway"),
 	}
+}
+
+// GetMetricsCollector returns the metrics collector for external access
+func (rl *RequestLogger) GetMetricsCollector() *metrics.MetricsCollector {
+	return rl.metricsCollector
 }
 
 // RequestResponseLogger middleware logs HTTP requests and responses
@@ -76,10 +86,22 @@ func (rl *RequestLogger) DetailedRequestLogger() gin.HandlerFunc {
 		// Calculate duration
 		duration := time.Since(start)
 
+		// Record metrics
+		requestMetrics := metrics.RequestMetrics{
+			Method:    c.Request.Method,
+			Path:      c.Request.URL.Path,
+			Status:    responseWriter.status,
+			Duration:  duration,
+			UserID:    userID,
+			RequestID: requestID,
+			Error:     responseWriter.status >= 400,
+		}
+		rl.metricsCollector.RecordRequest(requestMetrics)
+
 		// Create log entry
 		fields := LogFields{
 			Timestamp:    start.UTC().Format(time.RFC3339),
-			Service:      "api-gateway",
+			Service:      rl.serviceName,
 			RequestID:    requestID,
 			UserID:       userID,
 			Method:       c.Request.Method,

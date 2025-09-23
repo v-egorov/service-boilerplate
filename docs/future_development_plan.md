@@ -84,6 +84,7 @@ Distributed tracing will be implemented across the microservices architecture to
   - [x] Add audit logging for security events (auth attempts, data changes)
   - [x] Implement log aggregation and correlation capabilities
   - [x] Add alerting for critical events and threshold breaches
+  - [x] Add /metrics and /alerts endpoints to API Gateway (consistency fix)
 - [ ] Create admin dashboard
 - [ ] Implement caching layer
 - [ ] Add unit and integration tests

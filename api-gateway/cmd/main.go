@@ -13,6 +13,7 @@ import (
 	"github.com/v-egorov/service-boilerplate/api-gateway/internal/handlers"
 	"github.com/v-egorov/service-boilerplate/api-gateway/internal/middleware"
 	"github.com/v-egorov/service-boilerplate/api-gateway/internal/services"
+	"github.com/v-egorov/service-boilerplate/common/alerting"
 	"github.com/v-egorov/service-boilerplate/common/config"
 	"github.com/v-egorov/service-boilerplate/common/logging"
 )
@@ -52,6 +53,20 @@ func main() {
 	// Initialize request logger
 	requestLogger := middleware.NewRequestLogger(logger.Logger)
 
+	// Initialize alert manager
+	alertManager := alerting.NewAlertManager(logger.Logger, "api-gateway", &cfg.Alerting, requestLogger.GetMetricsCollector())
+
+	// Start alert checking goroutine
+	if cfg.Alerting.Enabled {
+		go func() {
+			ticker := time.NewTicker(1 * time.Minute)
+			defer ticker.Stop()
+			for range ticker.C {
+				alertManager.CheckMetrics()
+			}
+		}()
+	}
+
 	// Setup Gin router
 	if cfg.App.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -75,6 +90,17 @@ func main() {
 	// Public monitoring endpoints (no auth required)
 	router.GET("/api/v1/status", gatewayHandler.StatusHandler)
 	router.GET("/api/v1/ping", gatewayHandler.PingHandler)
+
+	// Observability endpoints
+	router.GET("/api/v1/metrics", func(c *gin.Context) {
+		metrics := requestLogger.GetMetricsCollector().GetMetrics()
+		c.JSON(http.StatusOK, metrics)
+	})
+
+	router.GET("/api/v1/alerts", func(c *gin.Context) {
+		alerts := alertManager.GetActiveAlerts()
+		c.JSON(http.StatusOK, gin.H{"alerts": alerts})
+	})
 
 	// Public auth endpoints (no auth required)
 	auth := router.Group("/api/v1/auth")
