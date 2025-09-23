@@ -185,6 +185,8 @@ func normalizePath(path string) string {
 			parts[i] = "{id}"
 		} else if regexp.MustCompile(`^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$`).MatchString(part) {
 			parts[i] = "{uuid}"
+		} else if strings.Contains(part, "@") {
+			parts[i] = "{email}"
 		}
 	}
 	return strings.Join(parts, "/")
