@@ -115,7 +115,7 @@ The SERVICE_NAME service includes comprehensive observability features for monit
 
 ### Metrics
 
-The `/api/v1/metrics` endpoint provides real-time performance metrics:
+The `/api/v1/metrics` endpoint provides comprehensive performance metrics including per-endpoint breakdown:
 
 ```json
 {
@@ -126,9 +126,40 @@ The `/api/v1/metrics` endpoint provides real-time performance metrics:
   "error_rate": 0.0096,
   "avg_response_time": "245ms",
   "p95_response_time": "890ms",
-  "p99_response_time": "2.1s"
+  "p99_response_time": "2.1s",
+  "endpoint_metrics": {
+    "GET /api/v1/entities": {
+      "path": "/api/v1/entities",
+      "method": "GET",
+      "requests": 450,
+      "error_rate": 0.004,
+      "avg_response_time": "28ms",
+      "p95_response_time": "85ms",
+      "p99_response_time": "120ms"
+    },
+    "POST /api/v1/entities": {
+      "path": "/api/v1/entities",
+      "method": "POST",
+      "requests": 120,
+      "error_rate": 0.025,
+      "avg_response_time": "95ms",
+      "p95_response_time": "180ms",
+      "p99_response_time": "250ms"
+    },
+    "GET /api/v1/entities/{id}": {
+      "path": "/api/v1/entities/{id}",
+      "method": "GET",
+      "requests": 380,
+      "error_rate": 0.008,
+      "avg_response_time": "35ms",
+      "p95_response_time": "92ms",
+      "p99_response_time": "150ms"
+    }
+  }
 }
 ```
+
+**Path Normalization**: Parameterized routes are automatically normalized (e.g., `/entities/123` becomes `/entities/{id}`) for consistent grouping and analysis.
 
 ### Alerting
 

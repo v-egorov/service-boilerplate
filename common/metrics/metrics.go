@@ -1,6 +1,9 @@
 package metrics
 
 import (
+	"regexp"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +24,9 @@ type MetricsCollector struct {
 	// Response time percentiles (simple implementation)
 	responseTimes []time.Duration
 
+	// Endpoint-specific metrics
+	endpointMetrics map[string]*EndpointMetrics // key: "METHOD /normalized-path"
+
 	// Business metrics
 	businessMetrics map[string]int64
 
@@ -39,17 +45,39 @@ type RequestMetrics struct {
 	Error     bool
 }
 
+// EndpointMetrics represents metrics for a specific endpoint
+type EndpointMetrics struct {
+	Path          string
+	Method        string
+	RequestCount  int64
+	ErrorCount    int64
+	TotalDuration time.Duration
+	ResponseTimes []time.Duration
+}
+
+// EndpointMetricsSummary represents summarized metrics for an endpoint
+type EndpointMetricsSummary struct {
+	Path            string        `json:"path"`
+	Method          string        `json:"method,omitempty"`
+	Requests        int64         `json:"requests"`
+	ErrorRate       float64       `json:"error_rate"`
+	AvgResponseTime time.Duration `json:"avg_response_time"`
+	P95ResponseTime time.Duration `json:"p95_response_time,omitempty"`
+	P99ResponseTime time.Duration `json:"p99_response_time,omitempty"`
+}
+
 // ServiceMetrics represents aggregated metrics for the service
 type ServiceMetrics struct {
-	ServiceName     string           `json:"service_name"`
-	Uptime          time.Duration    `json:"uptime"`
-	RequestCount    int64            `json:"request_count"`
-	ErrorCount      int64            `json:"error_count"`
-	ErrorRate       float64          `json:"error_rate"`
-	AvgResponseTime time.Duration    `json:"avg_response_time"`
-	P95ResponseTime time.Duration    `json:"p95_response_time"`
-	P99ResponseTime time.Duration    `json:"p99_response_time"`
-	BusinessMetrics map[string]int64 `json:"business_metrics,omitempty"`
+	ServiceName     string                            `json:"service_name"`
+	Uptime          time.Duration                     `json:"uptime"`
+	RequestCount    int64                             `json:"request_count"`
+	ErrorCount      int64                             `json:"error_count"`
+	ErrorRate       float64                           `json:"error_rate"`
+	AvgResponseTime time.Duration                     `json:"avg_response_time"`
+	P95ResponseTime time.Duration                     `json:"p95_response_time,omitempty"`
+	P99ResponseTime time.Duration                     `json:"p99_response_time,omitempty"`
+	EndpointMetrics map[string]EndpointMetricsSummary `json:"endpoint_metrics,omitempty"`
+	BusinessMetrics map[string]int64                  `json:"business_metrics,omitempty"`
 }
 
 // NewMetricsCollector creates a new metrics collector
@@ -58,6 +86,7 @@ func NewMetricsCollector(logger *logrus.Logger, serviceName string) *MetricsColl
 		logger:          logger,
 		serviceName:     serviceName,
 		businessMetrics: make(map[string]int64),
+		endpointMetrics: make(map[string]*EndpointMetrics),
 		responseTimes:   make([]time.Duration, 0, 1000), // Keep last 1000 response times
 		startTime:       time.Now(),
 	}
@@ -96,6 +125,9 @@ func (mc *MetricsCollector) RecordRequest(metrics RequestMetrics) {
 		}).Warn("High latency request detected")
 	}
 
+	// Record endpoint-specific metrics
+	mc.recordEndpointMetrics(metrics)
+
 	// Log errors
 	if metrics.Error || metrics.Status >= 500 {
 		mc.logger.WithFields(logrus.Fields{
@@ -107,6 +139,52 @@ func (mc *MetricsCollector) RecordRequest(metrics RequestMetrics) {
 			"status":     metrics.Status,
 		}).Error("Request error recorded")
 	}
+}
+
+// recordEndpointMetrics records metrics for a specific endpoint
+func (mc *MetricsCollector) recordEndpointMetrics(metrics RequestMetrics) {
+	normalizedPath := normalizePath(metrics.Path)
+	endpointKey := metrics.Method + " " + normalizedPath
+
+	endpoint, exists := mc.endpointMetrics[endpointKey]
+	if !exists {
+		endpoint = &EndpointMetrics{
+			Path:          normalizedPath,
+			Method:        metrics.Method,
+			ResponseTimes: make([]time.Duration, 0, 100), // Keep last 100 response times per endpoint
+		}
+		mc.endpointMetrics[endpointKey] = endpoint
+	}
+
+	// Update endpoint counters
+	endpoint.RequestCount++
+	if metrics.Error || metrics.Status >= 400 {
+		endpoint.ErrorCount++
+	}
+	endpoint.TotalDuration += metrics.Duration
+	endpoint.ResponseTimes = append(endpoint.ResponseTimes, metrics.Duration)
+
+	// Keep only last 100 response times for percentile calculation
+	if len(endpoint.ResponseTimes) > 100 {
+		endpoint.ResponseTimes = endpoint.ResponseTimes[1:]
+	}
+}
+
+// normalizePath normalizes parameterized paths for consistent grouping
+func normalizePath(path string) string {
+	// Replace numeric IDs with {id}
+	re := regexp.MustCompile(`/\d+`)
+	path = re.ReplaceAllString(path, "/{id}")
+
+	// Replace UUIDs with {uuid}
+	uuidRegex := regexp.MustCompile(`/[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}`)
+	path = uuidRegex.ReplaceAllString(path, "/{uuid}")
+
+	// Replace common parameter patterns
+	path = strings.ReplaceAll(path, "/:id", "/{id}")
+	path = strings.ReplaceAll(path, "/:uuid", "/{uuid}")
+
+	return path
 }
 
 // IncrementBusinessMetric increments a business metric counter
@@ -157,6 +235,9 @@ func (mc *MetricsCollector) GetMetrics() ServiceMetrics {
 		}
 	}
 
+	// Calculate endpoint metrics
+	endpointMetrics := mc.calculateEndpointMetrics()
+
 	// Copy business metrics
 	businessMetrics := make(map[string]int64)
 	for k, v := range mc.businessMetrics {
@@ -172,8 +253,60 @@ func (mc *MetricsCollector) GetMetrics() ServiceMetrics {
 		AvgResponseTime: avgResponseTime,
 		P95ResponseTime: p95ResponseTime,
 		P99ResponseTime: p99ResponseTime,
+		EndpointMetrics: endpointMetrics,
 		BusinessMetrics: businessMetrics,
 	}
+}
+
+// calculateEndpointMetrics calculates summarized metrics for each endpoint
+func (mc *MetricsCollector) calculateEndpointMetrics() map[string]EndpointMetricsSummary {
+	endpointMetrics := make(map[string]EndpointMetricsSummary)
+
+	for key, endpoint := range mc.endpointMetrics {
+		if endpoint.RequestCount == 0 {
+			continue
+		}
+
+		// Calculate error rate
+		errorRate := float64(endpoint.ErrorCount) / float64(endpoint.RequestCount)
+
+		// Calculate average response time
+		avgResponseTime := endpoint.TotalDuration / time.Duration(endpoint.RequestCount)
+
+		// Calculate percentiles for response times
+		var p95ResponseTime, p99ResponseTime time.Duration
+		if len(endpoint.ResponseTimes) > 0 {
+			sortedTimes := make([]time.Duration, len(endpoint.ResponseTimes))
+			copy(sortedTimes, endpoint.ResponseTimes)
+
+			// Simple sort for percentile calculation
+			sort.Slice(sortedTimes, func(i, j int) bool {
+				return sortedTimes[i] < sortedTimes[j]
+			})
+
+			p95Index := int(float64(len(sortedTimes)) * 0.95)
+			p99Index := int(float64(len(sortedTimes)) * 0.99)
+
+			if p95Index < len(sortedTimes) {
+				p95ResponseTime = sortedTimes[p95Index]
+			}
+			if p99Index < len(sortedTimes) {
+				p99ResponseTime = sortedTimes[p99Index]
+			}
+		}
+
+		endpointMetrics[key] = EndpointMetricsSummary{
+			Path:            endpoint.Path,
+			Method:          endpoint.Method,
+			Requests:        endpoint.RequestCount,
+			ErrorRate:       errorRate,
+			AvgResponseTime: avgResponseTime,
+			P95ResponseTime: p95ResponseTime,
+			P99ResponseTime: p99ResponseTime,
+		}
+	}
+
+	return endpointMetrics
 }
 
 // Reset resets all metrics (useful for testing)
@@ -185,6 +318,7 @@ func (mc *MetricsCollector) Reset() {
 	mc.errorCount = 0
 	mc.totalDuration = 0
 	mc.responseTimes = mc.responseTimes[:0]
+	mc.endpointMetrics = make(map[string]*EndpointMetrics)
 	mc.businessMetrics = make(map[string]int64)
 	mc.startTime = time.Now()
 }
