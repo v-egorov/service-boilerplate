@@ -36,10 +36,13 @@ services:
       - SERVER_PORT=8080
       - LOGGING_LEVEL=${LOGGING_LEVEL:-info}
       - LOGGING_FORMAT=${LOGGING_FORMAT:-json}
+      - LOGGING_OUTPUT=file
       - DOCKER_ENV=true
     depends_on:
       user-service:
         condition: service_healthy
+    volumes:
+      - api_gateway_logs:/app/logs
     networks:
       service-network:
         aliases:
@@ -73,9 +76,12 @@ services:
       - DATABASE_SSL_MODE=disable
       - LOGGING_LEVEL=${LOGGING_LEVEL:-info}
       - LOGGING_FORMAT=${LOGGING_FORMAT:-json}
+      - LOGGING_OUTPUT=file
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - user_service_logs:/app/logs
     networks:
       service-network:
         aliases:
@@ -124,10 +130,13 @@ services:
       - DATABASE_SSL_MODE=disable
       - LOGGING_LEVEL=${LOGGING_LEVEL:-info}
       - LOGGING_FORMAT=${LOGGING_FORMAT:-json}
+      - LOGGING_OUTPUT=file
       - DOCKER_ENV=true
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - auth_service_logs:/app/logs
     networks:
       service-network:
         aliases:
@@ -188,6 +197,30 @@ volumes:
       type: none
       o: bind
       device: ${PWD}/docker/volumes/auth-service/tmp
+
+  api_gateway_logs:
+    name: ${API_GATEWAY_LOGS_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/api-gateway/logs
+
+  user_service_logs:
+    name: ${USER_SERVICE_LOGS_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/user-service/logs
+
+  auth_service_logs:
+    name: ${AUTH_SERVICE_LOGS_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/auth-service/logs
 
 networks:
   service-network:

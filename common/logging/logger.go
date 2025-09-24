@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/natefinch/lumberjack"
 	"github.com/sirupsen/logrus"
 )
 
@@ -16,6 +17,7 @@ type Config struct {
 	Level       string
 	Format      string
 	Output      string
+	FilePath    string
 	ServiceName string
 }
 
@@ -51,6 +53,18 @@ func NewLogger(config Config) *Logger {
 	switch strings.ToLower(config.Output) {
 	case "stderr":
 		logger.SetOutput(os.Stderr)
+	case "file":
+		if config.FilePath == "" {
+			config.FilePath = "/app/logs/" + config.ServiceName + ".log"
+		}
+		// Use lumberjack for log rotation
+		logger.SetOutput(&lumberjack.Logger{
+			Filename:   config.FilePath,
+			MaxSize:    10, // megabytes
+			MaxBackups: 3,  // number of backups
+			MaxAge:     28, // days
+			Compress:   true,
+		})
 	default:
 		logger.SetOutput(os.Stdout)
 	}

@@ -801,6 +801,15 @@ clean-logs: ## Clean log files
 	@find . -name "*.log" -type f -delete 2>/dev/null || true
 	@find . -name "build-errors.log" -type f -delete 2>/dev/null || true
 	@rm -rf logs/ 2>/dev/null || true
+	@if [ -d "docker/volumes" ]; then \
+		for service_dir in docker/volumes/*/; do \
+			if [ -d "$$service_dir/logs" ]; then \
+				echo "  Cleaning logs in $$service_dir"; \
+				rm -rf $$service_dir/logs/*.log 2>/dev/null || true; \
+				rm -rf $$service_dir/logs/*.gz 2>/dev/null || true; \
+			fi; \
+		done; \
+	fi
 	@echo "✅ Log files cleaned"
 
 .PHONY: clean-cache
@@ -948,6 +957,10 @@ create-volumes-dirs: ## (Re)create volumes directories
 	@for service in $$(grep "_TMP_VOLUME=" .env | cut -d'=' -f2 | sed 's/service-boilerplate-//' | sed 's/-tmp$$//'); do \
 		echo "   Creating directory for $$service..."; \
 		mkdir -p docker/volumes/$$service/tmp; \
+	done
+	@for service in $$(grep "_LOGS_VOLUME=" .env | cut -d'=' -f2 | sed 's/service-boilerplate-//' | sed 's/-logs$$//'); do \
+		echo "   Creating logs directory for $$service..."; \
+		mkdir -p docker/volumes/$$service/logs; \
 	done
 
 .PHONY: docker-recreate

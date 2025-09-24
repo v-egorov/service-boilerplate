@@ -80,6 +80,7 @@ func Load(configPath string) (*Config, error) {
 	viper.BindEnv("database.ssl_mode", "DATABASE_SSL_MODE")
 	viper.BindEnv("logging.level", "LOGGING_LEVEL")
 	viper.BindEnv("logging.format", "LOGGING_FORMAT")
+	viper.BindEnv("logging.output", "LOGGING_OUTPUT")
 	viper.BindEnv("server.port", "SERVER_PORT")
 	viper.BindEnv("app.environment", "APP_ENV")
 
