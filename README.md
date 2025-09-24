@@ -6,12 +6,19 @@ A comprehensive boilerplate for building scalable Golang-based REST API services
 
 - **Microservice Architecture**: API Gateway with service discovery
 - **PostgreSQL Integration**: Connection pooling and migrations
-- **Structured Logging**: JSON logging with logrus
+- **Advanced Logging System**: Structured JSON logging with file rotation and Docker integration
 - **Configuration Management**: Environment-based config with Viper
 - **Docker Support**: Containerized deployment with docker-compose
 - **REST API Framework**: Gin-based HTTP server with middleware
 - **Service Instantiation**: Automated script to create new services
 - **Makefile Workflow**: Complete build, test, and deployment automation
+
+## 📚 Documentation
+
+- **[Logging System](docs/logging-system.md)**: Comprehensive guide to logging configuration, options, and troubleshooting
+- **[Service Creation Guide](docs/service-creation-guide.md)**: How to create new services using the boilerplate
+- **[Air Hot Reload](docs/air-hot-reload/)**: Development setup with live reloading
+- **[Migrations](docs/migrations/)**: Database migration management and best practices
 
 ## Project Structure
 
@@ -116,7 +123,7 @@ The project includes **Air** for hot reloading during development:
 
 - **Air**: Live reloading for Go applications
 - **Development Script**: `./scripts/dev.sh` - Interactive development menu
-- **Structured Logging**: JSON logging with configurable levels
+- **Advanced Logging**: See [Logging System Documentation](docs/logging-system.md)
 - **Health Checks**: Automatic service health monitoring
 - **Environment Configuration**: Flexible config management
 
