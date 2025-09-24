@@ -34,6 +34,7 @@ func main() {
 		Level:       cfg.Logging.Level,
 		Format:      cfg.Logging.Format,
 		Output:      cfg.Logging.Output,
+		DualOutput:  cfg.Logging.DualOutput,
 		ServiceName: cfg.App.Name,
 	})
 

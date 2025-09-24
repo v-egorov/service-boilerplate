@@ -209,11 +209,12 @@ cat >"$SERVICE_DEF_FILE" <<EOF
       - LOGGING_LEVEL=\${LOGGING_LEVEL:-info}
       - LOGGING_FORMAT=\${LOGGING_FORMAT:-json}
       - LOGGING_OUTPUT=file
+      - LOGGING_DUAL_OUTPUT=\${LOGGING_DUAL_OUTPUT:-true}
     depends_on:
-       postgres:
-         condition: service_healthy
+      postgres:
+        condition: service_healthy
     volumes:
-       - ${SERVICE_NAME}_logs:/app/logs
+      - ${SERVICE_NAME}_logs:/app/logs
     networks:
       service-network:
         aliases:
@@ -288,6 +289,7 @@ cat >>docker/docker-compose.override.yml <<EOF
       - APP_ENV=development
       - LOGGING_LEVEL=debug
       - LOGGING_OUTPUT=file
+      - LOGGING_DUAL_OUTPUT=${LOGGING_DUAL_OUTPUT:-true}
     volumes:
       - ../services/$SERVICE_NAME:/app/services/$SERVICE_NAME
       - ${SERVICE_NAME}_service_tmp:/app/services/$SERVICE_NAME/tmp

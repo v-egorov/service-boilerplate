@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -18,6 +19,7 @@ type Config struct {
 	Format      string
 	Output      string
 	FilePath    string
+	DualOutput  bool
 	ServiceName string
 }
 
@@ -58,13 +60,21 @@ func NewLogger(config Config) *Logger {
 			config.FilePath = "/app/logs/" + config.ServiceName + ".log"
 		}
 		// Use lumberjack for log rotation
-		logger.SetOutput(&lumberjack.Logger{
+		lumberjackWriter := &lumberjack.Logger{
 			Filename:   config.FilePath,
 			MaxSize:    10, // megabytes
 			MaxBackups: 3,  // number of backups
 			MaxAge:     28, // days
 			Compress:   true,
-		})
+		}
+
+		if config.DualOutput {
+			// Output to both file and stdout for Docker logging
+			logger.SetOutput(io.MultiWriter(lumberjackWriter, os.Stdout))
+		} else {
+			// Output to file only
+			logger.SetOutput(lumberjackWriter)
+		}
 	default:
 		logger.SetOutput(os.Stdout)
 	}
