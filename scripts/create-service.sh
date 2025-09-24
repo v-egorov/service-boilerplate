@@ -208,9 +208,12 @@ cat >"$SERVICE_DEF_FILE" <<EOF
       - DATABASE_SSL_MODE=disable
       - LOGGING_LEVEL=\${LOGGING_LEVEL:-info}
       - LOGGING_FORMAT=\${LOGGING_FORMAT:-json}
+      - LOGGING_OUTPUT=file
     depends_on:
-      postgres:
-        condition: service_healthy
+       postgres:
+         condition: service_healthy
+    volumes:
+       - ${SERVICE_NAME}_logs:/app/logs
     networks:
       service-network:
         aliases:
@@ -236,6 +239,14 @@ cat >"$VOLUME_DEF_FILE" <<EOF
       type: none
       o: bind
       device: \${PWD}/docker/volumes/${SERVICE_NAME}/tmp
+
+  ${SERVICE_NAME}_logs:
+    name: \${${SERVICE_NAME_UPPER}_LOGS_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: \${PWD}/docker/volumes/${SERVICE_NAME}/logs
 EOF
 
 # Insert service definition before volumes section
@@ -276,9 +287,11 @@ cat >>docker/docker-compose.override.yml <<EOF
     environment:
       - APP_ENV=development
       - LOGGING_LEVEL=debug
+      - LOGGING_OUTPUT=file
     volumes:
       - ../services/$SERVICE_NAME:/app/services/$SERVICE_NAME
       - ${SERVICE_NAME}_service_tmp:/app/services/$SERVICE_NAME/tmp
+      - ${SERVICE_NAME}_logs:/app/logs
     ports:
       - "\${${SERVICE_NAME_UPPER}_SERVICE_PORT}:\${${SERVICE_NAME_UPPER}_SERVICE_PORT}"
     working_dir: /app/services/$SERVICE_NAME
@@ -316,12 +329,13 @@ USER_SERVICE_IMAGE=docker-user-service
 USER_SERVICE_CONTAINER=service-boilerplate-user-service
 USER_SERVICE_TMP_VOLUME=service-boilerplate-user-service-tmp
 
-# $SERVICE_NAME Service Configuration
-${SERVICE_NAME_UPPER}_SERVICE_NAME=$SERVICE_NAME
-${SERVICE_NAME_UPPER}_SERVICE_PORT=$PORT
-${SERVICE_NAME_UPPER}_SERVICE_IMAGE=docker-$SERVICE_NAME
-${SERVICE_NAME_UPPER}_SERVICE_CONTAINER=service-boilerplate-$SERVICE_NAME
-${SERVICE_NAME_UPPER}_SERVICE_TMP_VOLUME=service-boilerplate-${SERVICE_NAME}-tmp
+ # $SERVICE_NAME Service Configuration
+ ${SERVICE_NAME_UPPER}_SERVICE_NAME=$SERVICE_NAME
+ ${SERVICE_NAME_UPPER}_SERVICE_PORT=$PORT
+ ${SERVICE_NAME_UPPER}_SERVICE_IMAGE=docker-$SERVICE_NAME
+ ${SERVICE_NAME_UPPER}_SERVICE_CONTAINER=service-boilerplate-$SERVICE_NAME
+ ${SERVICE_NAME_UPPER}_SERVICE_TMP_VOLUME=service-boilerplate-${SERVICE_NAME}-tmp
+ ${SERVICE_NAME_UPPER}_LOGS_VOLUME=service-boilerplate-${SERVICE_NAME}-logs
 
 # PostgreSQL Configuration
 POSTGRES_NAME=postgres
@@ -353,6 +367,7 @@ else
     echo "${SERVICE_NAME_UPPER}_SERVICE_IMAGE=docker-$SERVICE_NAME" >>.env
     echo "${SERVICE_NAME_UPPER}_SERVICE_CONTAINER=service-boilerplate-$SERVICE_NAME" >>.env
     echo "${SERVICE_NAME_UPPER}_SERVICE_TMP_VOLUME=service-boilerplate-${SERVICE_NAME}-tmp" >>.env
+    echo "${SERVICE_NAME_UPPER}_LOGS_VOLUME=service-boilerplate-${SERVICE_NAME}-logs" >>.env
 fi
 
 # Update Makefile
@@ -399,6 +414,7 @@ fi
 # Create volume directories
 echo "Creating volume directories..."
 mkdir -p "docker/volumes/$SERVICE_NAME/tmp"
+mkdir -p "docker/volumes/$SERVICE_NAME/logs"
 
 # Database schema creation (optional)
 if [ "$CREATE_DB_SCHEMA" = true ]; then
@@ -409,14 +425,14 @@ if [ "$CREATE_DB_SCHEMA" = true ]; then
     SCHEMA_VALUE=$(echo "$SERVICE_NAME" | sed 's/-/_/g')
 
     if ! grep -q "^${SCHEMA_VAR}=" .env; then
-        echo "${SCHEMA_VAR}=${SCHEMA_VALUE}" >> .env
+        echo "${SCHEMA_VAR}=${SCHEMA_VALUE}" >>.env
         echo "Added ${SCHEMA_VAR}=${SCHEMA_VALUE} to .env"
     fi
 
     # Actually create the schema in database
     echo "Creating schema $SCHEMA_VALUE in database..."
-    docker-compose exec postgres psql -U postgres -d service_db -c "CREATE SCHEMA IF NOT EXISTS $SCHEMA_VALUE;" 2>/dev/null || \
-    echo "Note: Database may not be running yet. Schema will be created when migrations run."
+    docker-compose exec postgres psql -U postgres -d service_db -c "CREATE SCHEMA IF NOT EXISTS $SCHEMA_VALUE;" 2>/dev/null ||
+        echo "Note: Database may not be running yet. Schema will be created when migrations run."
 
     if [ -f "services/$SERVICE_NAME/migrations/000001_initial.up.sql" ]; then
         echo "Database schema created. Run migrations with: make db-migrate-up SERVICE_NAME=$SERVICE_NAME"
