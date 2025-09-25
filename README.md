@@ -16,9 +16,11 @@ A comprehensive boilerplate for building scalable Golang-based REST API services
 ## 📚 Documentation
 
 - **[Logging System](docs/logging-system.md)**: Comprehensive guide to logging configuration, options, and troubleshooting
+- **[Distributed Tracing Implementation Plan](docs/distributed-tracing-implementation-plan.md)**: Detailed roadmap for implementing OpenTelemetry tracing across microservices
 - **[Service Creation Guide](docs/service-creation-guide.md)**: How to create new services using the boilerplate
 - **[Air Hot Reload](docs/air-hot-reload/)**: Development setup with live reloading
 - **[Migrations](docs/migrations/)**: Database migration management and best practices
+- **[Future Development Plan](docs/future_development_plan.md)**: Roadmap of planned features and enhancements
 
 ## Project Structure
 
