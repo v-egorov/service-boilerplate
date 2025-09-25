@@ -25,12 +25,12 @@ The service boilerplate implements a comprehensive logging system designed for m
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `LOGGING_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error`, `fatal`, `panic` |
-| `LOGGING_FORMAT` | `json` | Log format: `json`, `text` |
-| `LOGGING_OUTPUT` | `stdout` | Output destination: `stdout`, `file` |
-| `LOGGING_DUAL_OUTPUT` | `true` | Enable dual output (file + stdout) when `LOGGING_OUTPUT=file` |
+| Variable              | Default  | Description                                                   |
+| --------------------- | -------- | ------------------------------------------------------------- |
+| `LOGGING_LEVEL`       | `info`   | Log level: `debug`, `info`, `warn`, `error`, `fatal`, `panic` |
+| `LOGGING_FORMAT`      | `json`   | Log format: `json`, `text`                                    |
+| `LOGGING_OUTPUT`      | `stdout` | Output destination: `stdout`, `file`                          |
+| `LOGGING_DUAL_OUTPUT` | `true`   | Enable dual output (file + stdout) when `LOGGING_OUTPUT=file` |
 
 ### Configuration Structure
 
@@ -46,29 +46,39 @@ type LoggingConfig struct {
 ## Logging Modes
 
 ### 1. Standard Output (Default)
+
 ```bash
 LOGGING_OUTPUT=stdout
 LOGGING_DUAL_OUTPUT=false  # Not applicable
 ```
 
 **Characteristics:**
+
 - Logs written to stdout/stderr
 - Captured by Docker logging driver
 - No persistent file storage
 - Suitable for containerized environments
 
 **Example Output:**
+
 ```json
-{"time":"2025-09-24T10:30:00Z","level":"info","msg":"Service started","service":"api-gateway"}
+{
+  "time": "2025-09-24T10:30:00Z",
+  "level": "info",
+  "msg": "Service started",
+  "service": "api-gateway"
+}
 ```
 
 ### 2. File Output
+
 ```bash
 LOGGING_OUTPUT=file
 LOGGING_DUAL_OUTPUT=false
 ```
 
 **Characteristics:**
+
 - Logs written to files only
 - Automatic rotation with lumberjack
 - Persistent storage across container restarts
@@ -77,12 +87,14 @@ LOGGING_DUAL_OUTPUT=false
 **File Location:** `/app/logs/{service-name}.log`
 
 ### 3. Dual Output (Recommended for Development)
+
 ```bash
 LOGGING_OUTPUT=file
 LOGGING_DUAL_OUTPUT=true
 ```
 
 **Characteristics:**
+
 - Logs written to both files AND stdout/stderr
 - File rotation + Docker logging integration
 - Best of both worlds for debugging
@@ -91,6 +103,7 @@ LOGGING_DUAL_OUTPUT=true
 ## File Structure
 
 ### Log Directories
+
 ```
 docker/volumes/
 ├── api-gateway/
@@ -105,6 +118,7 @@ docker/volumes/
 ```
 
 ### Volume Configuration
+
 Each service has dedicated log volumes defined in `docker-compose.yml`:
 
 ```yaml
@@ -121,6 +135,7 @@ volumes:
 ## Log Rotation
 
 ### Lumberjack Configuration
+
 ```go
 lumberjack.Logger{
     Filename:   "/app/logs/service.log",  // Log file path
@@ -132,6 +147,7 @@ lumberjack.Logger{
 ```
 
 ### Rotation Behavior
+
 - **Size Limit**: 10MB per log file
 - **Backup Files**: Up to 3 rotated files kept
 - **Age Limit**: Files older than 28 days are deleted
@@ -141,6 +157,7 @@ lumberjack.Logger{
 ## Service Integration
 
 ### Logger Initialization
+
 Each service initializes logging in `cmd/main.go`:
 
 ```go
@@ -154,6 +171,7 @@ logger := logging.NewLogger(logging.Config{
 ```
 
 ### Request Logging Middleware
+
 HTTP requests are automatically logged with structured data:
 
 ```go
@@ -162,6 +180,7 @@ router.Use(serviceLogger.RequestResponseLogger())
 ```
 
 **Request Log Fields:**
+
 - `duration_ms`: Response time in milliseconds
 - `ip`: Client IP address
 - `method`: HTTP method
@@ -177,6 +196,7 @@ router.Use(serviceLogger.RequestResponseLogger())
 ## Usage Examples
 
 ### Development Setup
+
 ```bash
 # Enable debug logging with dual output
 LOGGING_LEVEL=debug
@@ -185,6 +205,7 @@ LOGGING_DUAL_OUTPUT=true
 ```
 
 ### Production Setup
+
 ```bash
 # File-only logging for production
 LOGGING_LEVEL=info
@@ -193,6 +214,7 @@ LOGGING_DUAL_OUTPUT=false
 ```
 
 ### Docker Compose Override
+
 ```yaml
 services:
   api-gateway:
@@ -207,16 +229,19 @@ services:
 ### Viewing Logs
 
 **Docker Logs:**
+
 ```bash
 docker logs service-boilerplate-api-gateway
 ```
 
 **File Logs:**
+
 ```bash
 tail -f docker/volumes/api-gateway/logs/api-gateway.log
 ```
 
 **Filtered Logs:**
+
 ```bash
 # Find errors in last hour
 grep '"level":"error"' docker/volumes/*/logs/*.log | jq '.msg'
@@ -226,6 +251,7 @@ grep '"duration_ms":[0-9]\{4,\}' docker/volumes/*/logs/*.log
 ```
 
 ### Log Structure
+
 ```json
 {
   "time": "2025-09-24T10:30:00Z",
@@ -250,29 +276,37 @@ grep '"duration_ms":[0-9]\{4,\}' docker/volumes/*/logs/*.log
 ### Common Issues
 
 #### Logs Not Appearing in Files
+
 **Symptoms:** Log files are empty or missing
 **Solutions:**
+
 1. Check volume mounts: `docker inspect <container>` → verify `/app/logs` mount
 2. Verify permissions: Container should have write access to log directory
 3. Check service configuration: Ensure `LOGGING_OUTPUT=file`
 
 #### Logs Not Appearing in Docker
+
 **Symptoms:** `docker logs` shows no application logs
 **Solutions:**
+
 1. Verify dual output is enabled: `LOGGING_DUAL_OUTPUT=true`
 2. Check if service is using file-only mode
 3. Ensure stdout/stderr are not redirected
 
 #### Log Rotation Not Working
+
 **Symptoms:** Single large log file, no rotation
 **Solutions:**
+
 1. Check lumberjack configuration in code
 2. Verify file permissions for rotation
 3. Ensure sufficient disk space
 
 #### Permission Denied Errors
+
 **Symptoms:** Logger initialization fails
 **Solutions:**
+
 1. Create log directories: `make create-volumes-dirs`
 2. Check volume ownership: `ls -la docker/volumes/*/logs/`
 3. Verify Docker user permissions
@@ -297,11 +331,13 @@ tail docker/volumes/api-gateway/logs/api-gateway.log
 ## Performance Considerations
 
 ### Dual Output Impact
+
 - **Minimal Overhead**: `io.MultiWriter` adds negligible performance cost
 - **Disk I/O**: Dual output doubles write operations
 - **Memory**: Lumberjack buffers writes for efficiency
 
 ### Recommendations
+
 - **Development**: Use dual output for debugging
 - **Production**: Use file-only output to reduce I/O overhead
 - **High Traffic**: Monitor disk I/O and adjust rotation settings
@@ -318,12 +354,14 @@ When creating new services with `create-service.sh`, logging is automatically co
 ## Future Enhancements
 
 ### Planned Features
+
 - **Centralized Logging**: Integration with ELK stack or similar
 - **Log Shipping**: Automatic log forwarding to external systems
 - **Metrics Integration**: Log-based metrics collection
 - **Structured Fields**: Additional context fields for better observability
 
 ### Configuration Extensions
+
 - **Custom Formatters**: Support for additional log formats
 - **External Writers**: Integration with cloud logging services
 - **Conditional Logging**: Environment-based log filtering
@@ -333,6 +371,7 @@ When creating new services with `create-service.sh`, logging is automatically co
 ## Quick Reference
 
 ### Environment Variables Summary
+
 ```bash
 # Core settings
 LOGGING_LEVEL=info
@@ -346,6 +385,7 @@ LOGGING_DUAL_OUTPUT=true
 ```
 
 ### Key Commands
+
 ```bash
 # View logs
 docker logs service-boilerplate-api-gateway
@@ -358,5 +398,11 @@ make clean-logs
 make create-volumes-dirs
 ```
 
-This logging system provides robust, scalable logging infrastructure suitable for production microservices deployments.</content>
-</xai:function_call
+This logging system provides robust, scalable logging infrastructure suitable for production microservices deployments.
+
+## Known Issues
+
+- In prod environment log volumes might not created (not present in docker-compose.yml) - need to check
+- Filename for logs in prod environment not properly set by service - for all services service-boilerplate.log filename is used
+- Based on prev item - there is a possibility that other env vars not created / not propagated properly to running containers
+
