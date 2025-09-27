@@ -292,6 +292,7 @@ cat >>docker/docker-compose.override.yml <<EOF
       - LOGGING_DUAL_OUTPUT=${LOGGING_DUAL_OUTPUT:-true}
     volumes:
       - ../services/$SERVICE_NAME:/app/services/$SERVICE_NAME
+      - ../common:/app/common
       - ${SERVICE_NAME}_service_tmp:/app/services/$SERVICE_NAME/tmp
       - ${SERVICE_NAME}_logs:/app/logs
     ports:

@@ -9,6 +9,7 @@ services:
       - LOGGING_OUTPUT=file
     volumes:
       - ../api-gateway:/app/api-gateway
+      - ../common:/app/common
       - api_gateway_tmp:/app/api-gateway/tmp
       - api_gateway_logs:/app/logs
     ports:
@@ -31,6 +32,7 @@ services:
       - LOGGING_OUTPUT=file
     volumes:
       - ../services/user-service:/app/services/user-service
+      - ../common:/app/common
       - user_service_tmp:/app/services/user-service/tmp
       - user_service_logs:/app/logs
     ports:
@@ -68,6 +70,7 @@ services:
       - LOGGING_OUTPUT=file
     volumes:
       - ../services/auth-service:/app/services/auth-service
+      - ../common:/app/common
       - auth-service_service_tmp:/app/services/auth-service/tmp
       - auth_service_logs:/app/logs
     ports:
