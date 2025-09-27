@@ -210,6 +210,7 @@ cat >"$SERVICE_DEF_FILE" <<EOF
       - LOGGING_FORMAT=\${LOGGING_FORMAT:-json}
       - LOGGING_OUTPUT=file
       - LOGGING_DUAL_OUTPUT=\${LOGGING_DUAL_OUTPUT:-true}
+      - LOGGING_STRIP_ANSI_FROM_FILES=\${LOGGING_STRIP_ANSI_FROM_FILES:-true}
     depends_on:
       postgres:
         condition: service_healthy
@@ -288,8 +289,10 @@ cat >>docker/docker-compose.override.yml <<EOF
     environment:
       - APP_ENV=development
       - LOGGING_LEVEL=debug
+      - LOGGING_FORMAT=text
       - LOGGING_OUTPUT=file
       - LOGGING_DUAL_OUTPUT=${LOGGING_DUAL_OUTPUT:-true}
+      - LOGGING_STRIP_ANSI_FROM_FILES=${LOGGING_STRIP_ANSI_FROM_FILES:-true}
     volumes:
       - ../services/$SERVICE_NAME:/app/services/$SERVICE_NAME
       - ../common:/app/common

@@ -19,6 +19,8 @@ logging:
   level: "debug"
   format: "json"
   output: "stdout"
+  dual_output: true
+  strip_ansi_from_files: true
 
 server:
   host: "0.0.0.0"
