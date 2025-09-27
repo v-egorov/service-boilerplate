@@ -157,6 +157,21 @@ services:
       start_period: 10s
     restart: unless-stopped
 
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686" # Jaeger UI
+      - "14268:14268" # Accept jaeger.thrift over HTTP
+      - "14250:14250" # Accept jaeger.thrift over gRPC
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+    volumes:
+      - jaeger_data:/tmp
+    networks:
+      - service-network
+    restart: unless-stopped
+
 volumes:
   postgres_data:
     name: ${POSTGRES_VOLUME}
@@ -221,6 +236,8 @@ volumes:
       type: none
       o: bind
       device: ${PWD}/docker/volumes/auth-service/logs
+
+  jaeger_data:
 
 networks:
   service-network:

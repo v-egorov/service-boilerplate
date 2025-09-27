@@ -14,6 +14,7 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/config"
 	"github.com/v-egorov/service-boilerplate/common/database"
 	"github.com/v-egorov/service-boilerplate/common/logging"
+	"github.com/v-egorov/service-boilerplate/common/tracing"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/client"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/handlers"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/repository"
@@ -37,6 +38,18 @@ func main() {
 		DualOutput:  cfg.Logging.DualOutput,
 		ServiceName: cfg.App.Name,
 	})
+
+	// Initialize tracing
+	tracerProvider, err := tracing.InitTracer(cfg.Tracing)
+	if err != nil {
+		logger.Warn("Failed to initialize tracing", err)
+	} else if tracerProvider != nil {
+		defer func() {
+			if err := tracing.ShutdownTracer(tracerProvider); err != nil {
+				logger.Error("Failed to shutdown tracer", err)
+			}
+		}()
+	}
 
 	// Initialize database
 	dbConfig := database.Config{
@@ -119,6 +132,9 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(corsMiddleware())
 	router.Use(serviceLogger.RequestResponseLogger())
+	if cfg.Tracing.Enabled {
+		router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
+	}
 
 	// Health check endpoints (public, no auth required)
 	router.GET("/health", healthHandler.LivenessHandler)

@@ -34,3 +34,9 @@ alerting:
   error_rate_threshold: 0.1  # 10% error rate
   response_time_threshold_ms: 5000  # 5 seconds
   alert_interval_minutes: 5  # Alert every 5 minutes max
+
+tracing:
+  enabled: true
+  service_name: "user-service"
+  collector_url: "http://jaeger:4318/v1/traces"
+  sampling_rate: 1.0

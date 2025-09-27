@@ -16,6 +16,7 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/alerting"
 	"github.com/v-egorov/service-boilerplate/common/config"
 	"github.com/v-egorov/service-boilerplate/common/logging"
+	"github.com/v-egorov/service-boilerplate/common/tracing"
 )
 
 func main() {
@@ -34,6 +35,18 @@ func main() {
 		DualOutput:  cfg.Logging.DualOutput,
 		ServiceName: cfg.App.Name,
 	})
+
+	// Initialize tracing
+	tracerProvider, err := tracing.InitTracer(cfg.Tracing)
+	if err != nil {
+		logger.Warn("Failed to initialize tracing", err)
+	} else if tracerProvider != nil {
+		defer func() {
+			if err := tracing.ShutdownTracer(tracerProvider); err != nil {
+				logger.Error("Failed to shutdown tracer", err)
+			}
+		}()
+	}
 
 	// Initialize service registry
 	serviceRegistry := services.NewServiceRegistry(logger.Logger)
@@ -80,6 +93,9 @@ func main() {
 	router.Use(middleware.CORSMiddleware())
 	router.Use(middleware.RequestIDMiddleware())
 	router.Use(requestLogger.DetailedRequestLogger())
+	if cfg.Tracing.Enabled {
+		router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
+	}
 
 	// Health check endpoints (public, no auth required)
 	router.GET("/health", gatewayHandler.LivenessHandler)

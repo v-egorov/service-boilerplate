@@ -13,6 +13,7 @@ type Config struct {
 	Server     ServerConfig     `mapstructure:"server"`
 	Monitoring MonitoringConfig `mapstructure:"monitoring"`
 	Alerting   AlertingConfig   `mapstructure:"alerting"`
+	Tracing    TracingConfig    `mapstructure:"tracing"`
 }
 
 type AppConfig struct {
@@ -59,6 +60,13 @@ type AlertingConfig struct {
 	AlertIntervalMinutes  int     `mapstructure:"alert_interval_minutes"`
 }
 
+type TracingConfig struct {
+	Enabled      bool    `mapstructure:"enabled"`
+	ServiceName  string  `mapstructure:"service_name"`
+	CollectorURL string  `mapstructure:"collector_url"`
+	SamplingRate float64 `mapstructure:"sampling_rate"`
+}
+
 func Load(configPath string) (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -85,6 +93,10 @@ func Load(configPath string) (*Config, error) {
 	viper.BindEnv("logging.dual_output", "LOGGING_DUAL_OUTPUT")
 	viper.BindEnv("server.port", "SERVER_PORT")
 	viper.BindEnv("app.environment", "APP_ENV")
+	viper.BindEnv("tracing.enabled", "TRACING_ENABLED")
+	viper.BindEnv("tracing.service_name", "TRACING_SERVICE_NAME")
+	viper.BindEnv("tracing.collector_url", "TRACING_COLLECTOR_URL")
+	viper.BindEnv("tracing.sampling_rate", "TRACING_SAMPLING_RATE")
 
 	// Set environment variable defaults for Docker
 	if os.Getenv("DOCKER_ENV") == "true" {
@@ -147,4 +159,10 @@ func setDefaults() {
 	viper.SetDefault("alerting.error_rate_threshold", 0.1)        // 10% error rate
 	viper.SetDefault("alerting.response_time_threshold_ms", 5000) // 5 seconds
 	viper.SetDefault("alerting.alert_interval_minutes", 5)        // Alert every 5 minutes max
+
+	// Tracing defaults
+	viper.SetDefault("tracing.enabled", false)
+	viper.SetDefault("tracing.service_name", "service-boilerplate")
+	viper.SetDefault("tracing.collector_url", "http://jaeger:4318/v1/traces")
+	viper.SetDefault("tracing.sampling_rate", 1.0)
 }
