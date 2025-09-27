@@ -5,6 +5,7 @@ A comprehensive boilerplate for building scalable Golang-based REST API services
 ## Features
 
 - **Microservice Architecture**: API Gateway with service discovery
+- **Distributed Tracing**: OpenTelemetry with Jaeger for observability across services
 - **PostgreSQL Integration**: Connection pooling and migrations
 - **Advanced Logging System**: Structured JSON logging with file rotation and Docker integration
 - **Configuration Management**: Environment-based config with Viper
@@ -15,12 +16,28 @@ A comprehensive boilerplate for building scalable Golang-based REST API services
 
 ## 📚 Documentation
 
+### Core Features
 - **[Logging System](docs/logging-system.md)**: Comprehensive guide to logging configuration, options, and troubleshooting
-- **[Distributed Tracing Implementation Plan](docs/distributed-tracing-implementation-plan.md)**: Detailed roadmap for implementing OpenTelemetry tracing across microservices
+- **[Distributed Tracing](docs/tracing/)**: Complete OpenTelemetry implementation with Jaeger
+  - [Overview & Architecture](docs/tracing/overview.md)
+  - [Developer Guide](docs/tracing/developer-guide.md)
+  - [Configuration](docs/tracing/configuration.md)
+  - [Monitoring & Troubleshooting](docs/tracing/monitoring.md)
+  - [Best Practices](docs/tracing/best-practices.md)
+
+### Development & Deployment
 - **[Service Creation Guide](docs/service-creation-guide.md)**: How to create new services using the boilerplate
 - **[Air Hot Reload](docs/air-hot-reload/)**: Development setup with live reloading
 - **[Migrations](docs/migrations/)**: Database migration management and best practices
+- **[CLI Utilities](docs/cli-utility-comprehensive.md)**: Command-line tools for development and operations
+
+### API & Examples
+- **[Authentication API Examples](docs/auth-api-examples.md)**: Complete API usage examples with authentication
+- **[Distributed Tracing Implementation Plan](docs/distributed-tracing-implementation-plan.md)**: Detailed roadmap for implementing OpenTelemetry tracing across microservices
+
+### Planning & Future
 - **[Future Development Plan](docs/future_development_plan.md)**: Roadmap of planned features and enhancements
+- **[CLI Utility Plan](docs/cli-utility-plan.md)**: Planned CLI enhancements and features
 
 ## Project Structure
 
@@ -83,11 +100,14 @@ service-boilerplate/
    # create test users and check auth flow
    ./scripts/test-auth-flow.sh
 
-   # watch logs and then look 
-   # at the database service_db.auth_service schema:
-   # tables user_sessions and auth_tokens,
-   # in service_db.user_service schema: users table
-   ```
+    # watch logs and then look
+    # at the database service_db.auth_service schema:
+    # tables user_sessions and auth_tokens,
+    # in service_db.user_service schema: users table
+
+    # View distributed traces in Jaeger UI:
+    # http://localhost:16686
+    ```
 
 2. **Development with hot reload (starts all services):**
 
