@@ -7,11 +7,15 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // HTTPMiddleware creates a Gin middleware for tracing HTTP requests
 func HTTPMiddleware(serviceName string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// Extract trace context from incoming request headers
+		ctx := otel.GetTextMapPropagator().Extract(c.Request.Context(), propagation.HeaderCarrier(c.Request.Header))
+
 		// Get tracer for this service
 		tracer := otel.Tracer(serviceName)
 
@@ -19,7 +23,7 @@ func HTTPMiddleware(serviceName string) gin.HandlerFunc {
 		spanName := fmt.Sprintf("%s %s", c.Request.Method, c.Request.URL.Path)
 
 		// Start span
-		ctx, span := tracer.Start(c.Request.Context(), spanName)
+		ctx, span := tracer.Start(ctx, spanName)
 		defer span.End()
 
 		// Add HTTP attributes

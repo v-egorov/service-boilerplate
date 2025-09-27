@@ -11,6 +11,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 type UserClient struct {
@@ -66,6 +68,9 @@ func (c *UserClient) CreateUser(ctx context.Context, req *CreateUserRequest) (*U
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
+	// Inject trace context headers
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(httpReq.Header))
+
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		c.logger.WithError(err).Error("Failed to call user service")
@@ -101,6 +106,9 @@ func (c *UserClient) GetUserByEmail(ctx context.Context, email string) (*UserDat
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+
+	// Inject trace context headers
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(httpReq.Header))
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -138,6 +146,9 @@ func (c *UserClient) GetUserWithPasswordByEmail(ctx context.Context, email strin
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
+	// Inject trace context headers
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(httpReq.Header))
+
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		c.logger.WithError(err).Error("Failed to call user service")
@@ -169,6 +180,9 @@ func (c *UserClient) GetUserByID(ctx context.Context, id uuid.UUID) (*UserData, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+
+	// Inject trace context headers
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(httpReq.Header))
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
