@@ -6,7 +6,9 @@ services:
     environment:
       - APP_ENV=development
       - LOGGING_LEVEL=debug
+      - LOGGING_FORMAT=text
       - LOGGING_OUTPUT=file
+      - LOGGING_DUAL_OUTPUT=true
     volumes:
       - ../api-gateway:/app/api-gateway
       - ../common:/app/common
@@ -29,7 +31,9 @@ services:
     environment:
       - APP_ENV=development
       - LOGGING_LEVEL=debug
+      - LOGGING_FORMAT=text
       - LOGGING_OUTPUT=file
+      - LOGGING_DUAL_OUTPUT=true
     volumes:
       - ../services/user-service:/app/services/user-service
       - ../common:/app/common
@@ -67,7 +71,9 @@ services:
     environment:
       - APP_ENV=development
       - LOGGING_LEVEL=debug
+      - LOGGING_FORMAT=text
       - LOGGING_OUTPUT=file
+      - LOGGING_DUAL_OUTPUT=true
     volumes:
       - ../services/auth-service:/app/services/auth-service
       - ../common:/app/common

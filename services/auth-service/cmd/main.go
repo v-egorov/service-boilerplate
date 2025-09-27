@@ -32,11 +32,12 @@ func main() {
 
 	// Initialize logger
 	logger := logging.NewLogger(logging.Config{
-		Level:       cfg.Logging.Level,
-		Format:      cfg.Logging.Format,
-		Output:      cfg.Logging.Output,
-		DualOutput:  cfg.Logging.DualOutput,
-		ServiceName: cfg.App.Name,
+		Level:              cfg.Logging.Level,
+		Format:             cfg.Logging.Format,
+		Output:             cfg.Logging.Output,
+		DualOutput:         cfg.Logging.DualOutput,
+		ServiceName:        cfg.App.Name,
+		StripANSIFromFiles: cfg.Logging.StripANSIFromFiles,
 	})
 
 	// Initialize tracing

@@ -36,10 +36,11 @@ type DatabaseConfig struct {
 }
 
 type LoggingConfig struct {
-	Level      string `mapstructure:"level"`
-	Format     string `mapstructure:"format"`
-	Output     string `mapstructure:"output"`
-	DualOutput bool   `mapstructure:"dual_output"`
+	Level              string `mapstructure:"level"`
+	Format             string `mapstructure:"format"`
+	Output             string `mapstructure:"output"`
+	DualOutput         bool   `mapstructure:"dual_output"`
+	StripANSIFromFiles bool   `mapstructure:"strip_ansi_from_files"`
 }
 
 type ServerConfig struct {
@@ -91,6 +92,7 @@ func Load(configPath string) (*Config, error) {
 	viper.BindEnv("logging.format", "LOGGING_FORMAT")
 	viper.BindEnv("logging.output", "LOGGING_OUTPUT")
 	viper.BindEnv("logging.dual_output", "LOGGING_DUAL_OUTPUT")
+	viper.BindEnv("logging.strip_ansi_from_files", "LOGGING_STRIP_ANSI_FROM_FILES")
 	viper.BindEnv("server.port", "SERVER_PORT")
 	viper.BindEnv("app.environment", "APP_ENV")
 	viper.BindEnv("tracing.enabled", "TRACING_ENABLED")
@@ -144,6 +146,7 @@ func setDefaults() {
 	viper.SetDefault("logging.format", "json")
 	viper.SetDefault("logging.output", "stdout")
 	viper.SetDefault("logging.dual_output", true)
+	viper.SetDefault("logging.strip_ansi_from_files", true)
 
 	// Server defaults
 	viper.SetDefault("server.host", "0.0.0.0")

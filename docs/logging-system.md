@@ -15,6 +15,7 @@ The service boilerplate implements a comprehensive logging system designed for m
 ### Key Features
 
 - **Structured JSON Logging**: Consistent log format across all services
+- **Colorful Text Logging**: Enhanced visual formatting with color-coded HTTP methods and status codes
 - **Multiple Output Modes**: File-only, stdout-only, or dual output
 - **Automatic Rotation**: Size-based rotation with configurable limits
 - **Docker Integration**: Compatible with Docker logging drivers
@@ -25,23 +26,100 @@ The service boilerplate implements a comprehensive logging system designed for m
 
 ### Environment Variables
 
-| Variable              | Default  | Description                                                   |
-| --------------------- | -------- | ------------------------------------------------------------- |
-| `LOGGING_LEVEL`       | `info`   | Log level: `debug`, `info`, `warn`, `error`, `fatal`, `panic` |
-| `LOGGING_FORMAT`      | `json`   | Log format: `json`, `text`                                    |
-| `LOGGING_OUTPUT`      | `stdout` | Output destination: `stdout`, `file`                          |
-| `LOGGING_DUAL_OUTPUT` | `true`   | Enable dual output (file + stdout) when `LOGGING_OUTPUT=file` |
+| Variable                          | Default (Prod) | Default (Dev) | Description                                                   |
+| --------------------------------- | -------------- | ------------- | ------------------------------------------------------------- |
+| `LOGGING_LEVEL`                   | `info`         | `debug`       | Log level: `debug`, `info`, `warn`, `error`, `fatal`, `panic` |
+| `LOGGING_FORMAT`                  | `json`         | `json`        | Log format: `json` (structured), `text` (colors enabled)     |
+| `LOGGING_OUTPUT`                  | `stdout`       | `file`        | Output destination: `stdout`, `file`                          |
+| `LOGGING_DUAL_OUTPUT`             | `true`         | `true`        | Enable dual output (file + stdout) when `LOGGING_OUTPUT=file` |
+| `LOGGING_STRIP_ANSI_FROM_FILES`  | `true`         | `true`        | Strip ANSI codes from file logs (console colors preserved)   |
 
 ### Configuration Structure
 
 ```go
 type LoggingConfig struct {
-    Level      string `mapstructure:"level"`       // debug, info, warn, error, fatal, panic
-    Format     string `mapstructure:"format"`      // json, text
-    Output     string `mapstructure:"output"`      // stdout, file
-    DualOutput bool   `mapstructure:"dual_output"` // Enable dual output mode
+    Level              string `mapstructure:"level"`                // debug, info, warn, error, fatal, panic
+    Format             string `mapstructure:"format"`               // json, text
+    Output             string `mapstructure:"output"`               // stdout, file
+    DualOutput         bool   `mapstructure:"dual_output"`          // Enable dual output mode
+    StripANSIFromFiles bool   `mapstructure:"strip_ansi_from_files"` // Strip ANSI codes from file logs
 }
 ```
+
+## Colorful Formatting
+
+### Visual Enhancements
+
+The text logging format includes enhanced visual formatting to improve log readability:
+
+- **HTTP Methods**: Background color-coded by method type
+  - `GET` → Green background
+  - `POST` → Blue background
+  - `PUT` → Yellow background
+  - `PATCH` → Magenta background
+  - `DELETE` → Red background
+
+- **HTTP Status Codes**: Background color-coded by response range
+  - `2xx` → Green background (success)
+  - `3xx` → Yellow background (redirect)
+  - `4xx` → Red background (client error)
+  - `5xx` → Red background (server error)
+
+- **Service Names**: Unique background colors for easy identification
+  - `api-gateway` → Magenta background
+  - `user-service` → Cyan background
+  - `auth-service` → Blue background
+
+- **Log Levels**: Background colors for error visibility
+  - `ERROR` → Red background
+  - `WARN` → Yellow background
+  - `INFO` → Cyan foreground
+
+- **Error Text**: Red background highlighting for error keywords
+
+### Example Colored Output
+
+```
+time="2025-09-27T18:27:50Z" level=warn msg="Request completed with client error" method=GET path=/api/v1/users service=api-gateway status=401
+```
+
+**Visual Result (in terminal with background colors):**
+- `[36mINFO[0m` - Log level in cyan foreground
+- `[36mduration_ms[0m` - Field names in cyan foreground
+- `[42mGET[0m` - HTTP method with **green background**
+- `[45mapi-gateway[0m` - Service name with **magenta background**
+- `[41merror[0m` - Error text with **red background** (when applicable)
+- `status=401` - Status code with red background (4xx error)
+
+**Accessibility Note**: Background colors provide better contrast and visibility for users with color vision deficiencies.
+
+## ANSI Code Handling
+
+### Automatic File Cleaning
+
+The logging system automatically strips ANSI escape codes from file outputs while preserving colors in console output:
+
+- **Console Output**: Full ANSI colors maintained for development readability
+- **File Output**: ANSI codes automatically removed for clean, parseable text logs
+- **Dual Output**: Colors displayed on stdout, clean text written to files
+
+### Configuration
+
+```yaml
+logging:
+  strip_ansi_from_files: true  # Default: true
+```
+
+### Benefits
+
+- **Readable Logfiles**: No terminal escape sequences cluttering log files
+- **Tool Compatibility**: Works seamlessly with log analysis and monitoring tools
+- **Performance**: No overhead for console color display
+- **Accessibility**: Clean text logs remain accessible for all users
+
+### Implementation
+
+File outputs are automatically wrapped with an ANSI stripping writer that removes escape sequences before writing to disk, ensuring logfiles contain only plain text content.
 
 ## Logging Modes
 
@@ -198,10 +276,19 @@ router.Use(serviceLogger.RequestResponseLogger())
 ### Development Setup
 
 ```bash
-# Enable debug logging with dual output
-LOGGING_LEVEL=debug
-LOGGING_OUTPUT=file
-LOGGING_DUAL_OUTPUT=true
+# Structured JSON logging is enabled by default in development
+# These are the default settings in docker-compose.override.yml:
+LOGGING_LEVEL=debug          # Enhanced debugging
+LOGGING_FORMAT=json          # JSON format for structured logging
+LOGGING_OUTPUT=file          # File output for persistence
+LOGGING_DUAL_OUTPUT=true     # Both file and stdout for Docker logs
+
+# View logs:
+make logs                    # See all services (JSON format)
+docker logs <service-name>   # Individual service logs
+
+# For colorful text logging in development:
+LOGGING_FORMAT=text          # Switch to text format with colors
 ```
 
 ### Production Setup
@@ -378,6 +465,7 @@ LOGGING_LEVEL=info
 LOGGING_FORMAT=json
 LOGGING_OUTPUT=file
 LOGGING_DUAL_OUTPUT=true
+LOGGING_STRIP_ANSI_FROM_FILES=true
 
 # File locations
 # Logs: docker/volumes/{service}/logs/{service}.log
