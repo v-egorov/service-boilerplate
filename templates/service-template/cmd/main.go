@@ -72,6 +72,12 @@ func main() {
 		defer db.Close()
 	}
 
+	// Initialize service request logger
+	serviceLogger := logging.NewServiceRequestLogger(logger.Logger, cfg.App.Name)
+
+	// Initialize standard logger for structured operation logging
+	standardLogger := logging.NewStandardLogger(logger.Logger, cfg.App.Name)
+
 	// Initialize repository and service only if database is available
 	var entityHandler *handlers.EntityHandler
 	var healthHandler *handlers.HealthHandler
@@ -91,12 +97,6 @@ func main() {
 		healthHandler = handlers.NewHealthHandler(nil, logger.Logger, cfg)
 		entityHandler = nil // Entity operations won't work without database
 	}
-
-	// Initialize service request logger
-	serviceLogger := logging.NewServiceRequestLogger(logger.Logger, cfg.App.Name)
-
-	// Initialize standard logger for structured operation logging
-	standardLogger := logging.NewStandardLogger(logger.Logger, cfg.App.Name)
 
 	// Initialize alert manager
 	alertManager := alerting.NewAlertManager(logger.Logger, cfg.App.Name, &cfg.Alerting, serviceLogger.GetMetricsCollector())

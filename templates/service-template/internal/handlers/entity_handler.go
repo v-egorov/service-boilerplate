@@ -120,7 +120,7 @@ func (h *EntityHandler) CreateEntity(c *gin.Context) {
 		"id":         entity.ID,
 	}).Info("Entity created")
 
-	h.standardLogger.EntityOperation(requestID, "", entity.ID, "create", true, nil)
+	h.standardLogger.EntityOperation(requestID, "", fmt.Sprintf("%d", entity.ID), "create", true, nil)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"data":    entity,
@@ -161,7 +161,7 @@ func (h *EntityHandler) GetEntity(c *gin.Context) {
 		"id":         entity.ID,
 	}).Info("Entity retrieved")
 
-	h.standardLogger.EntityOperation(requestID, "", entity.ID, "get", true, nil)
+	h.standardLogger.EntityOperation(requestID, "", fmt.Sprintf("%d", entity.ID), "get", true, nil)
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": entity,
@@ -215,7 +215,7 @@ func (h *EntityHandler) ReplaceEntity(c *gin.Context) {
 		"id":         entity.ID,
 	}).Info("Entity replaced successfully")
 
-	h.standardLogger.EntityOperation(requestID, "", entity.ID, "replace", true, nil)
+	h.standardLogger.EntityOperation(requestID, "", fmt.Sprintf("%d", entity.ID), "replace", true, nil)
 
 	c.JSON(http.StatusOK, gin.H{
 		"data":    entity,
@@ -270,7 +270,7 @@ func (h *EntityHandler) UpdateEntity(c *gin.Context) {
 		"id":         entity.ID,
 	}).Info("Entity updated successfully")
 
-	h.standardLogger.EntityOperation(requestID, "", entity.ID, "update", true, nil)
+	h.standardLogger.EntityOperation(requestID, "", fmt.Sprintf("%d", entity.ID), "update", true, nil)
 
 	c.JSON(http.StatusOK, gin.H{
 		"data":    entity,
