@@ -66,6 +66,6 @@ func TraceDBUpdate(ctx context.Context, table string, query string, fn func(ctx 
 }
 
 // TraceDBDelete creates a span specifically for DELETE operations
-func TraceDBDelete(ctx context.Context, table string, query string, fn func(ctx context.Context) error) {
-	TraceDBOperation(ctx, DBOpDelete, table, query, fn)
+func TraceDBDelete(ctx context.Context, table string, query string, fn func(ctx context.Context) error) error {
+	return TraceDBOperation(ctx, DBOpDelete, table, query, fn)
 }

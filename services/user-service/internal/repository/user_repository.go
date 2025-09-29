@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 	"github.com/v-egorov/service-boilerplate/common/database"
@@ -35,7 +36,6 @@ func (r *UserRepository) Create(ctx context.Context, user *models.User) (*models
 		return r.db.QueryRow(ctx, query, user.Email, user.PasswordHash, user.FirstName, user.LastName).Scan(
 			&user.ID, &user.CreatedAt, &user.UpdatedAt)
 	})
-
 	if err != nil {
 		r.logger.WithError(err).Error("Failed to create user")
 		return nil, fmt.Errorf("failed to create user: %w", err)
@@ -53,7 +53,6 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 		return r.db.QueryRow(ctx, query, id).Scan(
 			&user.ID, &user.Email, &user.PasswordHash, &user.FirstName, &user.LastName, &user.CreatedAt, &user.UpdatedAt)
 	})
-
 	if err != nil {
 		r.logger.WithError(err).WithField("error_type", fmt.Sprintf("%T", err)).Error("Failed to get user by ID - checking error type")
 		if strings.Contains(err.Error(), "no rows in result set") {
@@ -74,9 +73,10 @@ func (r *UserRepository) Update(ctx context.Context, id uuid.UUID, user *models.
 		WHERE id = $5
 		RETURNING id, email, password_hash, first_name, last_name, created_at, updated_at`
 
-	err := r.db.QueryRow(ctx, query, user.Email, user.PasswordHash, user.FirstName, user.LastName, id).Scan(
-		&user.ID, &user.Email, &user.PasswordHash, &user.FirstName, &user.LastName, &user.CreatedAt, &user.UpdatedAt)
-
+	err := database.TraceDBUpdate(ctx, "user_service.users", query, func(ctx context.Context) error {
+		return r.db.QueryRow(ctx, query, user.Email, user.PasswordHash, user.FirstName, user.LastName, id).Scan(
+			&user.ID, &user.Email, &user.PasswordHash, &user.FirstName, &user.LastName, &user.CreatedAt, &user.UpdatedAt)
+	})
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("user not found")
@@ -92,7 +92,12 @@ func (r *UserRepository) Update(ctx context.Context, id uuid.UUID, user *models.
 func (r *UserRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `DELETE FROM user_service.users WHERE id = $1`
 
-	result, err := r.db.Exec(ctx, query, id)
+	var result pgconn.CommandTag
+	err := database.TraceDBDelete(ctx, "user_service.users", query, func(ctx context.Context) error {
+		var execErr error
+		result, execErr = r.db.Exec(ctx, query, id)
+		return execErr
+	})
 	if err != nil {
 		r.logger.WithError(err).Error("Failed to delete user")
 		return fmt.Errorf("failed to delete user: %w", err)
@@ -128,7 +133,6 @@ func (r *UserRepository) List(ctx context.Context, limit, offset int) ([]*models
 
 		return rows.Err()
 	})
-
 	if err != nil {
 		r.logger.WithError(err).Error("Failed to list users")
 		return nil, fmt.Errorf("failed to list users: %w", err)
@@ -141,9 +145,10 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 	query := `SELECT id, email, password_hash, first_name, last_name, created_at, updated_at FROM user_service.users WHERE email = $1`
 
 	user := &models.User{}
-	err := r.db.QueryRow(ctx, query, email).Scan(
-		&user.ID, &user.Email, &user.PasswordHash, &user.FirstName, &user.LastName, &user.CreatedAt, &user.UpdatedAt)
-
+	err := database.TraceDBQuery(ctx, "user_service.users", query, func(ctx context.Context) error {
+		return r.db.QueryRow(ctx, query, email).Scan(
+			&user.ID, &user.Email, &user.PasswordHash, &user.FirstName, &user.LastName, &user.CreatedAt, &user.UpdatedAt)
+	})
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("user not found")
