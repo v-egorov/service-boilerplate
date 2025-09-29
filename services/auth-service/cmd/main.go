@@ -129,9 +129,22 @@ func main() {
 
 	router := gin.New()
 
+	// Request ID middleware to extract X-Request-ID header and store in context
+	requestIDMiddleware := func() gin.HandlerFunc {
+		return func(c *gin.Context) {
+			requestID := c.GetHeader("X-Request-ID")
+			if requestID != "" {
+				ctx := context.WithValue(c.Request.Context(), "request_id", requestID)
+				c.Request = c.Request.WithContext(ctx)
+			}
+			c.Next()
+		}
+	}
+
 	// Middleware
 	router.Use(gin.Recovery())
 	router.Use(corsMiddleware())
+	router.Use(requestIDMiddleware())
 	router.Use(serviceLogger.RequestResponseLogger())
 	if cfg.Tracing.Enabled {
 		router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))

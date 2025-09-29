@@ -68,6 +68,11 @@ func (c *UserClient) CreateUser(ctx context.Context, req *CreateUserRequest) (*U
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
+	// Extract request ID from context and set as header
+	if requestID, ok := ctx.Value("request_id").(string); ok {
+		httpReq.Header.Set("X-Request-ID", requestID)
+	}
+
 	// Inject trace context headers
 	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(httpReq.Header))
 
@@ -107,6 +112,11 @@ func (c *UserClient) GetUserByEmail(ctx context.Context, email string) (*UserDat
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
+	// Extract request ID from context and set as header
+	if requestID, ok := ctx.Value("request_id").(string); ok {
+		httpReq.Header.Set("X-Request-ID", requestID)
+	}
+
 	// Inject trace context headers
 	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(httpReq.Header))
 
@@ -144,6 +154,11 @@ func (c *UserClient) GetUserWithPasswordByEmail(ctx context.Context, email strin
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Extract request ID from context and set as header
+	if requestID, ok := ctx.Value("request_id").(string); ok {
+		httpReq.Header.Set("X-Request-ID", requestID)
 	}
 
 	// Inject trace context headers
