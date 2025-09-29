@@ -43,8 +43,15 @@ func (srl *ServiceRequestLogger) RequestResponseLogger() gin.HandlerFunc {
 			c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 		}
 
-		// Get request ID from header (passed from API Gateway)
-		requestID := c.GetHeader("X-Request-ID")
+		// Get request ID from context (set by requestIDMiddleware)
+		requestID := ""
+		if rid, ok := c.Request.Context().Value("request_id").(string); ok {
+			requestID = rid
+		}
+		// Fallback to header if not in context
+		if requestID == "" {
+			requestID = c.GetHeader("X-Request-ID")
+		}
 
 		// Get user ID from context (if authenticated)
 		userID := ""
