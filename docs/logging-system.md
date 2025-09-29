@@ -311,6 +311,268 @@ services:
       - LOGGING_DUAL_OUTPUT=true
 ```
 
+## Debug Printing and Output
+
+### Overview
+
+Debug printing is essential for development and troubleshooting. The logging system provides structured debug logging that integrates seamlessly with your existing logging infrastructure. Always use the structured logger instead of `fmt.Printf()` or `logrus.Printf()` for debug output.
+
+### Recommended Approaches
+
+#### 1. Structured Debug Logging (Primary Method)
+
+**Repository Layer Example:**
+```go
+func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
+    r.logger.WithField("user_id", id).Debug("Starting user lookup by ID")
+
+    query := `SELECT id, email, password_hash, first_name, last_name, created_at, updated_at FROM user_service.users WHERE id = $1`
+
+    user := &models.User{}
+    err := database.TraceDBQuery(ctx, "user_service.users", query, func(ctx context.Context) error {
+        return r.db.QueryRow(ctx, query, id).Scan(
+            &user.ID, &user.Email, &user.PasswordHash, &user.FirstName, &user.LastName, &user.CreatedAt, &user.UpdatedAt)
+    })
+
+    if err != nil {
+        r.logger.WithFields(logrus.Fields{
+            "user_id": id,
+            "error_type": fmt.Sprintf("%T", err),
+            "query": query,
+        }).Debug("User lookup failed with database error")
+        return nil, fmt.Errorf("failed to get user: %w", err)
+    }
+
+    r.logger.WithFields(logrus.Fields{
+        "user_id": user.ID,
+        "email": user.Email,
+        "operation_duration": "calculated_if_needed",
+    }).Debug("User lookup completed successfully")
+
+    return user, nil
+}
+```
+
+**Handler Layer Example:**
+```go
+func (h *UserHandler) GetUser(c *gin.Context) {
+    userID := c.Param("id")
+    requestID := c.GetHeader("X-Request-ID")
+
+    h.logger.WithFields(logrus.Fields{
+        "user_id": userID,
+        "request_id": requestID,
+        "method": c.Request.Method,
+        "path": c.Request.URL.Path,
+    }).Debug("Processing get user request")
+
+    // Business logic...
+
+    h.logger.WithFields(logrus.Fields{
+        "user_id": userID,
+        "request_id": requestID,
+        "status_code": 200,
+        "response_size": "calculated_size",
+    }).Debug("Get user request completed")
+}
+```
+
+#### 2. Service Logger Debug Output
+
+**Using Service-Specific Loggers:**
+```go
+func (h *UserHandler) CreateUser(c *gin.Context) {
+    // Use the service logger for structured debug output
+    h.standardLogger.Debug("User creation initiated",
+        "ip", c.ClientIP(),
+        "user_agent", c.GetHeader("User-Agent"))
+
+    // Business logic...
+
+    h.auditLogger.LogAuthAttempt(requestID, ipAddress, userAgent, "user_creation", true, "success")
+}
+```
+
+#### 3. Temporary Debug Prints (Development Only)
+
+**For quick debugging during development (remove before commit):**
+```go
+// Temporary debug - REMOVE BEFORE COMMIT
+fmt.Printf("DEBUG: Processing user ID %s with email %s\n", userID, email)
+
+// Or use structured temporary debug
+logrus.WithFields(logrus.Fields{
+    "user_id": userID,
+    "email": email,
+    "step": "validation",
+}).Warn("TEMP DEBUG: User validation step")  // Use Warn to ensure visibility
+```
+
+### Debug Configuration
+
+#### Environment Setup
+
+**Enable Debug Logging:**
+```bash
+# Set log level to debug
+LOGGING_LEVEL=debug
+
+# For development with colors
+LOGGING_FORMAT=text
+LOGGING_OUTPUT=file
+LOGGING_DUAL_OUTPUT=true
+```
+
+**Docker Compose Override:**
+```yaml
+services:
+  user-service:
+    environment:
+      - LOGGING_LEVEL=debug
+      - LOGGING_FORMAT=text  # For colored output
+```
+
+#### Configuration Validation
+
+**Test Debug Output:**
+```bash
+# Start services
+make dev
+
+# Make a request to trigger debug logs
+curl http://localhost:8080/api/v1/users
+
+# View debug logs
+docker logs service-boilerplate-user-service | grep '"level":"debug"'
+```
+
+### Best Practices
+
+#### ✅ Do's
+
+- **Use Debug Level**: Always use `logger.Debug()` not `logger.Info()`
+- **Include Context**: Add relevant fields (user_id, request_id, operation, etc.)
+- **Structured Fields**: Use `WithField()` or `WithFields()` for structured data
+- **Request Correlation**: Include `request_id` for tracing requests across services
+- **Performance Context**: Log operation duration, query parameters, result counts
+
+#### ❌ Don'ts
+
+- **Don't Use Printf**: Avoid `fmt.Printf()`, `logrus.Printf()` in production code
+- **Don't Log Secrets**: Never log passwords, tokens, or sensitive data
+- **Don't Over-Log**: Debug logs should be meaningful, not verbose spam
+- **Don't Commit Temp Debug**: Remove temporary debug prints before committing
+- **Don't Use Wrong Level**: Debug logs disappear in production - use appropriate levels
+
+### Debug Log Examples
+
+#### Database Operation Debug
+```json
+{
+  "time": "2025-09-27T10:30:00Z",
+  "level": "debug",
+  "msg": "Starting user lookup by ID",
+  "service": "user-service",
+  "user_id": "123e4567-e89b-12d3-a456-426614174000",
+  "request_id": "abc-123-def"
+}
+```
+
+#### Business Logic Debug
+```json
+{
+  "time": "2025-09-27T10:30:00Z",
+  "level": "debug",
+  "msg": "User validation completed",
+  "service": "user-service",
+  "user_id": "123e4567-e89b-12d3-a456-426614174000",
+  "validation_result": "passed",
+  "checks_performed": ["email_format", "password_strength", "duplicate_check"]
+}
+```
+
+#### Error Context Debug
+```json
+{
+  "time": "2025-09-27T10:30:00Z",
+  "level": "debug",
+  "msg": "Database query failed",
+  "service": "user-service",
+  "error_type": "*pgconn.PgError",
+  "query": "SELECT * FROM users WHERE id = $1",
+  "parameters": ["123e4567-e89b-12d3-a456-426614174000"],
+  "error_code": "23505"
+}
+```
+
+### Performance Considerations
+
+- **Debug Level Filtering**: Debug logs are filtered out in production (no performance impact)
+- **Structured Overhead**: Minimal overhead for field addition vs unstructured strings
+- **Memory Usage**: Debug logs consume memory buffers even when filtered
+- **I/O Impact**: Dual output writes debug logs to both files and stdout
+
+### Integration with Tracing
+
+**Debug logs complement tracing:**
+```go
+func (r *UserRepository) Delete(ctx context.Context, id uuid.UUID) error {
+    r.logger.WithField("user_id", id).Debug("Starting user deletion")
+
+    query := `DELETE FROM user_service.users WHERE id = $1`
+
+    var result pgconn.CommandTag
+    err := database.TraceDBDelete(ctx, "user_service.users", query, func(ctx context.Context) error {
+        var execErr error
+        result, execErr = r.db.Exec(ctx, query, id)
+        return execErr
+    })
+
+    if err != nil {
+        r.logger.WithError(err).WithField("user_id", id).Debug("User deletion failed")
+        return err
+    }
+
+    r.logger.WithFields(logrus.Fields{
+        "user_id": id,
+        "rows_affected": result.RowsAffected(),
+    }).Debug("User deletion completed")
+
+    return nil
+}
+```
+
+### Troubleshooting Debug Issues
+
+#### Debug Logs Not Appearing
+
+**Check Configuration:**
+```bash
+# Verify log level
+docker exec service-boilerplate-user-service env | grep LOGGING_LEVEL
+
+# Check if service restarted after config change
+docker-compose restart user-service
+```
+
+**Verify Code:**
+```go
+// Ensure you're using the correct logger instance
+r.logger.Debug("message")  // ✅ Correct
+logrus.Debug("message")    // ❌ Wrong - bypasses service context
+```
+
+#### Debug Logs Too Verbose
+
+**Filter Debug Output:**
+```bash
+# View only debug logs
+docker logs service-boilerplate-user-service 2>&1 | jq 'select(.level == "debug")'
+
+# Filter by specific field
+docker logs service-boilerplate-user-service 2>&1 | jq 'select(.user_id == "123")'
+```
+
 ## Log Analysis
 
 ### Viewing Logs
