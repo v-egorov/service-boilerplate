@@ -22,6 +22,7 @@ A comprehensive boilerplate for building scalable Golang-based REST API services
   - [Overview & Architecture](docs/tracing/overview.md)
   - [Developer Guide](docs/tracing/developer-guide.md)
   - [Configuration](docs/tracing/configuration.md)
+  - [Database Tracing](docs/tracing/database-tracing.md): Instrumenting database operations for performance monitoring
   - [Monitoring & Troubleshooting](docs/tracing/monitoring.md)
   - [Best Practices](docs/tracing/best-practices.md)
 
