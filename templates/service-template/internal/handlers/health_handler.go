@@ -79,6 +79,11 @@ func NewHealthHandler(db *pgxpool.Pool, logger *logrus.Logger, cfg *config.Confi
 
 // LivenessHandler provides basic liveness check
 func (h *HealthHandler) LivenessHandler(c *gin.Context) {
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
 	response := HealthResponse{
 		Status:    "ok",
 		Timestamp: time.Now().UTC(),
@@ -86,11 +91,21 @@ func (h *HealthHandler) LivenessHandler(c *gin.Context) {
 		Version:   h.config.App.Version,
 	}
 
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"service":    h.config.App.Name,
+	}).Debug("Health check performed")
+
 	c.JSON(http.StatusOK, response)
 }
 
 // ReadinessHandler checks if the service is ready to accept traffic
 func (h *HealthHandler) ReadinessHandler(c *gin.Context) {
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
 	// Check database connectivity if database is available
 	if h.db == nil {
 		// No database connection, but service is still ready for basic operations
@@ -100,6 +115,10 @@ func (h *HealthHandler) ReadinessHandler(c *gin.Context) {
 			Service:   h.config.App.Name,
 			Version:   h.config.App.Version,
 		}
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"service":    h.config.App.Name,
+		}).Debug("Readiness check performed - no database")
 		c.JSON(http.StatusOK, response)
 		return
 	}
@@ -113,6 +132,10 @@ func (h *HealthHandler) ReadinessHandler(c *gin.Context) {
 			Service:   h.config.App.Name,
 			Version:   h.config.App.Version,
 		}
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"service":    h.config.App.Name,
+		}).Debug("Readiness check performed - database healthy")
 		c.JSON(http.StatusOK, response)
 	} else {
 		response := HealthResponse{
@@ -121,12 +144,27 @@ func (h *HealthHandler) ReadinessHandler(c *gin.Context) {
 			Service:   h.config.App.Name,
 			Version:   h.config.App.Version,
 		}
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"service":    h.config.App.Name,
+			"db_status":  dbHealth.Status,
+		}).Warn("Readiness check failed - database unhealthy")
 		c.JSON(http.StatusServiceUnavailable, response)
 	}
 }
 
 // PingHandler provides simple ping/pong response
 func (h *HealthHandler) PingHandler(c *gin.Context) {
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"service":    h.config.App.Name,
+	}).Debug("Ping request handled")
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":    "pong",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
@@ -137,6 +175,11 @@ func (h *HealthHandler) PingHandler(c *gin.Context) {
 
 // StatusHandler provides comprehensive service status
 func (h *HealthHandler) StatusHandler(c *gin.Context) {
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
 	// Check database health if database is available
 	var dbHealth DatabaseHealth
 	var totalChecks int
@@ -149,6 +192,10 @@ func (h *HealthHandler) StatusHandler(c *gin.Context) {
 			Error:  "Database not configured",
 		}
 		totalChecks = 0 // No database check
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"service":    h.config.App.Name,
+		}).Debug("Status check - no database configured")
 	} else {
 		dbHealth = h.checkDatabaseHealth()
 		totalChecks = 1 // Database check
@@ -156,6 +203,11 @@ func (h *HealthHandler) StatusHandler(c *gin.Context) {
 		if dbHealth.Status != "healthy" {
 			failedChecks++
 		}
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"service":    h.config.App.Name,
+			"db_status":  dbHealth.Status,
+		}).Debug("Status check - database health assessed")
 	}
 
 	// Calculate overall status
@@ -187,6 +239,13 @@ func (h *HealthHandler) StatusHandler(c *gin.Context) {
 		statusCode = http.StatusServiceUnavailable
 	}
 
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"service":    h.config.App.Name,
+		"status":     overallStatus,
+		"checks":     totalChecks,
+	}).Info("Status check completed")
+
 	c.JSON(statusCode, response)
 }
 
@@ -211,6 +270,8 @@ func (h *HealthHandler) checkDatabaseHealth() DatabaseHealth {
 
 	// Get connection statistics
 	stats := h.db.Stat()
+
+	h.logger.WithField("response_time", responseTime.Round(time.Millisecond).String()).Debug("Database health check passed")
 
 	return DatabaseHealth{
 		Status:       "healthy",

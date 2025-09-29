@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -13,22 +14,32 @@ import (
 )
 
 type EntityHandler struct {
-	service     Service
-	logger      *logrus.Logger
-	auditLogger *logging.AuditLogger
+	service        Service
+	logger         *logrus.Logger
+	standardLogger *logging.StandardLogger
+	auditLogger    *logging.AuditLogger
 }
 
-func NewEntityHandler(service Service, logger *logrus.Logger) *EntityHandler {
+func NewEntityHandler(service Service, logger *logrus.Logger, standardLogger *logging.StandardLogger) *EntityHandler {
 	return &EntityHandler{
-		service:     service,
-		logger:      logger,
-		auditLogger: logging.NewAuditLogger(logger, "SERVICE_NAME"),
+		service:        service,
+		logger:         logger,
+		standardLogger: standardLogger,
+		auditLogger:    logging.NewAuditLogger(logger, "SERVICE_NAME"),
 	}
 }
 
 // handleServiceError handles different types of service errors and returns appropriate HTTP responses
 func (h *EntityHandler) handleServiceError(c *gin.Context, err error, operation string) {
-	h.logger.WithError(err).Error(operation)
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"error":      err.Error(),
+	}).Error(operation)
 
 	// Handle specific error types
 	switch e := err.(type) {
@@ -79,9 +90,17 @@ func (h *EntityHandler) handleServiceError(c *gin.Context, err error, operation 
 }
 
 func (h *EntityHandler) CreateEntity(c *gin.Context) {
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
 	var req services.CreateEntityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.WithError(err).Error("Invalid request body")
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"error":      err.Error(),
+		}).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
 			"details": err.Error(),
@@ -96,7 +115,13 @@ func (h *EntityHandler) CreateEntity(c *gin.Context) {
 		return
 	}
 
-	h.logger.WithField("id", entity.ID).Info("Entity created")
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"id":         entity.ID,
+	}).Info("Entity created")
+
+	h.standardLogger.EntityOperation(requestID, "", entity.ID, "create", true, nil)
+
 	c.JSON(http.StatusCreated, gin.H{
 		"data":    entity,
 		"message": "Entity created successfully",
@@ -104,10 +129,18 @@ func (h *EntityHandler) CreateEntity(c *gin.Context) {
 }
 
 func (h *EntityHandler) GetEntity(c *gin.Context) {
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		h.logger.WithError(err).Error("Invalid entity ID format")
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"error":      err.Error(),
+		}).Error("Invalid entity ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid entity ID format",
 			"details": "Entity ID must be a valid integer",
@@ -123,16 +156,31 @@ func (h *EntityHandler) GetEntity(c *gin.Context) {
 		return
 	}
 
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"id":         entity.ID,
+	}).Info("Entity retrieved")
+
+	h.standardLogger.EntityOperation(requestID, "", entity.ID, "get", true, nil)
+
 	c.JSON(http.StatusOK, gin.H{
 		"data": entity,
 	})
 }
 
 func (h *EntityHandler) ReplaceEntity(c *gin.Context) {
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		h.logger.WithError(err).Error("Invalid entity ID format")
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"error":      err.Error(),
+		}).Error("Invalid entity ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid entity ID format",
 			"details": "Entity ID must be a valid integer",
@@ -144,7 +192,10 @@ func (h *EntityHandler) ReplaceEntity(c *gin.Context) {
 
 	var req services.ReplaceEntityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.WithError(err).Error("Invalid request body")
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"error":      err.Error(),
+		}).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
 			"details": err.Error(),
@@ -159,7 +210,13 @@ func (h *EntityHandler) ReplaceEntity(c *gin.Context) {
 		return
 	}
 
-	h.logger.WithField("id", entity.ID).Info("Entity replaced successfully")
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"id":         entity.ID,
+	}).Info("Entity replaced successfully")
+
+	h.standardLogger.EntityOperation(requestID, "", entity.ID, "replace", true, nil)
+
 	c.JSON(http.StatusOK, gin.H{
 		"data":    entity,
 		"message": "Entity replaced successfully",
@@ -167,10 +224,18 @@ func (h *EntityHandler) ReplaceEntity(c *gin.Context) {
 }
 
 func (h *EntityHandler) UpdateEntity(c *gin.Context) {
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		h.logger.WithError(err).Error("Invalid entity ID format")
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"error":      err.Error(),
+		}).Error("Invalid entity ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid entity ID format",
 			"details": "Entity ID must be a valid integer",
@@ -182,7 +247,10 @@ func (h *EntityHandler) UpdateEntity(c *gin.Context) {
 
 	var req services.UpdateEntityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.WithError(err).Error("Invalid request body")
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"error":      err.Error(),
+		}).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
 			"details": err.Error(),
@@ -197,7 +265,13 @@ func (h *EntityHandler) UpdateEntity(c *gin.Context) {
 		return
 	}
 
-	h.logger.WithField("id", entity.ID).Info("Entity updated successfully")
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"id":         entity.ID,
+	}).Info("Entity updated successfully")
+
+	h.standardLogger.EntityOperation(requestID, "", entity.ID, "update", true, nil)
+
 	c.JSON(http.StatusOK, gin.H{
 		"data":    entity,
 		"message": "Entity updated successfully",
@@ -205,9 +279,17 @@ func (h *EntityHandler) UpdateEntity(c *gin.Context) {
 }
 
 func (h *EntityHandler) DeleteEntity(c *gin.Context) {
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		h.logger.WithError(err).Error("Invalid entity ID")
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"error":      err.Error(),
+		}).Error("Invalid entity ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid entity ID"})
 		return
 	}
@@ -218,11 +300,22 @@ func (h *EntityHandler) DeleteEntity(c *gin.Context) {
 		return
 	}
 
-	h.logger.WithField("id", id).Info("Entity deleted")
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"id":         id,
+	}).Info("Entity deleted")
+
+	h.standardLogger.EntityOperation(requestID, "", fmt.Sprintf("%d", id), "delete", true, nil)
+
 	c.JSON(http.StatusNoContent, nil)
 }
 
 func (h *EntityHandler) ListEntities(c *gin.Context) {
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
 	// Parse query parameters
 	limitStr := c.DefaultQuery("limit", "10")
 	offsetStr := c.DefaultQuery("offset", "0")
@@ -239,10 +332,20 @@ func (h *EntityHandler) ListEntities(c *gin.Context) {
 
 	entities, err := h.service.List(c.Request.Context(), limit, offset)
 	if err != nil {
-		h.logger.WithError(err).Error("Failed to list entities")
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"error":      err.Error(),
+		}).Error("Failed to list entities")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list entities"})
 		return
 	}
+
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"count":      len(entities),
+		"limit":      limit,
+		"offset":     offset,
+	}).Info("Entities listed")
 
 	c.JSON(http.StatusOK, gin.H{
 		"entities": entities,

@@ -84,7 +84,7 @@ func main() {
 		entityService := services.NewEntityService(entityRepo, logger.Logger)
 
 		// Initialize handlers
-		entityHandler = handlers.NewEntityHandler(entityService, logger.Logger)
+		entityHandler = handlers.NewEntityHandler(entityService, logger.Logger, standardLogger)
 		healthHandler = handlers.NewHealthHandler(db.GetPool(), logger.Logger, cfg)
 	} else {
 		// Initialize handlers without database
@@ -94,6 +94,9 @@ func main() {
 
 	// Initialize service request logger
 	serviceLogger := logging.NewServiceRequestLogger(logger.Logger, cfg.App.Name)
+
+	// Initialize standard logger for structured operation logging
+	standardLogger := logging.NewStandardLogger(logger.Logger, cfg.App.Name)
 
 	// Initialize alert manager
 	alertManager := alerting.NewAlertManager(logger.Logger, cfg.App.Name, &cfg.Alerting, serviceLogger.GetMetricsCollector())
@@ -119,6 +122,7 @@ func main() {
 	// Middleware
 	router.Use(gin.Recovery())
 	router.Use(corsMiddleware())
+	router.Use(requestIDMiddleware()) // Extract request_id from headers and store in context
 	router.Use(serviceLogger.RequestResponseLogger())
 	if cfg.Tracing.Enabled {
 		router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
@@ -194,6 +198,18 @@ func main() {
 	}
 
 	logger.Info("SERVICE_NAME service exited")
+}
+
+// requestIDMiddleware extracts X-Request-ID from headers and stores in context for propagation
+func requestIDMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		requestID := c.GetHeader("X-Request-ID")
+		if requestID != "" {
+			ctx := context.WithValue(c.Request.Context(), "request_id", requestID)
+			c.Request = c.Request.WithContext(ctx)
+		}
+		c.Next()
+	}
 }
 
 func corsMiddleware() gin.HandlerFunc {
