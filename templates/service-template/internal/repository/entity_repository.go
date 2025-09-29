@@ -28,7 +28,7 @@ func NewEntityRepository(db *pgxpool.Pool, logger *logrus.Logger) *EntityReposit
 
 func (r *EntityRepository) Create(ctx context.Context, entity *models.Entity) (*models.Entity, error) {
 	query := `
-		INSERT INTO entities (name, description, created_at, updated_at)
+		INSERT INTO SCHEMA_NAME.entities (name, description, created_at, updated_at)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id`
 
@@ -55,7 +55,7 @@ func (r *EntityRepository) Create(ctx context.Context, entity *models.Entity) (*
 func (r *EntityRepository) GetByID(ctx context.Context, id int64) (*models.Entity, error) {
 	query := `
 		SELECT id, name, description, created_at, updated_at
-		FROM entities
+		FROM SCHEMA_NAME.entities
 		WHERE id = $1`
 
 	var entity models.Entity
@@ -85,7 +85,7 @@ func (r *EntityRepository) Replace(ctx context.Context, id int64, entity *models
 	}
 
 	query := `
-		UPDATE entities
+		UPDATE SCHEMA_NAME.entities
 		SET name = $1, description = $2, updated_at = $3
 		WHERE id = $4
 		RETURNING id, name, description, created_at, updated_at`
@@ -121,7 +121,7 @@ func (r *EntityRepository) Replace(ctx context.Context, id int64, entity *models
 
 func (r *EntityRepository) Update(ctx context.Context, id int64, updates map[string]interface{}) (*models.Entity, error) {
 	// Build dynamic update query
-	query := "UPDATE entities SET updated_at = $1"
+	query := "UPDATE SCHEMA_NAME.entities SET updated_at = $1"
 	args := []interface{}{time.Now()}
 	argCount := 1
 
@@ -161,7 +161,7 @@ func (r *EntityRepository) Update(ctx context.Context, id int64, updates map[str
 }
 
 func (r *EntityRepository) Delete(ctx context.Context, id int64) error {
-	query := "DELETE FROM entities WHERE id = $1"
+	query := "DELETE FROM SCHEMA_NAME.entities WHERE id = $1"
 
 	result, err := r.db.Exec(ctx, query, id)
 	if err != nil {
@@ -182,7 +182,7 @@ func (r *EntityRepository) Delete(ctx context.Context, id int64) error {
 func (r *EntityRepository) List(ctx context.Context, limit, offset int) ([]*models.Entity, error) {
 	query := `
 		SELECT id, name, description, created_at, updated_at
-		FROM entities
+		FROM SCHEMA_NAME.entities
 		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2`
 
