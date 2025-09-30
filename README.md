@@ -86,47 +86,46 @@ service-boilerplate/
 
 ### 🚀 Docker Development
 
-1. **Quick start:**
+1. **Quick start (Development with hot reload):**
 
    ```bash
-   # create volumes dirs and start dev environment with hot reload
-   # logs will be shown in current terminal window
+   # 🛠️  Start DEVELOPMENT environment with hot reload and debug logging
    make dev
-   
-   # then swich to other terminal window - since `make dev` 
-   # will continue to stream logs 
-   # and run database migrations:
+
+   # In another terminal, run database migrations:
    make db-migrate
-   
-   # create test users and check auth flow
+
+   # Create test users and check auth flow
    ./scripts/test-auth-flow.sh
 
-    # watch logs and then look
-    # at the database service_db.auth_service schema:
-    # tables user_sessions and auth_tokens,
-    # in service_db.user_service schema: users table
-
-    # View distributed traces in Jaeger UI:
-    # http://localhost:16686
-    ```
-
-2. **Development with hot reload (starts all services):**
-
-   ```bash
-   make dev
+   # View distributed traces in Jaeger UI:
+   # http://localhost:16686
    ```
 
-3. **View service logs:**
+2. **Production deployment:**
 
    ```bash
+   # 🚀 Start PRODUCTION environment with pre-built optimized images
+   make prod
+
+   # Run database migrations
+   make db-migrate
+   ```
+
+3. **Environment commands:**
+
+   ```bash
+   # Check current environment status
+   make status
+
+   # View service logs
    make logs
-   ```
 
-4. **Stop services:**
-
-   ```bash
+   # Stop all services
    make down
    ```
+
+   **⚠️  Important:** Use `make dev` for development/debugging and `make prod` for production. The legacy `make up` command now shows a deprecation warning.
 
 5. **Interactive development menu:**
 

@@ -64,8 +64,18 @@ SERVICE_VOLUMES := $(shell grep "_VOLUME=" .env | grep -v "POSTGRES_VOLUME\|MIGR
 help: ## Show this help message
 	@echo 'Usage: make [target]'
 	@echo ''
-	@echo 'Targets:'
+	@echo '🚀 QUICK START:'
+	@echo '  make dev     - 🛠️  Start DEVELOPMENT environment (hot reload, debug logs)'
+	@echo '  make prod    - 🚀 Start PRODUCTION environment (pre-built images)'
+	@echo '  make up      - ⚠️  DEPRECATED: Use prod/dev instead'
+	@echo ''
+	@echo '📋 Available Targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ''
+	@echo '💡 DEVELOPMENT vs PRODUCTION:'
+	@echo '  • make dev  : Hot reload, volume mounts, debug logging, development tools'
+	@echo '  • make prod : Pre-built optimized images, production settings'
+	@echo '  • make up   : Legacy alias (shows warning, use prod instead)'
 	@echo ''
 	@echo 'CLI Commands:'
 	@echo '  build-cli          - Build CLI utility'
@@ -165,14 +175,20 @@ build-cli: ## Build CLI utility
 build-all: build build-cli ## Build all services and CLI
 	@echo "✅ All components built successfully"
 
-.PHONY: up
-up: ## Start all services with Docker (PRIMARY)
-	@echo "Starting services with Docker..."
+.PHONY: prod
+prod: ## 🚀 Start services in PRODUCTION mode (pre-built images, no hot reload)
+	@echo "🏭 Starting PRODUCTION environment..."
+	@echo "⚠️  WARNING: This uses pre-built production images without hot reload!"
+	@echo "   For development/debugging with hot reload, use: make dev"
+	@echo ""
 	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) up -d
-	@echo "Services started! Use 'make logs' to view logs."
+	@echo "✅ Production services started! Use 'make logs' to view logs."
+
+.PHONY: up
+up: prod ## ⚠️  DEPRECATED: Use 'make prod' for production or 'make dev' for development
 
 .PHONY: start
-start: build-prod up ## Build and start all services (convenience target)
+start: build-prod prod ## ⚠️  DEPRECATED: Use 'make prod' for production or 'make dev' for development
 	@echo "✅ Services built and started successfully"
 
 .PHONY: down
@@ -192,6 +208,19 @@ build-dev: ## Build development images with Air
 	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) build
 
 
+
+.PHONY: status
+status: ## Show current environment status and running services
+	@echo "📊 Environment Status:"
+	@echo "  APP_ENV: $(APP_ENV)"
+	@echo "  Services running:"
+	@docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep service-boilerplate || echo "    No service-boilerplate containers running"
+	@echo ""
+	@echo "💡 Quick Commands:"
+	@echo "  make dev    - Start development environment (hot reload)"
+	@echo "  make prod   - Start production environment (pre-built)"
+	@echo "  make down   - Stop all services"
+	@echo "  make logs   - View service logs"
 
 .PHONY: logs
 logs: ## Show service logs
