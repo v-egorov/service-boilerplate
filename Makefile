@@ -54,11 +54,17 @@ MIGRATION_IMAGE := migrate/migrate:latest
 # Docker cleanup configuration
 DOCKER_CLEANUP_MODE ?= smart
 
-# Dynamic service variable loading from .env file
+# Environment-specific configuration
+ENV_FILE := .env
+ifneq ("$(wildcard .env.$(APP_ENV))","")
+    ENV_FILE := .env.$(APP_ENV)
+endif
+
+# Dynamic service variable loading from environment-specific .env file
 # Extract all service containers, images, and volumes from .env
-SERVICE_CONTAINERS := $(shell grep "_CONTAINER=" .env | grep -v "POSTGRES_CONTAINER" | cut -d'=' -f2)
-SERVICE_IMAGES := $(shell grep "_IMAGE=" .env | grep -v "POSTGRES_IMAGE\|MIGRATION_IMAGE" | cut -d'=' -f2)
-SERVICE_VOLUMES := $(shell grep "_VOLUME=" .env | grep -v "POSTGRES_VOLUME\|MIGRATION_TMP_VOLUME" | cut -d'=' -f2)
+SERVICE_CONTAINERS := $(shell grep "_CONTAINER=" $(ENV_FILE) | grep -v "POSTGRES_CONTAINER" | cut -d'=' -f2)
+SERVICE_IMAGES := $(shell grep "_IMAGE=" $(ENV_FILE) | grep -v "POSTGRES_IMAGE\|MIGRATION_IMAGE" | cut -d'=' -f2)
+SERVICE_VOLUMES := $(shell grep "_VOLUME=" $(ENV_FILE) | grep -v "POSTGRES_VOLUME\|MIGRATION_TMP_VOLUME" | cut -d'=' -f2)
 
 .PHONY: help
 help: ## Show this help message
@@ -175,37 +181,61 @@ build-cli: ## Build CLI utility
 build-all: build build-cli ## Build all services and CLI
 	@echo "✅ All components built successfully"
 
+.PHONY: check-prod-safety
+check-prod-safety:
+	@if [ -f ".git" ] && [ -d "api-gateway" ] && [ "$(APP_ENV)" != "production" ] && [ "$(FORCE_PROD)" != "true" ]; then \
+		echo "⚠️  WARNING: You appear to be in a DEVELOPMENT environment."; \
+		echo "   Production mode uses pre-built images without hot reload."; \
+		echo "   For development with hot reload, use: make dev"; \
+		echo ""; \
+		read -p "Continue with production mode? (y/N): " confirm; \
+		if [ "$$confirm" != "y" ] && [ "$$confirm" != "Y" ]; then \
+			echo "❌ Production start cancelled. Use 'make dev' for development."; \
+			exit 1; \
+		fi; \
+	fi
+
 .PHONY: prod
-prod: ## 🚀 Start services in PRODUCTION mode (pre-built images, no hot reload)
+prod: check-prod-safety ## 🚀 Start services in PRODUCTION mode (pre-built images, no hot reload)
 	@echo "🏭 Starting PRODUCTION environment..."
 	@echo "⚠️  WARNING: This uses pre-built production images without hot reload!"
 	@echo "   For development/debugging with hot reload, use: make dev"
 	@echo ""
-	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) up -d
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) up -d
 	@echo "✅ Production services started! Use 'make logs' to view logs."
 
 .PHONY: up
 up: prod ## ⚠️  DEPRECATED: Use 'make prod' for production or 'make dev' for development
 
+.PHONY: smart-start
+smart-start: ## 🧠 Smart start - automatically detects environment and uses appropriate mode
+	@if [ "$(APP_ENV)" = "production" ] || [ "$(FORCE_PROD)" = "true" ]; then \
+		echo "🏭 Detected PRODUCTION environment - starting with optimized images..."; \
+		$(MAKE) prod; \
+	else \
+		echo "🛠️  Detected DEVELOPMENT environment - starting with hot reload..."; \
+		$(MAKE) dev; \
+	fi
+
 .PHONY: start
-start: build-prod prod ## ⚠️  DEPRECATED: Use 'make prod' for production or 'make dev' for development
+start: build-prod prod ## ⚠️  DEPRECATED: Use 'make smart-start' or specify 'make prod'/'make dev'
 	@echo "✅ Services built and started successfully"
 
 .PHONY: down
 down: ## Stop all services
 	@echo "Stopping services..."
-	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) down
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) down
 	@echo "Services stopped."
 
 .PHONY: dev
 dev: create-volumes-dirs  ## Start services in development mode with hot reload
 	@echo "Starting development environment with hot reload..."
-	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) up
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) up
 
 .PHONY: build-dev
 build-dev: ## Build development images with Air
 	@echo "Building development images..."
-	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) build
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) build
 
 
 
@@ -224,7 +254,7 @@ status: ## Show current environment status and running services
 
 .PHONY: logs
 logs: ## Show service logs
-	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) logs -f
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) logs -f
 
 
 
@@ -337,18 +367,18 @@ DATABASE_URL := postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST
 .PHONY: db-connect
 db-connect: ## Connect to database shell
 	@echo "🔌 Connecting to database..."
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME)
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME)
 
 .PHONY: db-status
 db-status: ## Show database status and connections
 	@echo "📊 Database Status:"
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT version();" 2>/dev/null || echo "❌ Database not accessible"
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT count(*) as active_connections FROM pg_stat_activity;" 2>/dev/null || echo "❌ Cannot query connections"
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT version();" 2>/dev/null || echo "❌ Database not accessible"
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT count(*) as active_connections FROM pg_stat_activity;" 2>/dev/null || echo "❌ Cannot query connections"
 
 .PHONY: db-health
 db-health: ## Check database health and connectivity
 	@echo "🏥 Database Health Check:"
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres pg_isready -U $(DATABASE_USER) -d $(DATABASE_NAME) -h $(DATABASE_HOST) -p $(DATABASE_PORT)
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres pg_isready -U $(DATABASE_USER) -d $(DATABASE_NAME) -h $(DATABASE_HOST) -p $(DATABASE_PORT)
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database is healthy and accepting connections"; \
 	else \
@@ -488,7 +518,7 @@ db-migration-list: ## List available migration files
 .PHONY: db-seed
 db-seed: ## Seed database with test data
 	@echo "🌱 Seeding database with test data..."
-	@cat scripts/seed.sql | docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null
+	@cat scripts/seed.sql | docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database seeded with 5 test users"; \
 	else \
@@ -523,7 +553,7 @@ db-migration-deps: ## Show migration dependency graph
 db-backup: ## Create timestamped database backup
 	@echo "💾 Creating database backup..."
 	@BACKUP_FILE="backup_$(shell date +%Y%m%d_%H%M%S).sql"; \
-	docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres pg_dump -U $(DATABASE_USER) -d $(DATABASE_NAME) --no-owner --no-privileges > "$$BACKUP_FILE" 2>/dev/null; \
+	docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres pg_dump -U $(DATABASE_USER) -d $(DATABASE_NAME) --no-owner --no-privileges > "$$BACKUP_FILE" 2>/dev/null; \
 	if [ $$? -eq 0 ]; then \
 		echo "✅ Database backup created: $$BACKUP_FILE"; \
 		echo "   Size: $$(du -h "$$BACKUP_FILE" | cut -f1)"; \
@@ -534,7 +564,7 @@ db-backup: ## Create timestamped database backup
 .PHONY: db-dump
 db-dump: ## Create database dump
 	@echo "💾 Creating database dump..."
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres pg_dump -U $(DATABASE_USER) -d $(DATABASE_NAME) --no-owner --no-privileges > db_dump_$(shell date +%Y%m%d_%H%M%S).sql 2>/dev/null
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres pg_dump -U $(DATABASE_USER) -d $(DATABASE_NAME) --no-owner --no-privileges > db_dump_$(shell date +%Y%m%d_%H%M%S).sql 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database dump created: db_dump_$(shell date +%Y%m%d_%H%M%S).sql"; \
 	else \
@@ -553,7 +583,7 @@ db-restore: ## Restore database from dump (usage: make db-restore FILE=dump.sql)
 		echo "❌ Error: File $(FILE) not found"; \
 		exit 1; \
 	fi
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) < $(FILE) 2>/dev/null
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) < $(FILE) 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database restored from $(FILE)"; \
 	else \
@@ -563,7 +593,7 @@ db-restore: ## Restore database from dump (usage: make db-restore FILE=dump.sql)
 .PHONY: db-clean
 db-clean: ## Clean all data from tables (keep schema)
 	@echo "🧹 Cleaning database data..."
-	@cat scripts/clean.sql | docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null
+	@cat scripts/clean.sql | docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database data cleaned (schema preserved)"; \
 	else \
@@ -574,15 +604,15 @@ db-clean: ## Clean all data from tables (keep schema)
 .PHONY: db-schema
 db-schema: ## Show database schema and tables
 	@echo "📋 Database Schema:"
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\dt" 2>/dev/null || echo "❌ Cannot access database schema"
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\dt" 2>/dev/null || echo "❌ Cannot access database schema"
 	@echo ""
 	@echo "📊 Indexes:"
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\di" 2>/dev/null || echo "❌ Cannot access indexes"
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\di" 2>/dev/null || echo "❌ Cannot access indexes"
 
 .PHONY: db-tables
 db-tables: ## List all tables and their structure
 	@echo "📊 Table Structures:"
-	@cat scripts/list_tables.sql | docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null || echo "❌ Cannot list tables"
+	@cat scripts/list_tables.sql | docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null || echo "❌ Cannot list tables"
 	@echo ""
 	@if docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\d user_service.users" 2>/dev/null; then \
 		echo "✅ Users table structure displayed above"; \
@@ -593,7 +623,7 @@ db-tables: ## List all tables and their structure
 .PHONY: db-counts
 db-counts: ## Show row counts and sizes for all tables
 	@echo "🔢 Table Statistics:"
-	@cat scripts/table_stats.sql | docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null || echo "❌ Cannot query table statistics"
+	@cat scripts/table_stats.sql | docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null || echo "❌ Cannot query table statistics"
 
 ## Development Workflow Targets
 .PHONY: db-setup
@@ -729,7 +759,7 @@ clean-docker-smart: ## Smart Docker cleanup with safety checks
 .PHONY: clean-docker-conservative
 clean-docker-conservative: ## Conservative Docker cleanup (keeps base images)
 	@echo "🐳 Conservative cleaning of project Docker artifacts..."
-	@docker-compose --env-file .env down --volumes --remove-orphans 2>/dev/null || true
+	@docker-compose --env-file $(ENV_FILE) down --volumes --remove-orphans 2>/dev/null || true
 	@echo "🗂️  Removing service containers..."
 	@for container in $(SERVICE_CONTAINERS) $(POSTGRES_CONTAINER); do \
 		if [ -n "$$container" ]; then \
@@ -801,7 +831,7 @@ clean-docker: ## Clean project Docker artifacts (mode: $(DOCKER_CLEANUP_MODE))
 .PHONY: clean-volumes
 clean-volumes: ## Clean Docker volumes and persistent data
 	@echo "💾 Cleaning Docker volumes..."
-	@docker-compose --env-file .env --file $(DOCKER_COMPOSE_FILE) --file $(DOCKER_COMPOSE_OVERRIDE_FILE) down --volumes
+	@docker-compose --env-file $(ENV_FILE) --file $(DOCKER_COMPOSE_FILE) --file $(DOCKER_COMPOSE_OVERRIDE_FILE) down --volumes
 	@echo "🔧 Cleaning volume data using Docker containers..."
 	@echo "📁 Removing postgres volume..."
 	@docker run --rm -v $(PWD)/docker/volumes:/data alpine sh -c "rm -rf /data/postgres_data";
