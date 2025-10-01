@@ -73,7 +73,7 @@ help: ## Show this help message
 	@echo '🚀 QUICK START:'
 	@echo '  make dev     - 🛠️  Start DEVELOPMENT environment (hot reload, debug logs)'
 	@echo '  make prod    - 🚀 Start PRODUCTION environment (pre-built images)'
-	@echo '  make up      - ⚠️  DEPRECATED: Use prod/dev instead'
+
 	@echo ''
 	@echo '📋 Available Targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -81,7 +81,7 @@ help: ## Show this help message
 	@echo '💡 DEVELOPMENT vs PRODUCTION:'
 	@echo '  • make dev  : Hot reload, volume mounts, debug logging, development tools'
 	@echo '  • make prod : Pre-built optimized images, production settings'
-	@echo '  • make up   : Legacy alias (shows warning, use prod instead)'
+
 	@echo ''
 	@echo 'CLI Commands:'
 	@echo '  build-cli          - Build CLI utility'
@@ -204,8 +204,7 @@ prod: check-prod-safety ## 🚀 Start services in PRODUCTION mode (pre-built ima
 	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) up -d
 	@echo "✅ Production services started! Use 'make logs' to view logs."
 
-.PHONY: up
-up: prod ## ⚠️  DEPRECATED: Use 'make prod' for production or 'make dev' for development
+
 
 .PHONY: smart-start
 smart-start: ## 🧠 Smart start - automatically detects environment and uses appropriate mode

@@ -125,7 +125,7 @@ service-boilerplate/
    make down
    ```
 
-   **⚠️  Important:** Use `make dev` for development/debugging and `make prod` for production. The legacy `make up` command now shows a deprecation warning.
+    **⚠️  Important:** Use `make dev` for development/debugging and `make prod` for production.
 
 5. **Interactive development menu:**
 
@@ -175,11 +175,8 @@ For production deployment with optimized Docker images:
 
     ```bash
     # Build optimized production images and start services
-    make start
-
-    # Or build and start separately:
     make build-prod  # Build production images
-    make up          # Start production containers
+    make prod        # Start production containers
     ```
 
 2. **Switch from development to production:**
@@ -189,7 +186,8 @@ For production deployment with optimized Docker images:
     make down
 
     # Build and start production
-    make start
+    make build-prod
+    make prod
     ```
 
 3. **Switch from production to development:**
@@ -208,7 +206,7 @@ For production deployment with optimized Docker images:
 | Mode | Build Target | Start Target | Hot Reload | Image Size |
 |------|-------------|--------------|------------|------------|
 | **Development** | `make build-dev` | `make dev` | ✅ Air | ~1.2GB |
-| **Production** | `make build-prod` | `make up` | ❌ None | ~15MB |
+| **Production** | `make build-prod` | `make prod` | ❌ None | ~15MB |
 
 **Note:** Always run `make down` before switching between development and production modes to avoid image conflicts.
 
@@ -273,17 +271,27 @@ This will:
 
 ```bash
 # Primary Docker Commands
-make up                # Start all services with Docker
+make dev               # 🛠️  Start DEVELOPMENT environment (hot reload, debug logs)
+make prod              # 🚀 Start PRODUCTION environment (pre-built images)
+make smart-start       # 🧠 Smart start - automatically detects environment
 make down              # Stop all services
 make logs              # View service logs
-make dev               # Start development environment with hot reload
-make dev-build         # Build development images with Air
+make status            # Show current environment status
+
+# Build Commands
+make build-prod        # Build production Docker images
+make build-dev         # Build development images with Air
+make build             # Build all services
+
+# Database Commands
+make db-migrate        # Run database migrations
+make db-setup          # Complete database setup
+make db-health         # Check database connectivity
 
 # Testing & Maintenance
 make test              # Run all tests
 make clean             # Clean build artifacts
-make docker-build      # Build Docker images
-make migrate-up        # Run database migrations
+make health            # Comprehensive health check
 make create-service    # Create new service
 ```
 
@@ -342,8 +350,8 @@ make test-user-service       # Run specific service tests
 ### Docker Production
 
 ```bash
-make docker-build
-make docker-run
+make build-prod    # Build optimized production images
+make prod          # Start production environment
 ```
 
 ### Environment Variables
