@@ -445,6 +445,56 @@ if [ "$CREATE_DB_SCHEMA" = true ]; then
     fi
 fi
 
+# Update Promtail configuration
+echo "Updating Promtail configuration..."
+if [ -f "docker/promtail-config.yml" ]; then
+    # Create temporary file for new job configuration
+    JOB_CONFIG_FILE=$(mktemp)
+
+    # Create Promtail job for the new service
+    cat >"$JOB_CONFIG_FILE" <<EOF
+
+  # $SERVICE_NAME logs
+  - job_name: $SERVICE_NAME
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: $SERVICE_NAME
+          service: $SERVICE_NAME
+          __path__: /var/log/$SERVICE_NAME/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            timestamp: timestamp
+            service: service
+            request_id: request_id
+            method: method
+            path: path
+            status: status
+            duration_ms: duration_ms
+      - labels:
+          level:
+          service:
+          request_id:
+          method:
+          path:
+          status:
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+EOF
+
+    # Append the job configuration to the end of scrape_configs
+    cat "$JOB_CONFIG_FILE" >> docker/promtail-config.yml
+
+    # Clean up temporary file
+    rm -f "$JOB_CONFIG_FILE"
+
+    echo "Added $SERVICE_NAME to Promtail configuration"
+fi
+
 # Update documentation
 if [ "$UPDATE_DOCS" = true ]; then
     echo "Updating documentation..."
