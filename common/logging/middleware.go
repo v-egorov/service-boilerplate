@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"github.com/v-egorov/service-boilerplate/common/metrics"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // ServiceRequestLogger provides comprehensive request/response logging for services
@@ -53,6 +54,11 @@ func (srl *ServiceRequestLogger) RequestResponseLogger() gin.HandlerFunc {
 			requestID = c.GetHeader("X-Request-ID")
 		}
 
+		// Exctract trace information from context
+		span := trace.SpanFromContext(c.Request.Context())
+		traceID := span.SpanContext().TraceID().String()
+		spanID := span.SpanContext().SpanID().String()
+
 		// Get user ID from context (if authenticated)
 		userID := ""
 		if uid, exists := c.Get("user_id"); exists {
@@ -76,6 +82,8 @@ func (srl *ServiceRequestLogger) RequestResponseLogger() gin.HandlerFunc {
 			"timestamp":     start.UTC().Format(time.RFC3339),
 			"service":       srl.serviceName,
 			"request_id":    requestID,
+			"trace_id":      traceID,
+			"span_id":       spanID,
 			"user_id":       userID,
 			"method":        c.Request.Method,
 			"path":          c.Request.URL.Path,

@@ -119,10 +119,10 @@ func main() {
 	// Middleware
 	router.Use(gin.Recovery())
 	router.Use(corsMiddleware())
-	router.Use(serviceLogger.RequestResponseLogger())
 	if cfg.Tracing.Enabled {
 		router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
 	}
+	router.Use(serviceLogger.RequestResponseLogger())
 
 	// Health check endpoints (public, no auth required)
 	router.GET("/health", healthHandler.LivenessHandler)

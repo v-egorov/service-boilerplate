@@ -66,7 +66,7 @@ func main() {
 	gatewayHandler := handlers.NewGatewayHandler(serviceRegistry, logger.Logger, cfg)
 
 	// Initialize request logger
-	requestLogger := middleware.NewRequestLogger(logger.Logger)
+	requestLogger := logging.NewServiceRequestLogger(logger.Logger, cfg.App.Name)
 
 	// Initialize alert manager
 	alertManager := alerting.NewAlertManager(logger.Logger, "api-gateway", &cfg.Alerting, requestLogger.GetMetricsCollector())
@@ -93,10 +93,10 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(middleware.CORSMiddleware())
 	router.Use(middleware.RequestIDMiddleware())
-	router.Use(requestLogger.DetailedRequestLogger())
 	if cfg.Tracing.Enabled {
 		router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
 	}
+	router.Use(requestLogger.RequestResponseLogger())
 
 	// Health check endpoints (public, no auth required)
 	router.GET("/health", gatewayHandler.LivenessHandler)
