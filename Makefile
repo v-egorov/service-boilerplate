@@ -1262,6 +1262,67 @@ help-health: ## Show health and monitoring commands
 	@echo "  • Color-coded results (✅ ❌ ⚠️ ℹ️)"
 	@echo "  • CI/CD pipeline friendly"
 
+.PHONY: logs-grafana
+logs-grafana: ## Open Grafana UI for centralized logging (http://localhost:3000)
+	@echo "🌐 Opening Grafana for centralized logging..."
+	@echo "   URL: http://localhost:3000"
+	@echo "   Username: admin"
+	@echo "   Password: admin"
+	@echo ""
+	@echo "📊 Pre-configured dashboards:"
+	@echo "   • Service Boilerplate - Logs"
+	@echo ""
+	@echo "🔍 Useful LogQL queries:"
+	@echo "   • All service logs: {job=~\".*\"}"
+	@echo "   • API Gateway logs: {service=\"api-gateway\"}"
+	@echo "   • Error logs only: {level=\"error\"}"
+	@echo "   • Request logs: {method=~\"GET|POST\"}"
+
+.PHONY: logs-loki
+logs-loki: ## View Loki service logs
+	@echo "📊 Loki Service Logs:"
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) logs -f loki
+
+.PHONY: logs-promtail
+logs-promtail: ## View Promtail log shipping logs
+	@echo "📤 Promtail Log Shipping Logs:"
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) logs -f promtail
+
+.PHONY: loki-status
+loki-status: ## Check Loki stack health and status
+	@echo "📊 Loki Stack Status:"
+	@echo ""
+	@echo "🐳 Container Status:"
+	@docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(loki|promtail|grafana)" || echo "   No Loki stack containers running"
+	@echo ""
+	@echo "🌐 Service Endpoints:"
+	@echo "   • Grafana UI: http://localhost:3000"
+	@echo "   • Loki API: http://localhost:3100"
+	@echo "   • Jaeger UI: http://localhost:16686"
+	@echo ""
+	@echo "💾 Data Volumes:"
+	@docker volume ls --format "table {{.Name}}" | grep -E "(loki|grafana)" || echo "   No Loki volumes found"
+
+.PHONY: help-loki
+help-loki: ## Show Loki logging stack commands
+	@echo "📊 Loki Logging Stack Commands:"
+	@echo "  logs-grafana       - View centralized logs in Grafana UI"
+	@echo "  logs-loki          - View Loki service logs"
+	@echo "  logs-promtail      - View Promtail log shipping logs"
+	@echo "  loki-status        - Check Loki stack health"
+	@echo ""
+	@echo "🌐 Service URLs:"
+	@echo "  • Grafana: http://localhost:3000 (admin/admin)"
+	@echo "  • Loki: http://localhost:3100"
+	@echo "  • Jaeger: http://localhost:16686"
+	@echo ""
+	@echo "📋 Log Queries (Grafana/Loki):"
+	@echo "  • All logs: {job=~\".*\"}"
+	@echo "  • API Gateway: {service=\"api-gateway\"}"
+	@echo "  • User Service: {service=\"user-service\"}"
+	@echo "  • Auth Service: {service=\"auth-service\"}"
+	@echo "  • Errors only: {level=\"error\"}"
+
 .PHONY: help-db
 help-db: ## Show database commands
 	@echo "🗄️  Database Commands:"

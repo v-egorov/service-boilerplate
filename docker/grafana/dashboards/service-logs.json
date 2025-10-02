@@ -1,0 +1,75 @@
+{
+  "id": null,
+  "title": "Service Boilerplate - Logs",
+  "tags": ["service-boilerplate", "logs", "loki"],
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Log Volume by Service",
+      "type": "barchart",
+      "targets": [
+        {
+          "expr": "count by (service) (rate({job=~\".*\"} [5m]))",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 2,
+      "title": "Error Logs",
+      "type": "logs",
+      "targets": [
+        {
+          "expr": "{level=\"error\"}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      }
+    },
+    {
+      "id": 3,
+      "title": "All Service Logs",
+      "type": "logs",
+      "targets": [
+        {
+          "expr": "{job=~\".*\"}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 16,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      }
+    }
+  ],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "refresh": "5s",
+  "schemaVersion": 27,
+  "version": 0,
+  "links": []
+}

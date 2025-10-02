@@ -172,6 +172,53 @@ services:
       - service-network
     restart: unless-stopped
 
+  loki:
+    image: grafana/loki:latest
+    container_name: service-boilerplate-loki
+    ports:
+      - "3100:3100" # Loki HTTP API
+    volumes:
+      - loki_data:/loki
+      - ./loki-config.yml:/etc/loki/config.yml:ro
+    command: -config.file=/etc/loki/config.yml
+    networks:
+      - service-network
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: service-boilerplate-promtail
+    volumes:
+      - promtail_positions:/tmp
+      - ./promtail-config.yml:/etc/promtail/config.yml:ro
+      - ./volumes/api-gateway/logs:/var/log/api-gateway:ro
+      - ./volumes/user-service/logs:/var/log/user-service:ro
+      - ./volumes/auth-service/logs:/var/log/auth-service:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - service-network
+    restart: unless-stopped
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: service-boilerplate-grafana
+    ports:
+      - "3001:3000" # Grafana UI
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - service-network
+    restart: unless-stopped
+    depends_on:
+      - loki
+
 volumes:
   postgres_data:
     name: ${POSTGRES_VOLUME}
@@ -238,6 +285,30 @@ volumes:
       device: ${PWD}/docker/volumes/auth-service/logs
 
   jaeger_data:
+
+  loki_data:
+    name: service-boilerplate-loki-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/loki/data
+
+  promtail_positions:
+    name: service-boilerplate-promtail-positions
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/promtail/positions
+
+  grafana_data:
+    name: service-boilerplate-grafana-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/grafana/data
 
 networks:
   service-network:
