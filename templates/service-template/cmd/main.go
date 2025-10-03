@@ -15,9 +15,6 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/database"
 	"github.com/v-egorov/service-boilerplate/common/logging"
 	"github.com/v-egorov/service-boilerplate/common/tracing"
-	"github.com/v-egorov/service-boilerplate/templates/service-template/internal/handlers"
-	"github.com/v-egorov/service-boilerplate/templates/service-template/internal/repository"
-	"github.com/v-egorov/service-boilerplate/templates/service-template/internal/services"
 	// ENTITY_IMPORT_HANDLERS
 	// ENTITY_IMPORT_REPOSITORY
 	// ENTITY_IMPORT_SERVICES
