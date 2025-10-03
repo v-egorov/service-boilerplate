@@ -278,6 +278,23 @@ BEGIN { found=0 }
 # Clean up temporary files
 rm -f "$SERVICE_DEF_FILE" "$VOLUME_DEF_FILE"
 
+# Update Promtail volume mounts in docker-compose.yml
+echo "Updating Promtail volume mounts..."
+PROMTAIL_VOLUME_LINE="      - ./volumes/${SERVICE_NAME}/logs:/var/log/${SERVICE_NAME}:ro"
+
+# Find the promtail service and add the volume mount after the last volume line
+awk '
+BEGIN { in_promtail=0; in_volumes=0 }
+/^  promtail:/ { in_promtail=1 }
+/^    volumes:/ && in_promtail { in_volumes=1 }
+/^    [a-zA-Z]/ && in_promtail && in_volumes && !/^    volumes:/ && !/^      - / {
+    # Insert the new volume mount before the next service property
+    print "'"$PROMTAIL_VOLUME_LINE"'"
+    in_volumes=0
+}
+{ print }
+' docker/docker-compose.yml >docker-compose.tmp && mv docker-compose.tmp docker/docker-compose.yml
+
 # Update docker-compose.override.yml
 echo "Updating docker-compose.override.yml..."
 cat >>docker/docker-compose.override.yml <<EOF
