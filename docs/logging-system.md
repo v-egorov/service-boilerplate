@@ -269,7 +269,70 @@ router.Use(serviceLogger.RequestResponseLogger())
 - `status`: HTTP status code
 - `timestamp`: ISO 8601 timestamp
 - `user_agent`: Client user agent
-- `user_id`: Authenticated user ID (if available)
+ - `user_id`: Authenticated user ID (if available)
+
+## Logger Types and Usage
+
+### Three-Tier Logging Architecture
+
+The service boilerplate implements a comprehensive three-tier logging approach designed for different stakeholders and use cases:
+
+#### 1. Application Logger (`h.logger`)
+**Purpose**: General application debugging and monitoring
+- **Target Audience**: Developers and DevOps teams
+- **Content**: Business logic events, error conditions, request correlation, debugging information
+- **Retention**: Short-term (development and troubleshooting)
+- **Example Usage**:
+  ```go
+  h.logger.WithFields(logrus.Fields{
+      "user_id": user.ID,
+      "request_id": requestID,
+  }).Info("User created successfully")
+  ```
+
+#### 2. Standard Logger (`h.standardLogger`)
+**Purpose**: Structured business operation logging with consistent schema
+- **Target Audience**: Business analysts, automated monitoring systems, metrics collection
+- **Content**: User actions, operation types, success/failure status, standardized business events
+- **Retention**: Medium-term (analytics and metrics)
+- **Example Usage**:
+  ```go
+  h.standardLogger.UserOperation(requestID, user.ID.String(), "create", true, nil)
+  ```
+
+#### 3. Audit Logger (`h.auditLogger`)
+**Purpose**: Security and compliance auditing for sensitive operations
+- **Target Audience**: Security teams, auditors, compliance officers
+- **Content**: Security events, authentication attempts, user creation/modification, sensitive operations with full trace correlation
+- **Retention**: Long-term (compliance and legal requirements)
+- **Example Usage**:
+  ```go
+  h.auditLogger.LogUserCreation(requestID, user.ID.String(), ipAddress, userAgent, traceID, spanID, true, "")
+  ```
+
+### Logger Usage Guidelines
+
+| Logger | When to Use | Log Level | Trace Correlation | Compliance |
+|--------|-------------|-----------|-------------------|------------|
+| `h.logger` | Application debugging, error handling, business logic events | `debug/info/warn/error` | Partial (request_id) | No |
+| `h.standardLogger` | Business operations, user actions, metrics collection | `info` | Via request_id | No |
+| `h.auditLogger` | Security events, authentication, compliance actions | `warn/error` | Full (trace_id + span_id) | Yes |
+
+### Best Practices
+
+- **Use `h.logger`** for debugging application flow and technical errors
+- **Use `h.standardLogger`** for business metrics and user activity tracking
+- **Use `h.auditLogger`** for security events and compliance logging
+- **Always include trace information** in audit logs for full observability
+- **Use appropriate log levels** based on the logger type and audience
+
+### Integration with Observability Stack
+
+All three logger types integrate with the centralized logging infrastructure:
+
+- **Application logs** appear in Grafana dashboards for monitoring
+- **Standard logs** feed into business analytics and alerting systems
+- **Audit logs** are correlated with distributed traces in Jaeger for security investigations
 
 ## Usage Examples
 
