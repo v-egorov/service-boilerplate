@@ -144,6 +144,84 @@ func (al *AuditLogger) LogPasswordChange(requestID, userID, ipAddress, userAgent
 	al.logEvent(event)
 }
 
+// LogEntityCreation logs entity creation events
+func (al *AuditLogger) LogEntityCreation(requestID, entityID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
+	event := AuditEvent{
+		Timestamp: time.Now().UTC(),
+		EventType: "entity_creation",
+		Service:   al.serviceName,
+		UserID:    entityID,
+		RequestID: requestID,
+		IPAddress: ipAddress,
+		UserAgent: userAgent,
+		Resource:  "entity",
+		Action:    "create",
+		TraceID:   traceID,
+		SpanID:    spanID,
+	}
+
+	if success {
+		event.Result = "success"
+	} else {
+		event.Result = "failure"
+		event.Error = errorMsg
+	}
+
+	al.logEvent(event)
+}
+
+// LogEntityUpdate logs entity update events
+func (al *AuditLogger) LogEntityUpdate(requestID, entityID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
+	event := AuditEvent{
+		Timestamp: time.Now().UTC(),
+		EventType: "entity_update",
+		Service:   al.serviceName,
+		UserID:    entityID,
+		RequestID: requestID,
+		IPAddress: ipAddress,
+		UserAgent: userAgent,
+		Resource:  "entity",
+		Action:    "update",
+		TraceID:   traceID,
+		SpanID:    spanID,
+	}
+
+	if success {
+		event.Result = "success"
+	} else {
+		event.Result = "failure"
+		event.Error = errorMsg
+	}
+
+	al.logEvent(event)
+}
+
+// LogEntityDeletion logs entity deletion events
+func (al *AuditLogger) LogEntityDeletion(requestID, entityID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
+	event := AuditEvent{
+		Timestamp: time.Now().UTC(),
+		EventType: "entity_deletion",
+		Service:   al.serviceName,
+		UserID:    entityID,
+		RequestID: requestID,
+		IPAddress: ipAddress,
+		UserAgent: userAgent,
+		Resource:  "entity",
+		Action:    "delete",
+		TraceID:   traceID,
+		SpanID:    spanID,
+	}
+
+	if success {
+		event.Result = "success"
+	} else {
+		event.Result = "failure"
+		event.Error = errorMsg
+	}
+
+	al.logEvent(event)
+}
+
 // LogSuspiciousActivity logs potentially suspicious activities
 func (al *AuditLogger) LogSuspiciousActivity(requestID, ipAddress, userAgent, activityType, traceID, spanID string, details map[string]interface{}) {
 	event := AuditEvent{

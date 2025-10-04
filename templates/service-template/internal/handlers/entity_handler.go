@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"github.com/v-egorov/service-boilerplate/common/logging"
+	"go.opentelemetry.io/otel/trace"
 	// ENTITY_IMPORT_MODELS
 	// ENTITY_IMPORT_SERVICES
 )
@@ -90,6 +91,11 @@ func (h *EntityHandler) handleServiceError(c *gin.Context, err error, operation 
 }
 
 func (h *EntityHandler) CreateEntity(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
 	requestID := c.GetHeader("X-Request-ID")
 	if requestID == "" {
 		requestID = "unknown"
@@ -101,6 +107,7 @@ func (h *EntityHandler) CreateEntity(c *gin.Context) {
 			"request_id": requestID,
 			"error":      err.Error(),
 		}).Error("Invalid request body")
+		h.auditLogger.LogEntityCreation(requestID, "", c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, "Invalid request format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
 			"details": err.Error(),
@@ -112,6 +119,7 @@ func (h *EntityHandler) CreateEntity(c *gin.Context) {
 	entity, err := h.service.Create(c.Request.Context(), req)
 	if err != nil {
 		h.handleServiceError(c, err, "Failed to create entity")
+		h.auditLogger.LogEntityCreation(requestID, "", c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, err.Error())
 		return
 	}
 
@@ -121,6 +129,7 @@ func (h *EntityHandler) CreateEntity(c *gin.Context) {
 	}).Info("Entity created")
 
 	h.standardLogger.EntityOperation(requestID, "", fmt.Sprintf("%d", entity.ID), "create", true, nil)
+	h.auditLogger.LogEntityCreation(requestID, fmt.Sprintf("%d", entity.ID), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, true, "")
 
 	c.JSON(http.StatusCreated, gin.H{
 		"data":    entity,
@@ -169,6 +178,11 @@ func (h *EntityHandler) GetEntity(c *gin.Context) {
 }
 
 func (h *EntityHandler) ReplaceEntity(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
 	requestID := c.GetHeader("X-Request-ID")
 	if requestID == "" {
 		requestID = "unknown"
@@ -196,6 +210,7 @@ func (h *EntityHandler) ReplaceEntity(c *gin.Context) {
 			"request_id": requestID,
 			"error":      err.Error(),
 		}).Error("Invalid request body")
+		h.auditLogger.LogEntityUpdate(requestID, fmt.Sprintf("%d", id), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, "Invalid request format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
 			"details": err.Error(),
@@ -207,6 +222,7 @@ func (h *EntityHandler) ReplaceEntity(c *gin.Context) {
 	entity, err := h.service.Replace(c.Request.Context(), int64(id), req)
 	if err != nil {
 		h.handleServiceError(c, err, "Failed to replace entity")
+		h.auditLogger.LogEntityUpdate(requestID, fmt.Sprintf("%d", id), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, err.Error())
 		return
 	}
 
@@ -216,6 +232,7 @@ func (h *EntityHandler) ReplaceEntity(c *gin.Context) {
 	}).Info("Entity replaced successfully")
 
 	h.standardLogger.EntityOperation(requestID, "", fmt.Sprintf("%d", entity.ID), "replace", true, nil)
+	h.auditLogger.LogEntityUpdate(requestID, fmt.Sprintf("%d", entity.ID), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, true, "")
 
 	c.JSON(http.StatusOK, gin.H{
 		"data":    entity,
@@ -224,6 +241,11 @@ func (h *EntityHandler) ReplaceEntity(c *gin.Context) {
 }
 
 func (h *EntityHandler) UpdateEntity(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
 	requestID := c.GetHeader("X-Request-ID")
 	if requestID == "" {
 		requestID = "unknown"
@@ -251,6 +273,7 @@ func (h *EntityHandler) UpdateEntity(c *gin.Context) {
 			"request_id": requestID,
 			"error":      err.Error(),
 		}).Error("Invalid request body")
+		h.auditLogger.LogEntityUpdate(requestID, fmt.Sprintf("%d", id), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, "Invalid request format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
 			"details": err.Error(),
@@ -262,6 +285,7 @@ func (h *EntityHandler) UpdateEntity(c *gin.Context) {
 	entity, err := h.service.Update(c.Request.Context(), int64(id), req)
 	if err != nil {
 		h.handleServiceError(c, err, "Failed to update entity")
+		h.auditLogger.LogEntityUpdate(requestID, fmt.Sprintf("%d", id), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, err.Error())
 		return
 	}
 
@@ -271,6 +295,7 @@ func (h *EntityHandler) UpdateEntity(c *gin.Context) {
 	}).Info("Entity updated successfully")
 
 	h.standardLogger.EntityOperation(requestID, "", fmt.Sprintf("%d", entity.ID), "update", true, nil)
+	h.auditLogger.LogEntityUpdate(requestID, fmt.Sprintf("%d", entity.ID), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, true, "")
 
 	c.JSON(http.StatusOK, gin.H{
 		"data":    entity,
@@ -279,6 +304,11 @@ func (h *EntityHandler) UpdateEntity(c *gin.Context) {
 }
 
 func (h *EntityHandler) DeleteEntity(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
 	requestID := c.GetHeader("X-Request-ID")
 	if requestID == "" {
 		requestID = "unknown"
@@ -296,6 +326,7 @@ func (h *EntityHandler) DeleteEntity(c *gin.Context) {
 
 	if err := h.service.Delete(c.Request.Context(), id); err != nil {
 		h.logger.WithError(err).Error("Failed to delete entity")
+		h.auditLogger.LogEntityDeletion(requestID, fmt.Sprintf("%d", id), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete entity"})
 		return
 	}
@@ -306,6 +337,7 @@ func (h *EntityHandler) DeleteEntity(c *gin.Context) {
 	}).Info("Entity deleted")
 
 	h.standardLogger.EntityOperation(requestID, "", fmt.Sprintf("%d", id), "delete", true, nil)
+	h.auditLogger.LogEntityDeletion(requestID, fmt.Sprintf("%d", id), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, true, "")
 
 	c.JSON(http.StatusNoContent, nil)
 }
