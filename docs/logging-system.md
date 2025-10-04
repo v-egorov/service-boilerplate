@@ -26,13 +26,13 @@ The service boilerplate implements a comprehensive logging system designed for m
 
 ### Environment Variables
 
-| Variable                          | Default (Prod) | Default (Dev) | Description                                                   |
-| --------------------------------- | -------------- | ------------- | ------------------------------------------------------------- |
-| `LOGGING_LEVEL`                   | `info`         | `debug`       | Log level: `debug`, `info`, `warn`, `error`, `fatal`, `panic` |
-| `LOGGING_FORMAT`                  | `json`         | `json`        | Log format: `json` (structured), `text` (colors enabled)     |
-| `LOGGING_OUTPUT`                  | `stdout`       | `file`        | Output destination: `stdout`, `file`                          |
-| `LOGGING_DUAL_OUTPUT`             | `true`         | `true`        | Enable dual output (file + stdout) when `LOGGING_OUTPUT=file` |
-| `LOGGING_STRIP_ANSI_FROM_FILES`  | `true`         | `true`        | Strip ANSI codes from file logs (console colors preserved)   |
+| Variable                        | Default (Prod) | Default (Dev) | Description                                                   |
+| ------------------------------- | -------------- | ------------- | ------------------------------------------------------------- |
+| `LOGGING_LEVEL`                 | `info`         | `debug`       | Log level: `debug`, `info`, `warn`, `error`, `fatal`, `panic` |
+| `LOGGING_FORMAT`                | `json`         | `json`        | Log format: `json` (structured), `text` (colors enabled)      |
+| `LOGGING_OUTPUT`                | `stdout`       | `file`        | Output destination: `stdout`, `file`                          |
+| `LOGGING_DUAL_OUTPUT`           | `true`         | `true`        | Enable dual output (file + stdout) when `LOGGING_OUTPUT=file` |
+| `LOGGING_STRIP_ANSI_FROM_FILES` | `true`         | `true`        | Strip ANSI codes from file logs (console colors preserved)    |
 
 ### Configuration Structure
 
@@ -53,6 +53,7 @@ type LoggingConfig struct {
 The text logging format includes enhanced visual formatting to improve log readability:
 
 - **HTTP Methods**: Background color-coded by method type
+
   - `GET` → Green background
   - `POST` → Blue background
   - `PUT` → Yellow background
@@ -60,17 +61,20 @@ The text logging format includes enhanced visual formatting to improve log reada
   - `DELETE` → Red background
 
 - **HTTP Status Codes**: Background color-coded by response range
+
   - `2xx` → Green background (success)
   - `3xx` → Yellow background (redirect)
   - `4xx` → Red background (client error)
   - `5xx` → Red background (server error)
 
 - **Service Names**: Unique background colors for easy identification
+
   - `api-gateway` → Magenta background
   - `user-service` → Cyan background
   - `auth-service` → Blue background
 
 - **Log Levels**: Background colors for error visibility
+
   - `ERROR` → Red background
   - `WARN` → Yellow background
   - `INFO` → Cyan foreground
@@ -84,6 +88,7 @@ time="2025-09-27T18:27:50Z" level=warn msg="Request completed with client error"
 ```
 
 **Visual Result (in terminal with background colors):**
+
 - `[36mINFO[0m` - Log level in cyan foreground
 - `[36mduration_ms[0m` - Field names in cyan foreground
 - `[42mGET[0m` - HTTP method with **green background**
@@ -107,7 +112,7 @@ The logging system automatically strips ANSI escape codes from file outputs whil
 
 ```yaml
 logging:
-  strip_ansi_from_files: true  # Default: true
+  strip_ansi_from_files: true # Default: true
 ```
 
 ### Benefits
@@ -269,7 +274,7 @@ router.Use(serviceLogger.RequestResponseLogger())
 - `status`: HTTP status code
 - `timestamp`: ISO 8601 timestamp
 - `user_agent`: Client user agent
- - `user_id`: Authenticated user ID (if available)
+- `user_id`: Authenticated user ID (if available)
 
 ## Logger Types and Usage
 
@@ -278,11 +283,14 @@ router.Use(serviceLogger.RequestResponseLogger())
 The service boilerplate implements a comprehensive three-tier logging approach designed for different stakeholders and use cases:
 
 #### 1. Application Logger (`h.logger`)
+
 **Purpose**: General application debugging and monitoring
+
 - **Target Audience**: Developers and DevOps teams
 - **Content**: Business logic events, error conditions, request correlation, debugging information
 - **Retention**: Short-term (development and troubleshooting)
 - **Example Usage**:
+
   ```go
   h.logger.WithFields(logrus.Fields{
       "user_id": user.ID,
@@ -291,32 +299,38 @@ The service boilerplate implements a comprehensive three-tier logging approach d
   ```
 
 #### 2. Standard Logger (`h.standardLogger`)
+
 **Purpose**: Structured business operation logging with consistent schema
+
 - **Target Audience**: Business analysts, automated monitoring systems, metrics collection
 - **Content**: User actions, operation types, success/failure status, standardized business events
 - **Retention**: Medium-term (analytics and metrics)
 - **Example Usage**:
+
   ```go
   h.standardLogger.UserOperation(requestID, user.ID.String(), "create", true, nil)
   ```
 
 #### 3. Audit Logger (`h.auditLogger`)
+
 **Purpose**: Security and compliance auditing for sensitive operations
+
 - **Target Audience**: Security teams, auditors, compliance officers
 - **Content**: Security events, authentication attempts, user creation/modification, sensitive operations with full trace correlation
 - **Retention**: Long-term (compliance and legal requirements)
 - **Example Usage**:
+
   ```go
   h.auditLogger.LogUserCreation(requestID, user.ID.String(), ipAddress, userAgent, traceID, spanID, true, "")
   ```
 
 ### Logger Usage Guidelines
 
-| Logger | When to Use | Log Level | Trace Correlation | Compliance |
-|--------|-------------|-----------|-------------------|------------|
-| `h.logger` | Application debugging, error handling, business logic events | `debug/info/warn/error` | Partial (request_id) | No |
-| `h.standardLogger` | Business operations, user actions, metrics collection | `info` | Via request_id | No |
-| `h.auditLogger` | Security events, authentication, compliance actions | `warn/error` | Full (trace_id + span_id) | Yes |
+| Logger             | When to Use                                                  | Log Level               | Trace Correlation         | Compliance |
+| ------------------ | ------------------------------------------------------------ | ----------------------- | ------------------------- | ---------- |
+| `h.logger`         | Application debugging, error handling, business logic events | `debug/info/warn/error` | Partial (request_id)      | No         |
+| `h.standardLogger` | Business operations, user actions, metrics collection        | `info`                  | Via request_id            | No         |
+| `h.auditLogger`    | Security events, authentication, compliance actions          | `warn/error`            | Full (trace_id + span_id) | Yes        |
 
 ### Best Practices
 
@@ -385,6 +399,7 @@ Debug printing is essential for development and troubleshooting. The logging sys
 #### 1. Structured Debug Logging (Primary Method)
 
 **Repository Layer Example:**
+
 ```go
 func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
     r.logger.WithField("user_id", id).Debug("Starting user lookup by ID")
@@ -417,6 +432,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id uuid.UUID) (*models.Use
 ```
 
 **Handler Layer Example:**
+
 ```go
 func (h *UserHandler) GetUser(c *gin.Context) {
     userID := c.Param("id")
@@ -443,6 +459,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 #### 2. Service Logger Debug Output
 
 **Using Service-Specific Loggers:**
+
 ```go
 func (h *UserHandler) CreateUser(c *gin.Context) {
     // Use the service logger for structured debug output
@@ -459,6 +476,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 #### 3. Temporary Debug Prints (Development Only)
 
 **For quick debugging during development (remove before commit):**
+
 ```go
 // Temporary debug - REMOVE BEFORE COMMIT
 fmt.Printf("DEBUG: Processing user ID %s with email %s\n", userID, email)
@@ -476,6 +494,7 @@ logrus.WithFields(logrus.Fields{
 #### Environment Setup
 
 **Enable Debug Logging:**
+
 ```bash
 # Set log level to debug
 LOGGING_LEVEL=debug
@@ -487,17 +506,19 @@ LOGGING_DUAL_OUTPUT=true
 ```
 
 **Docker Compose Override:**
+
 ```yaml
 services:
   user-service:
     environment:
       - LOGGING_LEVEL=debug
-      - LOGGING_FORMAT=text  # For colored output
+      - LOGGING_FORMAT=text # For colored output
 ```
 
 #### Configuration Validation
 
 **Test Debug Output:**
+
 ```bash
 # Start services
 make dev
@@ -530,6 +551,7 @@ docker logs service-boilerplate-user-service | grep '"level":"debug"'
 ### Debug Log Examples
 
 #### Database Operation Debug
+
 ```json
 {
   "time": "2025-09-27T10:30:00Z",
@@ -542,6 +564,7 @@ docker logs service-boilerplate-user-service | grep '"level":"debug"'
 ```
 
 #### Business Logic Debug
+
 ```json
 {
   "time": "2025-09-27T10:30:00Z",
@@ -555,6 +578,7 @@ docker logs service-boilerplate-user-service | grep '"level":"debug"'
 ```
 
 #### Error Context Debug
+
 ```json
 {
   "time": "2025-09-27T10:30:00Z",
@@ -578,6 +602,7 @@ docker logs service-boilerplate-user-service | grep '"level":"debug"'
 ### Integration with Tracing
 
 **Debug logs complement tracing:**
+
 ```go
 func (r *UserRepository) Delete(ctx context.Context, id uuid.UUID) error {
     r.logger.WithField("user_id", id).Debug("Starting user deletion")
@@ -610,6 +635,7 @@ func (r *UserRepository) Delete(ctx context.Context, id uuid.UUID) error {
 #### Debug Logs Not Appearing
 
 **Check Configuration:**
+
 ```bash
 # Verify log level
 docker exec service-boilerplate-user-service env | grep LOGGING_LEVEL
@@ -619,6 +645,7 @@ docker-compose restart user-service
 ```
 
 **Verify Code:**
+
 ```go
 // Ensure you're using the correct logger instance
 r.logger.Debug("message")  // ✅ Correct
@@ -628,6 +655,7 @@ logrus.Debug("message")    // ❌ Wrong - bypasses service context
 #### Debug Logs Too Verbose
 
 **Filter Debug Output:**
+
 ```bash
 # View only debug logs
 docker logs service-boilerplate-user-service 2>&1 | jq 'select(.level == "debug")'
@@ -818,4 +846,4 @@ This logging system provides robust, scalable logging infrastructure suitable fo
 - In prod environment log volumes might not created (not present in docker-compose.yml) - need to check
 - Filename for logs in prod environment not properly set by service - for all services service-boilerplate.log filename is used
 - Based on prev item - there is a possibility that other env vars not created / not propagated properly to running containers
-
+- NewServiceRequestLogger referenced above probably not used anymore - need to examine
