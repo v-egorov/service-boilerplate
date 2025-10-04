@@ -18,6 +18,8 @@ type AuditEvent struct {
 	Resource  string                 `json:"resource,omitempty"`
 	Action    string                 `json:"action"`
 	Result    string                 `json:"result"` // success, failure, blocked, etc.
+	TraceID   string                 `json:"trace_id,omitempty"`
+	SpanID    string                 `json:"span_id,omitempty"`
 	Details   map[string]interface{} `json:"details,omitempty"`
 	Error     string                 `json:"error,omitempty"`
 }
@@ -37,7 +39,7 @@ func NewAuditLogger(logger *logrus.Logger, serviceName string) *AuditLogger {
 }
 
 // LogAuthAttempt logs authentication attempts
-func (al *AuditLogger) LogAuthAttempt(requestID, ipAddress, userAgent, email string, success bool, errorMsg string) {
+func (al *AuditLogger) LogAuthAttempt(requestID, ipAddress, userAgent, email, traceID, spanID string, success bool, errorMsg string) {
 	event := AuditEvent{
 		Timestamp: time.Now().UTC(),
 		EventType: "auth_attempt",
@@ -47,6 +49,8 @@ func (al *AuditLogger) LogAuthAttempt(requestID, ipAddress, userAgent, email str
 		UserAgent: userAgent,
 		Resource:  "authentication",
 		Action:    "login",
+		TraceID:   traceID,
+		SpanID:    spanID,
 		Details: map[string]interface{}{
 			"email": email,
 		},
@@ -63,7 +67,7 @@ func (al *AuditLogger) LogAuthAttempt(requestID, ipAddress, userAgent, email str
 }
 
 // LogUserCreation logs user account creation events
-func (al *AuditLogger) LogUserCreation(requestID, userID, ipAddress, userAgent string, success bool, errorMsg string) {
+func (al *AuditLogger) LogUserCreation(requestID, userID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
 	event := AuditEvent{
 		Timestamp: time.Now().UTC(),
 		EventType: "user_creation",
@@ -74,6 +78,8 @@ func (al *AuditLogger) LogUserCreation(requestID, userID, ipAddress, userAgent s
 		UserAgent: userAgent,
 		Resource:  "user",
 		Action:    "create",
+		TraceID:   traceID,
+		SpanID:    spanID,
 	}
 
 	if success {
@@ -87,7 +93,7 @@ func (al *AuditLogger) LogUserCreation(requestID, userID, ipAddress, userAgent s
 }
 
 // LogTokenOperation logs JWT token operations
-func (al *AuditLogger) LogTokenOperation(requestID, userID, ipAddress, userAgent, operation string, success bool, errorMsg string) {
+func (al *AuditLogger) LogTokenOperation(requestID, userID, ipAddress, userAgent, operation, traceID, spanID string, success bool, errorMsg string) {
 	event := AuditEvent{
 		Timestamp: time.Now().UTC(),
 		EventType: "token_operation",
@@ -98,6 +104,8 @@ func (al *AuditLogger) LogTokenOperation(requestID, userID, ipAddress, userAgent
 		UserAgent: userAgent,
 		Resource:  "token",
 		Action:    operation,
+		TraceID:   traceID,
+		SpanID:    spanID,
 	}
 
 	if success {
@@ -111,7 +119,7 @@ func (al *AuditLogger) LogTokenOperation(requestID, userID, ipAddress, userAgent
 }
 
 // LogPasswordChange logs password change attempts
-func (al *AuditLogger) LogPasswordChange(requestID, userID, ipAddress, userAgent string, success bool, errorMsg string) {
+func (al *AuditLogger) LogPasswordChange(requestID, userID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
 	event := AuditEvent{
 		Timestamp: time.Now().UTC(),
 		EventType: "password_change",
@@ -122,6 +130,8 @@ func (al *AuditLogger) LogPasswordChange(requestID, userID, ipAddress, userAgent
 		UserAgent: userAgent,
 		Resource:  "password",
 		Action:    "change",
+		TraceID:   traceID,
+		SpanID:    spanID,
 	}
 
 	if success {
@@ -135,7 +145,7 @@ func (al *AuditLogger) LogPasswordChange(requestID, userID, ipAddress, userAgent
 }
 
 // LogSuspiciousActivity logs potentially suspicious activities
-func (al *AuditLogger) LogSuspiciousActivity(requestID, ipAddress, userAgent, activityType string, details map[string]interface{}) {
+func (al *AuditLogger) LogSuspiciousActivity(requestID, ipAddress, userAgent, activityType, traceID, spanID string, details map[string]interface{}) {
 	event := AuditEvent{
 		Timestamp: time.Now().UTC(),
 		EventType: "suspicious_activity",
@@ -146,6 +156,8 @@ func (al *AuditLogger) LogSuspiciousActivity(requestID, ipAddress, userAgent, ac
 		Resource:  "security",
 		Action:    activityType,
 		Result:    "flagged",
+		TraceID:   traceID,
+		SpanID:    spanID,
 		Details:   details,
 	}
 
@@ -165,6 +177,8 @@ func (al *AuditLogger) logEvent(event AuditEvent) {
 		"resource":    event.Resource,
 		"action":      event.Action,
 		"result":      event.Result,
+		"trace_id":    event.TraceID,
+		"span_id":     event.SpanID,
 		"timestamp":   event.Timestamp.Format(time.RFC3339),
 	})
 

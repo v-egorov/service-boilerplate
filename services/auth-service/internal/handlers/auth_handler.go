@@ -10,6 +10,7 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/logging"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/services"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type AuthHandler struct {
@@ -29,10 +30,15 @@ func NewAuthHandler(authService *services.AuthService, logger *logrus.Logger) *A
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
 	var req models.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithError(err).Warn("Invalid login request")
-		h.auditLogger.LogAuthAttempt(c.GetHeader("X-Request-ID"), c.ClientIP(), c.GetHeader("User-Agent"), req.Email, false, "Invalid request format")
+		h.auditLogger.LogAuthAttempt(c.GetHeader("X-Request-ID"), c.ClientIP(), c.GetHeader("User-Agent"), req.Email, traceID, spanID, false, "Invalid request format")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
@@ -44,21 +50,26 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	response, err := h.authService.Login(c.Request.Context(), &req, ipAddress, userAgent)
 	if err != nil {
 		h.standardLogger.AuthOperation(requestID, "", req.Email, "login", false, err)
-		h.auditLogger.LogAuthAttempt(requestID, ipAddress, userAgent, req.Email, false, err.Error())
+		h.auditLogger.LogAuthAttempt(requestID, ipAddress, userAgent, req.Email, traceID, spanID, false, err.Error())
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 		return
 	}
 
 	h.standardLogger.AuthOperation(requestID, response.User.ID.String(), req.Email, "login", true, nil)
-	h.auditLogger.LogAuthAttempt(requestID, ipAddress, userAgent, req.Email, true, "")
+	h.auditLogger.LogAuthAttempt(requestID, ipAddress, userAgent, req.Email, traceID, spanID, true, "")
 	c.JSON(http.StatusOK, response)
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
 	var req models.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithError(err).Warn("Invalid register request")
-		h.auditLogger.LogUserCreation(c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), false, "Invalid request format")
+		h.auditLogger.LogUserCreation(c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, "Invalid request format")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
@@ -70,13 +81,13 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	user, err := h.authService.Register(c.Request.Context(), &req)
 	if err != nil {
 		h.standardLogger.AuthOperation(requestID, "", req.Email, "register", false, err)
-		h.auditLogger.LogUserCreation(requestID, "", ipAddress, userAgent, false, err.Error())
+		h.auditLogger.LogUserCreation(requestID, "", ipAddress, userAgent, traceID, spanID, false, err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration failed"})
 		return
 	}
 
 	h.standardLogger.AuthOperation(requestID, user.ID.String(), req.Email, "register", true, nil)
-	h.auditLogger.LogUserCreation(requestID, user.ID.String(), ipAddress, userAgent, true, "")
+	h.auditLogger.LogUserCreation(requestID, user.ID.String(), ipAddress, userAgent, traceID, spanID, true, "")
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "User registered successfully",
 		"user":    user,
@@ -84,16 +95,21 @@ func (h *AuthHandler) Register(c *gin.Context) {
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		h.auditLogger.LogTokenOperation(c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "logout", false, "Authorization header required")
+		h.auditLogger.LogTokenOperation(c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "logout", traceID, spanID, false, "Authorization header required")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
 		return
 	}
 
 	tokenParts := strings.Split(authHeader, " ")
 	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-		h.auditLogger.LogTokenOperation(c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "logout", false, "Invalid authorization header format")
+		h.auditLogger.LogTokenOperation(c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "logout", traceID, spanID, false, "Invalid authorization header format")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
 		return
 	}
@@ -105,20 +121,25 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	tokenString := tokenParts[1]
 	if err := h.authService.Logout(c.Request.Context(), tokenString); err != nil {
 		h.logger.WithError(err).Warn("Logout failed")
-		h.auditLogger.LogTokenOperation(requestID, "", ipAddress, userAgent, "logout", false, err.Error())
+		h.auditLogger.LogTokenOperation(requestID, "", ipAddress, userAgent, "logout", traceID, spanID, false, err.Error())
 		// Don't return error for logout failures to avoid leaking information
 	} else {
-		h.auditLogger.LogTokenOperation(requestID, "", ipAddress, userAgent, "logout", true, "")
+		h.auditLogger.LogTokenOperation(requestID, "", ipAddress, userAgent, "logout", traceID, spanID, true, "")
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
 
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
 	var req models.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithError(err).Warn("Invalid refresh token request")
-		h.auditLogger.LogTokenOperation(c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "refresh", false, "Invalid request format")
+		h.auditLogger.LogTokenOperation(c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "refresh", traceID, spanID, false, "Invalid request format")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
@@ -130,12 +151,12 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	response, err := h.authService.RefreshToken(c.Request.Context(), &req)
 	if err != nil {
 		h.logger.WithError(err).Warn("Token refresh failed")
-		h.auditLogger.LogTokenOperation(requestID, "", ipAddress, userAgent, "refresh", false, err.Error())
+		h.auditLogger.LogTokenOperation(requestID, "", ipAddress, userAgent, "refresh", traceID, spanID, false, err.Error())
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid refresh token"})
 		return
 	}
 
-	h.auditLogger.LogTokenOperation(requestID, "", ipAddress, userAgent, "refresh", true, "")
+	h.auditLogger.LogTokenOperation(requestID, "", ipAddress, userAgent, "refresh", traceID, spanID, true, "")
 	c.JSON(http.StatusOK, response)
 }
 
