@@ -733,6 +733,11 @@ clean-docker-smart: ## Smart Docker cleanup with safety checks
 			docker rm $$container 2>/dev/null || true; \
 		fi; \
 	done
+	@echo "🗂️  Removing monitoring containers..."
+	@for container in service-boilerplate-loki service-boilerplate-promtail service-boilerplate-grafana; do \
+		echo "  Removing container: $$container"; \
+		docker rm $$container 2>/dev/null || true; \
+	done
 	@echo "🖼️  Removing custom project images..."
 	@for image in $(SERVICE_IMAGES); do \
 		if [ -n "$$image" ]; then \
@@ -745,12 +750,19 @@ clean-docker-smart: ## Smart Docker cleanup with safety checks
 	@$(MAKE) safe-remove-image IMAGE=$(POSTGRES_IMAGE)
 	@$(MAKE) safe-remove-image IMAGE=$(GOLANG_BUILD_IMAGE)
 	@$(MAKE) safe-remove-image IMAGE=$(ALPINE_RUNTIME_IMAGE)
+	@echo "📊 Removing monitoring images..."
+	@docker rmi grafana/loki:latest grafana/promtail:latest grafana/grafana:latest 2>/dev/null || true
 	@echo "💾 Removing service volumes..."
 	@for volume in $(SERVICE_VOLUMES) $(POSTGRES_VOLUME); do \
 		if [ -n "$$volume" ]; then \
 			echo "  Removing volume: $$volume"; \
 			docker volume rm $$volume 2>/dev/null || true; \
 		fi; \
+	done
+	@echo "💾 Removing monitoring volumes..."
+	@for volume in service-boilerplate-loki-data service-boilerplate-promtail-positions service-boilerplate-grafana-data; do \
+		echo "  Removing volume: $$volume"; \
+		docker volume rm $$volume 2>/dev/null || true; \
 	done
 	@docker network rm $(NETWORK_NAME) 2>/dev/null || true
 	@echo "✅ Smart Docker cleanup completed"
@@ -766,6 +778,11 @@ clean-docker-conservative: ## Conservative Docker cleanup (keeps base images)
 			docker rm $$container 2>/dev/null || true; \
 		fi; \
 	done
+	@echo "🗂️  Removing monitoring containers..."
+	@for container in service-boilerplate-loki service-boilerplate-promtail service-boilerplate-grafana; do \
+		echo "  Removing container: $$container"; \
+		docker rm $$container 2>/dev/null || true; \
+	done
 	@echo "🖼️  Removing custom project images..."
 	@for image in $(SERVICE_IMAGES); do \
 		if [ -n "$$image" ]; then \
@@ -774,12 +791,19 @@ clean-docker-conservative: ## Conservative Docker cleanup (keeps base images)
 		fi; \
 	done
 	@docker rmi $(MIGRATION_IMAGE) 2>/dev/null || true
+	@echo "📊 Removing monitoring images..."
+	@docker rmi grafana/loki:latest grafana/promtail:latest grafana/grafana:latest 2>/dev/null || true
 	@echo "💾 Removing service volumes..."
 	@for volume in $(SERVICE_VOLUMES) $(POSTGRES_VOLUME); do \
 		if [ -n "$$volume" ]; then \
 			echo "  Removing volume: $$volume"; \
 			docker volume rm $$volume 2>/dev/null || true; \
 		fi; \
+	done
+	@echo "💾 Removing monitoring volumes..."
+	@for volume in service-boilerplate-loki-data service-boilerplate-promtail-positions service-boilerplate-grafana-data; do \
+		echo "  Removing volume: $$volume"; \
+		docker volume rm $$volume 2>/dev/null || true; \
 	done
 	@docker network rm $(NETWORK_NAME) 2>/dev/null || true
 	@echo "✅ Conservative Docker cleanup completed (base images preserved)"
@@ -795,6 +819,11 @@ clean-docker-aggressive: ## Aggressive Docker cleanup (removes all project image
 			docker rm $$container 2>/dev/null || true; \
 		fi; \
 	done
+	@echo "🗂️  Removing monitoring containers..."
+	@for container in service-boilerplate-loki service-boilerplate-promtail service-boilerplate-grafana; do \
+		echo "  Removing container: $$container"; \
+		docker rm $$container 2>/dev/null || true; \
+	done
 	@echo "🖼️  Removing all project images..."
 	@for image in $(SERVICE_IMAGES); do \
 		if [ -n "$$image" ]; then \
@@ -806,12 +835,19 @@ clean-docker-aggressive: ## Aggressive Docker cleanup (removes all project image
 	@docker rmi $(POSTGRES_IMAGE) 2>/dev/null || true
 	@docker rmi $(GOLANG_BUILD_IMAGE) 2>/dev/null || true
 	@docker rmi $(ALPINE_RUNTIME_IMAGE) 2>/dev/null || true
+	@echo "📊 Removing monitoring images..."
+	@docker rmi grafana/loki:latest grafana/promtail:latest grafana/grafana:latest 2>/dev/null || true
 	@echo "💾 Removing service volumes..."
 	@for volume in $(SERVICE_VOLUMES) $(POSTGRES_VOLUME); do \
 		if [ -n "$$volume" ]; then \
 			echo "  Removing volume: $$volume"; \
 			docker volume rm $$volume 2>/dev/null || true; \
 		fi; \
+	done
+	@echo "💾 Removing monitoring volumes..."
+	@for volume in service-boilerplate-loki-data service-boilerplate-promtail-positions service-boilerplate-grafana-data; do \
+		echo "  Removing volume: $$volume"; \
+		docker volume rm $$volume 2>/dev/null || true; \
 	done
 	@docker network rm $(NETWORK_NAME) 2>/dev/null || true
 	@echo "✅ Aggressive Docker cleanup completed"
@@ -834,12 +870,19 @@ clean-volumes: ## Clean Docker volumes and persistent data
 	@echo "🔧 Cleaning volume data using Docker containers..."
 	@echo "📁 Removing postgres volume..."
 	@docker run --rm -v $(PWD)/docker/volumes:/data alpine sh -c "rm -rf /data/postgres_data";
+	@echo "📁 Removing monitoring volumes..."
+	@docker run --rm -v $(PWD)/docker/volumes/loki:/data alpine sh -c "rm -rf /data/*" 2>/dev/null || true;
+	@docker run --rm -v $(PWD)/docker/volumes/grafana:/data alpine sh -c "rm -rf /data/*" 2>/dev/null || true;
+	@docker run --rm -v $(PWD)/docker/volumes/promtail:/data alpine sh -c "rm -rf /data/*" 2>/dev/null || true;
 	@if [ -d "docker/volumes" ]; then \
 		for dir in docker/volumes/*/; do \
 			if [ -d "$$dir" ]; then \
 				service_name=$$(basename "$$dir"); \
-				echo " 📁 Cleaning $$service_name volumes..."; \
-				docker run --rm -v $(PWD)/$$dir:/data alpine sh -c "rm -rf /data/*"; \
+				# Skip monitoring volumes as they're handled above \
+				if [ "$$service_name" != "loki" ] && [ "$$service_name" != "grafana" ] && [ "$$service_name" != "promtail" ]; then \
+					echo " 📁 Cleaning $$service_name volumes..."; \
+					docker run --rm -v $(PWD)/$$dir:/data alpine sh -c "rm -rf /data/*"; \
+				fi; \
 			fi; \
 		done; \
 	fi
@@ -1020,6 +1063,10 @@ create-volumes-dirs: ## (Re)create volumes directories
 		echo "   Creating logs directory for $$service..."; \
 		mkdir -p docker/volumes/$$service/logs; \
 	done
+	@echo "   Creating monitoring volume directories..."
+	@mkdir -p docker/volumes/loki/data
+	@mkdir -p docker/volumes/grafana/data
+	@mkdir -p docker/volumes/promtail/positions
 
 .PHONY: docker-recreate
 docker-recreate: create-volumes-dirs ## Recreate project Docker environment from scratch
