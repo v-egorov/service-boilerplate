@@ -49,6 +49,76 @@ Each database span includes the following attributes:
 
 ## Usage Examples
 
+### Auth Service Token Operations
+
+The auth service provides comprehensive tracing for all token lifecycle operations:
+
+#### Token Creation (Login)
+```go
+// Automatic tracing in repository layer
+err := database.TraceDBInsert(ctx, "auth_tokens", insertQuery, func(ctx context.Context) error {
+    _, err := r.db.Exec(ctx, query, token.ID, token.UserID, token.TokenHash, token.TokenType, token.ExpiresAt)
+    return err
+})
+
+// Service-level span attributes
+span.SetAttributes(
+    attribute.String("user.id", userID.String()),
+    attribute.String("user.email", email),
+    attribute.Int("auth.tokens_created", 2), // access + refresh
+    attribute.Bool("auth.session_created", true),
+)
+```
+
+#### Token Validation
+```go
+// Database lookup with tracing
+err := database.TraceDBQuery(ctx, "auth_tokens", selectQuery, func(ctx context.Context) error {
+    return r.db.QueryRow(ctx, query, tokenHash).Scan(&token.ID, &token.UserID, ...)
+})
+
+// Service-level validation span
+span.SetAttributes(
+    attribute.String("user.id", claims.UserID.String()),
+    attribute.String("token.type", claims.TokenType),
+    attribute.Bool("token.is_revoked", false),
+)
+```
+
+#### Token Revocation (Logout)
+```go
+// Database update with tracing
+err := database.TraceDBUpdate(ctx, "auth_tokens", updateQuery, func(ctx context.Context) error {
+    _, err := r.db.Exec(ctx, query, tokenID)
+    return err
+})
+
+// Service-level revocation span
+span.SetAttributes(
+    attribute.Bool("token.revoked", true),
+    attribute.String("token.id", token.ID.String()),
+)
+```
+
+### Span Hierarchy Example
+
+```
+auth.login (service operation)
+├── db.INSERT auth_tokens (access token)
+├── db.INSERT auth_tokens (refresh token)
+├── db.INSERT user_sessions (session)
+└── db.SELECT roles,user_roles (user roles)
+
+auth.validate_token (service operation)
+├── jwt.parse (JWT validation)
+└── db.SELECT auth_tokens (token lookup)
+
+auth.logout (service operation)
+└── db.UPDATE auth_tokens (token revocation)
+```
+
+## Usage Examples
+
 ### Instrumenting Repository Methods
 
 Here's how the user repository methods are instrumented:

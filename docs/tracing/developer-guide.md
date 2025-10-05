@@ -23,6 +23,72 @@ router.DELETE("/api/v1/users/:id", handler.DeleteUser)   // ✅ Auto-traced
 - User agent, headers
 - Errors and exceptions
 
+### Auth Service Example
+
+The auth service demonstrates comprehensive tracing for security-critical operations:
+
+#### Repository Layer Database Tracing
+
+```go
+// Automatic database operation tracing
+func (r *AuthRepository) CreateAuthToken(ctx context.Context, token *models.AuthToken) error {
+    query := `INSERT INTO auth_service.auth_tokens...`
+    return database.TraceDBInsert(ctx, "auth_tokens", query, func(ctx context.Context) error {
+        _, err := r.db.Exec(ctx, query, token.ID, token.UserID, token.TokenHash, token.TokenType, token.ExpiresAt)
+        return err
+    })
+}
+```
+
+#### Service Layer Business Logic Tracing
+
+```go
+func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAddress, userAgent string) (*models.TokenResponse, error) {
+    tracer := otel.Tracer("auth-service")
+
+    ctx, span := tracer.Start(ctx, "auth.login",
+        trace.WithAttributes(
+            attribute.String("user.email", req.Email),
+            attribute.String("client.ip", ipAddress),
+            attribute.String("auth.operation", "login"),
+        ))
+    defer span.End()
+
+    // Business logic with error recording
+    userLogin, err := s.userClient.GetUserWithPasswordByEmail(ctx, req.Email)
+    if err != nil {
+        span.RecordError(err)
+        span.SetStatus(codes.Error, "Failed to get user from user service")
+        return nil, fmt.Errorf("invalid credentials")
+    }
+
+    // Success attributes
+    span.SetAttributes(
+        attribute.String("user.id", userID.String()),
+        attribute.Int("auth.tokens_created", 2),
+        attribute.Bool("auth.session_created", true),
+    )
+    span.SetStatus(codes.Ok, "Login successful")
+
+    return tokenResponse, nil
+}
+```
+
+#### Handler Layer Context Propagation
+
+```go
+func (h *AuthHandler) Login(c *gin.Context) {
+    // Extract trace information from request context
+    span := trace.SpanFromContext(c.Request.Context())
+    traceID := span.SpanContext().TraceID().String()
+    spanID := span.SpanContext().SpanID().String()
+
+    // Use trace context in audit logging
+    h.auditLogger.LogAuthAttempt("", c.GetHeader("X-Request-ID"), c.ClientIP(), c.GetHeader("User-Agent"),
+        req.Email, traceID, spanID, false, "Invalid request format")
+}
+```
+
 ## 🔧 Custom Span Creation
 
 ### Basic Custom Spans

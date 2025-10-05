@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/v-egorov/service-boilerplate/common/database"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
 )
 
@@ -21,9 +22,11 @@ func (r *AuthRepository) CreateAuthToken(ctx context.Context, token *models.Auth
 		INSERT INTO auth_service.auth_tokens (id, user_id, token_hash, token_type, expires_at)
 		VALUES ($1, $2, $3, $4, $5)`
 
-	_, err := r.db.Exec(ctx, query,
-		token.ID, token.UserID, token.TokenHash, token.TokenType, token.ExpiresAt)
-	return err
+	return database.TraceDBInsert(ctx, "auth_tokens", query, func(ctx context.Context) error {
+		_, err := r.db.Exec(ctx, query,
+			token.ID, token.UserID, token.TokenHash, token.TokenType, token.ExpiresAt)
+		return err
+	})
 }
 
 func (r *AuthRepository) GetAuthTokenByHash(ctx context.Context, tokenHash string) (*models.AuthToken, error) {
@@ -33,9 +36,11 @@ func (r *AuthRepository) GetAuthTokenByHash(ctx context.Context, tokenHash strin
 		WHERE token_hash = $1 AND (revoked_at IS NULL OR revoked_at > NOW())`
 
 	var token models.AuthToken
-	err := r.db.QueryRow(ctx, query, tokenHash).Scan(
-		&token.ID, &token.UserID, &token.TokenHash, &token.TokenType,
-		&token.ExpiresAt, &token.RevokedAt, &token.CreatedAt, &token.UpdatedAt)
+	err := database.TraceDBQuery(ctx, "auth_tokens", query, func(ctx context.Context) error {
+		return r.db.QueryRow(ctx, query, tokenHash).Scan(
+			&token.ID, &token.UserID, &token.TokenHash, &token.TokenType,
+			&token.ExpiresAt, &token.RevokedAt, &token.CreatedAt, &token.UpdatedAt)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -44,14 +49,18 @@ func (r *AuthRepository) GetAuthTokenByHash(ctx context.Context, tokenHash strin
 
 func (r *AuthRepository) RevokeAuthToken(ctx context.Context, tokenID uuid.UUID) error {
 	query := `UPDATE auth_service.auth_tokens SET revoked_at = NOW() WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, tokenID)
-	return err
+	return database.TraceDBUpdate(ctx, "auth_tokens", query, func(ctx context.Context) error {
+		_, err := r.db.Exec(ctx, query, tokenID)
+		return err
+	})
 }
 
 func (r *AuthRepository) RevokeUserTokens(ctx context.Context, userID uuid.UUID) error {
 	query := `UPDATE auth_service.auth_tokens SET revoked_at = NOW() WHERE user_id = $1 AND revoked_at IS NULL`
-	_, err := r.db.Exec(ctx, query, userID)
-	return err
+	return database.TraceDBUpdate(ctx, "auth_tokens", query, func(ctx context.Context) error {
+		_, err := r.db.Exec(ctx, query, userID)
+		return err
+	})
 }
 
 func (r *AuthRepository) CreateUserSession(ctx context.Context, session *models.UserSession) error {
@@ -59,10 +68,12 @@ func (r *AuthRepository) CreateUserSession(ctx context.Context, session *models.
 		INSERT INTO auth_service.user_sessions (id, user_id, session_token, ip_address, user_agent, expires_at)
 		VALUES ($1, $2, $3, $4, $5, $6)`
 
-	_, err := r.db.Exec(ctx, query,
-		session.ID, session.UserID, session.SessionToken,
-		session.IPAddress, session.UserAgent, session.ExpiresAt)
-	return err
+	return database.TraceDBInsert(ctx, "user_sessions", query, func(ctx context.Context) error {
+		_, err := r.db.Exec(ctx, query,
+			session.ID, session.UserID, session.SessionToken,
+			session.IPAddress, session.UserAgent, session.ExpiresAt)
+		return err
+	})
 }
 
 func (r *AuthRepository) GetUserSession(ctx context.Context, sessionToken string) (*models.UserSession, error) {
@@ -100,22 +111,25 @@ func (r *AuthRepository) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]
 		JOIN auth_service.user_roles ur ON r.id = ur.role_id
 		WHERE ur.user_id = $1`
 
-	rows, err := r.db.Query(ctx, query, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
 	var roles []models.Role
-	for rows.Next() {
-		var role models.Role
-		err := rows.Scan(&role.ID, &role.Name, &role.Description, &role.CreatedAt)
+	err := database.TraceDBQuery(ctx, "roles,user_roles", query, func(ctx context.Context) error {
+		rows, err := r.db.Query(ctx, query, userID)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		roles = append(roles, role)
-	}
-	return roles, rows.Err()
+		defer rows.Close()
+
+		for rows.Next() {
+			var role models.Role
+			err := rows.Scan(&role.ID, &role.Name, &role.Description, &role.CreatedAt)
+			if err != nil {
+				return err
+			}
+			roles = append(roles, role)
+		}
+		return rows.Err()
+	})
+	return roles, err
 }
 
 func (r *AuthRepository) GetUserPermissions(ctx context.Context, userID uuid.UUID) ([]models.Permission, error) {

@@ -12,6 +12,10 @@ import (
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/repository"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/utils"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -32,6 +36,16 @@ func NewAuthService(repo *repository.AuthRepository, userClient *client.UserClie
 }
 
 func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAddress, userAgent string) (*models.TokenResponse, error) {
+	tracer := otel.Tracer("auth-service")
+
+	ctx, span := tracer.Start(ctx, "auth.login",
+		trace.WithAttributes(
+			attribute.String("user.email", req.Email),
+			attribute.String("client.ip", ipAddress),
+			attribute.String("auth.operation", "login"),
+		))
+	defer span.End()
+
 	s.logger.WithFields(logrus.Fields{
 		"email": req.Email,
 		"ip":    ipAddress,
@@ -40,6 +54,8 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 	// Call user service to get user with password hash
 	userLogin, err := s.userClient.GetUserWithPasswordByEmail(ctx, req.Email)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "Failed to get user from user service")
 		s.logger.WithError(err).Error("Failed to get user from user service")
 		return nil, fmt.Errorf("invalid credentials")
 	}
@@ -123,6 +139,14 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 		// Don't fail the login if session creation fails
 	}
 
+	span.SetAttributes(
+		attribute.String("user.id", userID.String()),
+		attribute.String("user.email", email),
+		attribute.Int("auth.tokens_created", 2), // access + refresh
+		attribute.Bool("auth.session_created", true),
+	)
+	span.SetStatus(codes.Ok, "Login successful")
+
 	s.logger.WithFields(logrus.Fields{
 		"user_id": userID,
 		"email":   email,
@@ -190,41 +214,77 @@ func (s *AuthService) Register(ctx context.Context, req *models.RegisterRequest)
 }
 
 func (s *AuthService) Logout(ctx context.Context, tokenString string) error {
-	s.logger.Info("Logout attempt")
+	tracer := otel.Tracer("auth-service")
 
-	// Validate token
+	ctx, span := tracer.Start(ctx, "auth.logout",
+		trace.WithAttributes(
+			attribute.String("auth.operation", "logout"),
+		))
+	defer span.End()
+
 	claims, err := s.jwtUtils.ValidateToken(tokenString)
 	if err != nil {
-		s.logger.WithError(err).Warn("Invalid token during logout")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "Invalid token during logout")
 		return fmt.Errorf("invalid token: %w", err)
 	}
+
+	span.SetAttributes(
+		attribute.String("user.id", claims.UserID.String()),
+		attribute.String("token.type", claims.TokenType),
+	)
 
 	// Get token from database
 	token, err := s.repo.GetAuthTokenByHash(ctx, s.hashToken(tokenString))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "Token not found in database during logout")
 		s.logger.WithError(err).Warn("Token not found in database during logout")
 		return fmt.Errorf("token not found: %w", err)
 	}
 
 	// Revoke token
 	if err := s.repo.RevokeAuthToken(ctx, token.ID); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "Failed to revoke token")
 		s.logger.WithError(err).Error("Failed to revoke token")
 		return fmt.Errorf("failed to revoke token: %w", err)
 	}
+
+	span.SetAttributes(
+		attribute.Bool("token.revoked", true),
+		attribute.String("token.id", token.ID.String()),
+	)
+	span.SetStatus(codes.Ok, "Logout successful")
 
 	s.logger.WithField("user_id", claims.UserID).Info("Logout successful")
 	return nil
 }
 
 func (s *AuthService) RefreshToken(ctx context.Context, req *models.RefreshTokenRequest) (*models.TokenResponse, error) {
+	tracer := otel.Tracer("auth-service")
+
+	ctx, span := tracer.Start(ctx, "auth.refresh_token",
+		trace.WithAttributes(
+			attribute.String("auth.operation", "refresh"),
+		))
+	defer span.End()
+
 	s.logger.Info("Token refresh attempt")
 
 	// Validate refresh token
 	claims, err := s.jwtUtils.ValidateToken(req.RefreshToken)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "Invalid refresh token")
 		s.logger.WithError(err).Warn("Invalid refresh token")
 		return nil, fmt.Errorf("invalid refresh token: %w", err)
 	}
+
+	span.SetAttributes(
+		attribute.String("user.id", claims.UserID.String()),
+		attribute.String("token.type", claims.TokenType),
+	)
 
 	if claims.TokenType != "refresh" {
 		s.logger.Warn("Non-refresh token used for refresh")
@@ -297,6 +357,12 @@ func (s *AuthService) RefreshToken(ctx context.Context, req *models.RefreshToken
 		return nil, fmt.Errorf("failed to store new refresh token: %w", err)
 	}
 
+	span.SetAttributes(
+		attribute.Int("auth.tokens_created", 2), // new access + refresh
+		attribute.Int("auth.tokens_revoked", 1), // old refresh token
+	)
+	span.SetStatus(codes.Ok, "Token refresh successful")
+
 	s.logger.WithField("user_id", claims.UserID).Info("Token refresh successful")
 
 	return &models.TokenResponse{
@@ -353,20 +419,49 @@ func (s *AuthService) GetPublicKeyPEM() ([]byte, error) {
 }
 
 func (s *AuthService) ValidateToken(ctx context.Context, tokenString string) (*utils.JWTClaims, error) {
+	tracer := otel.Tracer("auth-service")
+
+	ctx, span := tracer.Start(ctx, "auth.validate_token",
+		trace.WithAttributes(
+			attribute.String("auth.operation", "validate"),
+			attribute.Bool("token.requires_db_check", true),
+		))
+	defer span.End()
+
 	claims, err := s.jwtUtils.ValidateToken(tokenString)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "JWT validation failed")
 		return nil, err
 	}
+
+	span.SetAttributes(
+		attribute.String("user.id", claims.UserID.String()),
+		attribute.String("token.type", claims.TokenType),
+	)
 
 	// Check if token exists in database and is not revoked
 	token, err := s.repo.GetAuthTokenByHash(ctx, s.hashToken(tokenString))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "Token not found in database")
 		return nil, fmt.Errorf("token not found in database: %w", err)
 	}
 
 	if token.RevokedAt != nil {
+		span.SetAttributes(
+			attribute.Bool("token.is_revoked", true),
+			attribute.String("token.revoked_at", token.RevokedAt.String()),
+		)
+		span.SetStatus(codes.Error, "Token has been revoked")
 		return nil, fmt.Errorf("token has been revoked")
 	}
+
+	span.SetAttributes(
+		attribute.Bool("token.is_revoked", false),
+		attribute.String("token.expires_at", token.ExpiresAt.String()),
+	)
+	span.SetStatus(codes.Ok, "Token validation successful")
 
 	return claims, nil
 }
