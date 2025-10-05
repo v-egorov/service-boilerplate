@@ -30,17 +30,18 @@ The service-boilerplate implements a microservice architecture with centralized 
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   External      │────│   API Gateway    │────│   Auth Service   │
-│   Clients       │    │   (Port 8080)   │    │   (Port 8083)    │
+│   External      │────│   API Gateway   │────│   Auth Service  │
+│   Clients       │    │   (Port 8080)   │    │   (Port 8083)   │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                               │
                               ├─────────────────┐
-                              │   User Service   │
+                              │   User Service  │
                               │   (Port 8081)   │
                               └─────────────────┘
 ```
 
 **Security Flow:**
+
 1. All external requests go through API Gateway (port 8080)
 2. API Gateway validates JWT tokens and checks revocation status
 3. Validated requests are proxied to internal services
@@ -87,10 +88,12 @@ type TokenRevocationChecker interface {
 ### When to Implement
 
 **✅ REQUIRED for services that are:**
+
 - Directly exposed to external traffic in production
 - API Gateway (enforces revocation for all requests)
 
 **❌ NOT needed for services that are:**
+
 - Internal microservices accessed only through API Gateway
 - Development-only direct access services
 
@@ -143,16 +146,19 @@ func (c *dbTokenRevocationChecker) IsTokenRevoked(tokenString string) bool {
 ### Production Deployment
 
 **🚫 NEVER expose internal services directly in production:**
+
 - User Service (port 8081)
 - Auth Service (port 8083)
 - Any future microservices
 
 **✅ ONLY expose:**
+
 - API Gateway (port 8080)
 
 ### Development Environment
 
 **⚠️ Development-only direct access allowed:**
+
 - For testing and debugging individual services
 - Must not be relied upon for production workflows
 - Should be documented as development-only features
@@ -175,13 +181,14 @@ When creating new services:
 services:
   user-service:
     ports:
-      - "8081:8081"  # Direct access for development
+      - "8081:8081" # Direct access for development
   api-gateway:
     ports:
-      - "8080:8080"  # Main entry point
+      - "8080:8080" # Main entry point
 ```
 
 **Development Features:**
+
 - Direct service access for testing
 - Detailed logging and debugging
 - Hot reload capabilities
@@ -204,6 +211,7 @@ auth-service:
 ```
 
 **Production Requirements:**
+
 - Only API Gateway accessible from external networks
 - Internal services communicate via Docker networks
 - All requests must go through API Gateway
@@ -307,10 +315,12 @@ router.Use(commonMiddleware.JWTMiddleware(
 ### Common Security Issues
 
 1. **401 Unauthorized after logout**: Token not properly revoked
+
    - Check: Token appears in revoked tokens table
    - Solution: Verify logout endpoint called correctly
 
 2. **Internal services accepting invalid tokens**: Missing gateway routing
+
    - Check: Request going directly to service instead of through gateway
    - Solution: Ensure production deployment doesn't expose internal ports
 
@@ -339,4 +349,5 @@ curl -H "Authorization: Bearer <token>" \
 - [Troubleshooting Auth & Logging](troubleshooting-auth-logging.md)
 - [Service Creation Guide](service-creation-guide.md)
 - [Logging System](logging-system.md)</content>
-</xai:function_call<parameter name="filePath">docs/security-architecture.md
+  </xai:function_call<parameter name="filePath">docs/security-architecture.md
+
