@@ -173,8 +173,8 @@ services:
     restart: unless-stopped
 
   loki:
-    image: grafana/loki:latest
-    container_name: service-boilerplate-loki
+    image: ${LOKI_IMAGE}
+    container_name: ${LOKI_CONTAINER}
     ports:
       - "3100:3100" # Loki HTTP API
     volumes:
@@ -186,8 +186,8 @@ services:
     restart: unless-stopped
 
   promtail:
-    image: grafana/promtail:latest
-    container_name: service-boilerplate-promtail
+    image: ${PROMTAIL_IMAGE}
+    container_name: ${PROMTAIL_CONTAINER}
     volumes:
       - promtail_positions:/tmp
       - ./promtail-config.yml:/etc/promtail/config.yml:ro
@@ -202,8 +202,8 @@ services:
       - loki
 
   grafana:
-    image: grafana/grafana:latest
-    container_name: service-boilerplate-grafana
+    image: ${GRAFANA_IMAGE}
+    container_name: ${GRAFANA_CONTAINER}
     ports:
       - "3001:3000" # Grafana UI
     environment:
@@ -287,7 +287,7 @@ volumes:
   jaeger_data:
 
   loki_data:
-    name: service-boilerplate-loki-data
+    name: ${LOKI_DATA_VOLUME}
     driver: local
     driver_opts:
       type: none
@@ -295,7 +295,7 @@ volumes:
       device: ${PWD}/docker/volumes/loki/data
 
   promtail_positions:
-    name: service-boilerplate-promtail-positions
+    name: ${PROMTAIL_POSITIONS_VOLUME}
     driver: local
     driver_opts:
       type: none
@@ -303,7 +303,7 @@ volumes:
       device: ${PWD}/docker/volumes/promtail/positions
 
   grafana_data:
-    name: service-boilerplate-grafana-data
+    name: ${GRAFANA_DATA_VOLUME}
     driver: local
     driver_opts:
       type: none
