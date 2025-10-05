@@ -87,13 +87,45 @@ New services are created with JWT middleware integration for secure API access:
 
 #### JWT Configuration
 
-For services that need JWT token validation:
+##### For Internal Services (Recommended)
+
+Internal services accessed through API Gateway should use optional authentication:
 
 ```go
-// In cmd/main.go
-// Replace nil with JWT public key for token validation
-router.Use(middleware.JWTMiddleware(jwtPublicKey, logger.Logger))
+// In cmd/main.go - Internal services (no TokenRevocationChecker needed)
+router.Use(middleware.JWTMiddleware(
+    nil,              // No JWT secret (optional auth)
+    logger.Logger,
+    nil,              // No revocation checker (trusts gateway)
+))
 ```
+
+**Why?** Internal services operate under the assumption that requests have been validated by the API Gateway.
+
+##### For External Services (If Required)
+
+Services that may be directly exposed in production need full authentication:
+
+```go
+// For services that need TokenRevocationChecker
+revocationChecker := &httpTokenRevocationChecker{
+    authServiceURL: "http://auth-service:8083",
+    logger:         logger.Logger,
+}
+
+router.Use(middleware.JWTMiddleware(
+    jwtPublicKey,     // JWT public key for validation
+    logger.Logger,
+    revocationChecker, // Required for direct exposure
+))
+```
+
+**When to use TokenRevocationChecker:**
+- ✅ **API Gateway**: Always required
+- ✅ **Directly exposed services**: Required in production
+- ❌ **Internal microservices**: Not needed (trusts gateway validation)
+
+See [Security Architecture](security-architecture.md) for detailed guidelines.
 
 #### Getting Authenticated User
 

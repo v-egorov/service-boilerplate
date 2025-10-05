@@ -17,6 +17,7 @@ A comprehensive boilerplate for building scalable Golang-based REST API services
 ## 📚 Documentation
 
 ### Core Features
+- **[Security Architecture](docs/security-architecture.md)**: Authentication, authorization, and service exposure guidelines
 - **[Logging System](docs/logging-system.md)**: Comprehensive guide to logging configuration, options, and troubleshooting
 - **[Distributed Tracing](docs/tracing/)**: Complete OpenTelemetry implementation with Jaeger
   - [Overview & Architecture](docs/tracing/overview.md)
@@ -75,6 +76,43 @@ service-boilerplate/
 ├── templates/             # Service templates
 └── Makefile               # Build automation
 ```
+
+## 🔐 Security Architecture
+
+The service-boilerplate implements a **secure-by-design microservice architecture** with centralized authentication and authorization.
+
+### Key Security Features
+
+- **API Gateway Security Model**: Single entry point for all external requests with JWT token validation and revocation checking
+- **Token Management**: JWT access tokens with refresh token rotation and immediate revocation on logout
+- **Service Isolation**: Internal services are not directly exposed in production, accessed only through the secure API Gateway
+- **Audit Logging**: Comprehensive security event logging with distributed tracing correlation
+- **Role-Based Access Control**: JWT claims include user roles for fine-grained authorization
+
+### Security Flow
+
+```
+External Client → API Gateway (Port 8080) → Auth Service (Port 8083)
+                                      ↓
+                               Internal Services (Ports 8081+)
+```
+
+**Production Security:**
+- ✅ Only API Gateway exposed externally
+- ✅ All requests validated for authentication and token revocation
+- ✅ Internal services trust gateway validation
+- ✅ Comprehensive audit trails for security events
+
+**Development Security:**
+- ⚠️ Direct service access allowed for testing/debugging
+- ⚠️ Must not be used for production workflows
+- ✅ Same authentication and logging as production
+
+### Security Documentation
+
+- **[Security Architecture Guide](docs/security-architecture.md)**: Complete security model, TokenRevocationChecker patterns, and service exposure guidelines
+- **[Authentication Examples](docs/auth-api-examples.md)**: API usage with JWT tokens, token refresh, and error handling
+- **[Troubleshooting Auth](docs/troubleshooting-auth-logging.md)**: Debug authentication issues and token problems
 
 ## Quick Start
 

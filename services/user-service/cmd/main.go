@@ -123,7 +123,15 @@ func main() {
 	if cfg.Tracing.Enabled {
 		router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
 	}
-	// JWT middleware (disabled for now - requires JWT secret configuration)
+	// JWT middleware for optional authentication
+	// SECURITY NOTE: This service uses nil for TokenRevocationChecker because:
+	// 1. It's an internal service accessed through API Gateway
+	// 2. API Gateway enforces token validation and revocation checking
+	// 3. Direct access to this service should NOT be allowed in production
+	// 4. Internal services trust the gateway's security validation
+	//
+	// For services that may be directly exposed, implement TokenRevocationChecker
+	// See: docs/security-architecture.md for detailed guidelines
 	router.Use(middleware.JWTMiddleware(nil, logger.Logger, nil))
 	router.Use(serviceLogger.RequestResponseLogger())
 
