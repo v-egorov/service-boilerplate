@@ -348,6 +348,251 @@ All three logger types integrate with the centralized logging infrastructure:
 - **Standard logs** feed into business analytics and alerting systems
 - **Audit logs** are correlated with distributed traces in Jaeger for security investigations
 
+## Audit Method Creation
+
+### Overview
+
+When implementing new entity types or security events in your services, you need to add corresponding audit logging methods to `common/logging/audit.go`. This ensures consistent audit logging across all services with proper trace correlation and structured data.
+
+### When to Add Audit Methods
+
+Add new audit methods when:
+- Creating new entity types (users, orders, products, etc.)
+- Implementing security-sensitive operations
+- Adding authentication or authorization features
+- Creating custom business operations that require audit trails
+
+### Method Naming Convention
+
+Follow this pattern for audit method names:
+```
+Log<EntityType><Operation>
+```
+
+**Examples:**
+- `LogUserCreation` - for user account creation
+- `LogOrderUpdate` - for order modifications
+- `LogProductDeletion` - for product removal
+- `LogPermissionGrant` - for permission assignments
+
+### Method Signature
+
+All audit methods follow this standard signature:
+
+```go
+func (al *AuditLogger) Log<EntityType><Operation>(
+    requestID, entityID, ipAddress, userAgent, traceID, spanID string,
+    success bool, errorMsg string
+)
+```
+
+**Parameters:**
+- `requestID`: Unique request identifier for correlation
+- `entityID`: ID of the entity being operated on (populates EntityID field)
+- `ipAddress`: Client IP address
+- `userAgent`: Client user agent string
+- `traceID`: Distributed tracing trace ID
+- `spanID`: Distributed tracing span ID
+- `success`: Boolean indicating operation success
+- `errorMsg`: Error message if operation failed (empty string if successful)
+
+### AuditEvent Field Usage
+
+The AuditEvent struct contains both UserID and EntityID fields with distinct purposes:
+
+- **UserID**: Identifies "who initiated the operation" (the authenticated user performing the action)
+- **EntityID**: Identifies "the object upon which operation is performed" (the target entity)
+
+**Usage Patterns:**
+- Authentication operations: Set UserID to the authenticating user, EntityID empty
+- Entity operations: Set EntityID to the target entity, UserID to the actor (when available)
+- User management: Set EntityID to the target user, UserID to the admin/system performing the action
+
+### Implementation Pattern
+
+Use existing methods as templates. Here's the standard implementation pattern:
+
+```go
+// Log<EntityType><Operation> logs <entity type> <operation> events
+func (al *AuditLogger) Log<EntityType><Operation>(requestID, entityID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
+    event := AuditEvent{
+        Timestamp: time.Now().UTC(),
+        EventType: "<entity_type>_<operation>",  // e.g., "user_creation", "order_update"
+        Service:   al.serviceName,
+        EntityID:  entityID,  // Object upon which operation is performed
+        RequestID: requestID,
+        IPAddress: ipAddress,
+        UserAgent: userAgent,
+        Resource:  "<entity_type>",  // e.g., "user", "order", "product"
+        Action:    "<operation>",     // e.g., "create", "update", "delete"
+        TraceID:   traceID,
+        SpanID:    spanID,
+    }
+
+    if success {
+        event.Result = "success"
+    } else {
+        event.Result = "failure"
+        event.Error = errorMsg
+    }
+
+    al.logEvent(event)
+}
+```
+
+**Note:** The UserID field should be set separately when the authenticated user performing the operation is known. For operations where the actor is not captured, UserID remains empty.
+
+### Generic Methods Available
+
+For common CRUD operations, you can use the existing generic methods:
+
+- `LogEntityCreation()` - Generic entity creation
+- `LogEntityUpdate()` - Generic entity update
+- `LogEntityDeletion()` - Generic entity deletion
+
+However, prefer service-specific methods for better audit trail clarity and filtering.
+
+### Adding New Audit Methods
+
+1. **Open `common/logging/audit.go`**
+2. **Add your method following the pattern above**
+3. **Update service handlers to call the new method**
+4. **Test the audit logging integration**
+
+**Example: Adding Product Audit Methods**
+
+```go
+// LogProductCreation logs product creation events
+func (al *AuditLogger) LogProductCreation(requestID, productID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
+    event := AuditEvent{
+        Timestamp: time.Now().UTC(),
+        EventType: "product_creation",
+        Service:   al.serviceName,
+        EntityID:  productID,  // The product being created
+        RequestID: requestID,
+        IPAddress: ipAddress,
+        UserAgent: userAgent,
+        Resource:  "product",
+        Action:    "create",
+        TraceID:   traceID,
+        SpanID:    spanID,
+    }
+
+    if success {
+        event.Result = "success"
+    } else {
+        event.Result = "failure"
+        event.Error = errorMsg
+    }
+
+    al.logEvent(event)
+}
+
+// LogProductUpdate logs product update events
+func (al *AuditLogger) LogProductUpdate(requestID, productID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
+    event := AuditEvent{
+        Timestamp: time.Now().UTC(),
+        EventType: "product_update",
+        Service:   al.serviceName,
+        EntityID:  productID,  // The product being updated
+        RequestID: requestID,
+        IPAddress: ipAddress,
+        UserAgent: userAgent,
+        Resource:  "product",
+        Action:    "update",
+        TraceID:   traceID,
+        SpanID:    spanID,
+    }
+
+    if success {
+        event.Result = "success"
+    } else {
+        event.Result = "failure"
+        event.Error = errorMsg
+    }
+
+    al.logEvent(event)
+}
+```
+
+### Usage in Service Handlers
+
+After adding the audit method, use it in your service handlers. When possible, include both the authenticated user (UserID) and the target entity (EntityID):
+
+```go
+func (h *ProductHandler) CreateProduct(c *gin.Context) {
+    // Extract trace information
+    traceID := tracing.GetTraceID(c.Request.Context())
+    spanID := tracing.GetSpanID(c.Request.Context())
+
+    // Get authenticated user ID (if available from middleware)
+    userID := getAuthenticatedUserID(c) // Implementation depends on your auth system
+
+    // Business logic...
+    product, err := h.service.CreateProduct(c.Request.Context(), req)
+
+    if err != nil {
+        event := AuditEvent{
+            Timestamp: time.Now().UTC(),
+            EventType: "product_creation",
+            Service:   h.auditLogger.serviceName,
+            UserID:    userID,    // Who initiated the operation
+            EntityID:  "",        // No product ID yet for creation failures
+            RequestID: c.GetHeader("X-Request-ID"),
+            IPAddress: c.ClientIP(),
+            UserAgent: c.GetHeader("User-Agent"),
+            Resource:  "product",
+            Action:    "create",
+            TraceID:   traceID,
+            SpanID:    spanID,
+            Result:    "failure",
+            Error:     err.Error(),
+        }
+        h.auditLogger.logEvent(event)
+        // Handle error...
+    }
+
+    // Success case
+    event := AuditEvent{
+        Timestamp: time.Now().UTC(),
+        EventType: "product_creation",
+        Service:   h.auditLogger.serviceName,
+        UserID:    userID,           // Who initiated the operation
+        EntityID:  product.ID.String(), // The created product
+        RequestID: c.GetHeader("X-Request-ID"),
+        IPAddress: c.ClientIP(),
+        UserAgent: c.GetHeader("User-Agent"),
+        Resource:  "product",
+        Action:    "create",
+        TraceID:   traceID,
+        SpanID:    spanID,
+        Result:    "success",
+    }
+    h.auditLogger.logEvent(event)
+
+    // Return response...
+}
+```
+
+**Note:** For backward compatibility, you can still use the convenience methods like `LogProductCreation()`, but for complete audit trails, consider setting both UserID and EntityID directly using the AuditEvent struct.
+
+### Best Practices
+
+- **Consistent Naming**: Use clear, descriptive entity and operation names
+- **Trace Correlation**: Always include traceID and spanID for full observability
+- **Error Details**: Provide meaningful error messages for failed operations
+- **Resource Clarity**: Use specific resource names rather than generic "entity"
+- **Event Type Uniqueness**: Ensure event_type values are unique across services
+- **Documentation**: Add comments explaining what each audit method logs
+
+### Testing Audit Methods
+
+Test your audit methods by:
+1. Making requests that trigger the audit logging
+2. Checking logs in Grafana/Loki for the expected audit events
+3. Verifying trace correlation in Jaeger
+4. Ensuring all required fields are present in the audit logs
+
 ## Usage Examples
 
 ### Development Setup

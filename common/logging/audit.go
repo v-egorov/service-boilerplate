@@ -11,7 +11,8 @@ type AuditEvent struct {
 	Timestamp time.Time              `json:"timestamp"`
 	EventType string                 `json:"event_type"`
 	Service   string                 `json:"service"`
-	UserID    string                 `json:"user_id,omitempty"`
+	UserID    string                 `json:"user_id,omitempty"`   // Who initiated the operation (authenticated user)
+	EntityID  string                 `json:"entity_id,omitempty"` // Object upon which operation is performed
 	RequestID string                 `json:"request_id,omitempty"`
 	IPAddress string                 `json:"ip_address,omitempty"`
 	UserAgent string                 `json:"user_agent,omitempty"`
@@ -150,7 +151,7 @@ func (al *AuditLogger) LogEntityCreation(requestID, entityID, ipAddress, userAge
 		Timestamp: time.Now().UTC(),
 		EventType: "entity_creation",
 		Service:   al.serviceName,
-		UserID:    entityID,
+		EntityID:  entityID,
 		RequestID: requestID,
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
@@ -176,7 +177,7 @@ func (al *AuditLogger) LogEntityUpdate(requestID, entityID, ipAddress, userAgent
 		Timestamp: time.Now().UTC(),
 		EventType: "entity_update",
 		Service:   al.serviceName,
-		UserID:    entityID,
+		EntityID:  entityID,
 		RequestID: requestID,
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
@@ -202,7 +203,7 @@ func (al *AuditLogger) LogEntityDeletion(requestID, entityID, ipAddress, userAge
 		Timestamp: time.Now().UTC(),
 		EventType: "entity_deletion",
 		Service:   al.serviceName,
-		UserID:    entityID,
+		EntityID:  entityID,
 		RequestID: requestID,
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
@@ -249,6 +250,7 @@ func (al *AuditLogger) logEvent(event AuditEvent) {
 		"event_type":  event.EventType,
 		"service":     event.Service,
 		"user_id":     event.UserID,
+		"entity_id":   event.EntityID,
 		"request_id":  event.RequestID,
 		"ip_address":  event.IPAddress,
 		"user_agent":  event.UserAgent,
