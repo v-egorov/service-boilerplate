@@ -10,7 +10,8 @@ datasources:
     jsonData:
       derivedFields:
         - datasourceUid: jaeger
-          matcherRegex: trace_id=(\w+)
+          # matcherRegex: trace_id=(\w+)  - for text-format logs
+          matcherRegex: '"trace_id":"([^"]+)"'
           name: TraceID
           url: $${__value.raw}
       logsToTraces:

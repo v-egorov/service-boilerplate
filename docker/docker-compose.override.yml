@@ -6,7 +6,7 @@ services:
     environment:
       - APP_ENV=development
       - LOGGING_LEVEL=debug
-      - LOGGING_FORMAT=text
+      - LOGGING_FORMAT=json
       - LOGGING_OUTPUT=file
       - LOGGING_DUAL_OUTPUT=true
     volumes:
@@ -31,7 +31,7 @@ services:
     environment:
       - APP_ENV=development
       - LOGGING_LEVEL=debug
-      - LOGGING_FORMAT=text
+      - LOGGING_FORMAT=json
       - LOGGING_OUTPUT=file
       - LOGGING_DUAL_OUTPUT=true
     volumes:
@@ -71,7 +71,7 @@ services:
     environment:
       - APP_ENV=development
       - LOGGING_LEVEL=debug
-      - LOGGING_FORMAT=text
+      - LOGGING_FORMAT=json
       - LOGGING_OUTPUT=file
       - LOGGING_DUAL_OUTPUT=true
     volumes:
