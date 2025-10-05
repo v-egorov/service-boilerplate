@@ -14,6 +14,7 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/config"
 	"github.com/v-egorov/service-boilerplate/common/database"
 	"github.com/v-egorov/service-boilerplate/common/logging"
+	"github.com/v-egorov/service-boilerplate/common/middleware"
 	"github.com/v-egorov/service-boilerplate/common/tracing"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/client"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/handlers"
@@ -148,6 +149,8 @@ func main() {
 	if cfg.Tracing.Enabled {
 		router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
 	}
+	// JWT middleware for authentication
+	router.Use(middleware.JWTMiddleware(jwtUtils.GetPublicKey(), logger.Logger))
 	router.Use(serviceLogger.RequestResponseLogger())
 
 	// Health check endpoints (public, no auth required)
@@ -187,7 +190,7 @@ func main() {
 
 				// Protected routes
 				protected := auth.Group("")
-				protected.Use(authHandler.AuthMiddleware())
+				protected.Use(middleware.RequireAuth())
 				{
 					protected.GET("/me", authHandler.GetCurrentUser)
 				}

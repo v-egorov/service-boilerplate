@@ -124,3 +124,7 @@ func (j *JWTUtils) GetPrivateKeyPEM() ([]byte, error) {
 
 	return privateKeyPEM, nil
 }
+
+func (j *JWTUtils) GetPublicKey() *rsa.PublicKey {
+	return j.publicKey
+}

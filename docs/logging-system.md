@@ -529,9 +529,8 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
     traceID := tracing.GetTraceID(c.Request.Context())
     spanID := tracing.GetSpanID(c.Request.Context())
 
-    // Get authenticated user ID (if available from middleware/context)
-    // For now, using empty string until proper auth middleware is implemented
-    actorUserID := getAuthenticatedUserID(c) // Returns "" if not authenticated
+    // Get authenticated user ID from JWT middleware
+    actorUserID := middleware.GetAuthenticatedUserID(c)
 
     // Business logic...
     product, err := h.service.CreateProduct(c.Request.Context(), req)
@@ -568,7 +567,44 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 }
 ```
 
-**Authentication Context:** The `actorUserID` parameter should be extracted from the request context or JWT token. For public endpoints or when authentication is not required, pass an empty string.
+**Authentication Context:** The `middleware.GetAuthenticatedUserID(c)` function extracts the user ID from the JWT token set by the JWT middleware. For public endpoints or when authentication is not required, this returns an empty string.
+
+### JWT Middleware Integration
+
+Services automatically populate `actorUserID` through the JWT middleware:
+
+1. **JWT Middleware** (`common/middleware.JWTMiddleware`) validates JWT tokens and extracts user information
+2. **Context Population** sets `user_id`, `user_email`, `user_roles` in Gin context
+3. **Helper Functions** provide easy access:
+   - `middleware.GetAuthenticatedUserID(c)` - Gets the user ID
+   - `middleware.GetAuthenticatedUserEmail(c)` - Gets the user email
+   - `middleware.GetAuthenticatedUserRoles(c)` - Gets the user roles
+
+**Service Configuration:**
+```go
+// In service main.go
+router.Use(middleware.JWTMiddleware(jwtPublicKey, logger))
+
+// For services without JWT validation (optional)
+router.Use(middleware.JWTMiddleware(nil, logger)) // Skips authentication
+```
+
+**Audit Trail Examples:**
+```json
+// Before: Incomplete audit trail
+{
+  "user_id": "",
+  "entity_id": "product-123",
+  "action": "create"
+}
+
+// After: Complete audit trail
+{
+  "user_id": "user-456",      // Who performed the action
+  "entity_id": "product-123", // What was created
+  "action": "create"
+}
+```
 
 ### Best Practices
 
