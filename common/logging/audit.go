@@ -40,11 +40,12 @@ func NewAuditLogger(logger *logrus.Logger, serviceName string) *AuditLogger {
 }
 
 // LogAuthAttempt logs authentication attempts
-func (al *AuditLogger) LogAuthAttempt(requestID, ipAddress, userAgent, email, traceID, spanID string, success bool, errorMsg string) {
+func (al *AuditLogger) LogAuthAttempt(userID, requestID, ipAddress, userAgent, email, traceID, spanID string, success bool, errorMsg string) {
 	event := AuditEvent{
 		Timestamp: time.Now().UTC(),
 		EventType: "auth_attempt",
 		Service:   al.serviceName,
+		UserID:    userID,
 		RequestID: requestID,
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
@@ -68,12 +69,13 @@ func (al *AuditLogger) LogAuthAttempt(requestID, ipAddress, userAgent, email, tr
 }
 
 // LogUserCreation logs user account creation events
-func (al *AuditLogger) LogUserCreation(requestID, userID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
+func (al *AuditLogger) LogUserCreation(actorUserID, requestID, targetUserID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
 	event := AuditEvent{
 		Timestamp: time.Now().UTC(),
 		EventType: "user_creation",
 		Service:   al.serviceName,
-		UserID:    userID,
+		UserID:    actorUserID,  // Who performed the creation
+		EntityID:  targetUserID, // The user being created
 		RequestID: requestID,
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
@@ -94,12 +96,13 @@ func (al *AuditLogger) LogUserCreation(requestID, userID, ipAddress, userAgent, 
 }
 
 // LogTokenOperation logs JWT token operations
-func (al *AuditLogger) LogTokenOperation(requestID, userID, ipAddress, userAgent, operation, traceID, spanID string, success bool, errorMsg string) {
+func (al *AuditLogger) LogTokenOperation(actorUserID, requestID, targetUserID, ipAddress, userAgent, operation, traceID, spanID string, success bool, errorMsg string) {
 	event := AuditEvent{
 		Timestamp: time.Now().UTC(),
 		EventType: "token_operation",
 		Service:   al.serviceName,
-		UserID:    userID,
+		UserID:    actorUserID,  // Who performed the token operation
+		EntityID:  targetUserID, // The user whose token is being operated on
 		RequestID: requestID,
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
@@ -120,12 +123,13 @@ func (al *AuditLogger) LogTokenOperation(requestID, userID, ipAddress, userAgent
 }
 
 // LogPasswordChange logs password change attempts
-func (al *AuditLogger) LogPasswordChange(requestID, userID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
+func (al *AuditLogger) LogPasswordChange(actorUserID, requestID, targetUserID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
 	event := AuditEvent{
 		Timestamp: time.Now().UTC(),
 		EventType: "password_change",
 		Service:   al.serviceName,
-		UserID:    userID,
+		UserID:    actorUserID,  // Who initiated the password change
+		EntityID:  targetUserID, // The user whose password is being changed
 		RequestID: requestID,
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
@@ -146,12 +150,13 @@ func (al *AuditLogger) LogPasswordChange(requestID, userID, ipAddress, userAgent
 }
 
 // LogEntityCreation logs entity creation events
-func (al *AuditLogger) LogEntityCreation(requestID, entityID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
+func (al *AuditLogger) LogEntityCreation(actorUserID, requestID, entityID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
 	event := AuditEvent{
 		Timestamp: time.Now().UTC(),
 		EventType: "entity_creation",
 		Service:   al.serviceName,
-		EntityID:  entityID,
+		UserID:    actorUserID, // Who performed the creation
+		EntityID:  entityID,    // The entity being created
 		RequestID: requestID,
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
@@ -172,12 +177,13 @@ func (al *AuditLogger) LogEntityCreation(requestID, entityID, ipAddress, userAge
 }
 
 // LogEntityUpdate logs entity update events
-func (al *AuditLogger) LogEntityUpdate(requestID, entityID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
+func (al *AuditLogger) LogEntityUpdate(actorUserID, requestID, entityID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
 	event := AuditEvent{
 		Timestamp: time.Now().UTC(),
 		EventType: "entity_update",
 		Service:   al.serviceName,
-		EntityID:  entityID,
+		UserID:    actorUserID, // Who performed the update
+		EntityID:  entityID,    // The entity being updated
 		RequestID: requestID,
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
@@ -198,12 +204,13 @@ func (al *AuditLogger) LogEntityUpdate(requestID, entityID, ipAddress, userAgent
 }
 
 // LogEntityDeletion logs entity deletion events
-func (al *AuditLogger) LogEntityDeletion(requestID, entityID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
+func (al *AuditLogger) LogEntityDeletion(actorUserID, requestID, entityID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
 	event := AuditEvent{
 		Timestamp: time.Now().UTC(),
 		EventType: "entity_deletion",
 		Service:   al.serviceName,
-		EntityID:  entityID,
+		UserID:    actorUserID, // Who performed the deletion
+		EntityID:  entityID,    // The entity being deleted
 		RequestID: requestID,
 		IPAddress: ipAddress,
 		UserAgent: userAgent,
@@ -224,11 +231,12 @@ func (al *AuditLogger) LogEntityDeletion(requestID, entityID, ipAddress, userAge
 }
 
 // LogSuspiciousActivity logs potentially suspicious activities
-func (al *AuditLogger) LogSuspiciousActivity(requestID, ipAddress, userAgent, activityType, traceID, spanID string, details map[string]interface{}) {
+func (al *AuditLogger) LogSuspiciousActivity(actorUserID, requestID, ipAddress, userAgent, activityType, traceID, spanID string, details map[string]interface{}) {
 	event := AuditEvent{
 		Timestamp: time.Now().UTC(),
 		EventType: "suspicious_activity",
 		Service:   al.serviceName,
+		UserID:    actorUserID, // Who triggered the suspicious activity detection
 		RequestID: requestID,
 		IPAddress: ipAddress,
 		UserAgent: userAgent,

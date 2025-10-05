@@ -381,14 +381,15 @@ All audit methods follow this standard signature:
 
 ```go
 func (al *AuditLogger) Log<EntityType><Operation>(
-    requestID, entityID, ipAddress, userAgent, traceID, spanID string,
+    actorUserID, requestID, targetID, ipAddress, userAgent, traceID, spanID string,
     success bool, errorMsg string
 )
 ```
 
 **Parameters:**
+- `actorUserID`: ID of the authenticated user performing the action (populates UserID field)
 - `requestID`: Unique request identifier for correlation
-- `entityID`: ID of the entity being operated on (populates EntityID field)
+- `targetID`: ID of the target entity/user being operated on (populates EntityID field)
 - `ipAddress`: Client IP address
 - `userAgent`: Client user agent string
 - `traceID`: Distributed tracing trace ID
@@ -414,12 +415,13 @@ Use existing methods as templates. Here's the standard implementation pattern:
 
 ```go
 // Log<EntityType><Operation> logs <entity type> <operation> events
-func (al *AuditLogger) Log<EntityType><Operation>(requestID, entityID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
+func (al *AuditLogger) Log<EntityType><Operation>(actorUserID, requestID, targetID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
     event := AuditEvent{
         Timestamp: time.Now().UTC(),
         EventType: "<entity_type>_<operation>",  // e.g., "user_creation", "order_update"
         Service:   al.serviceName,
-        EntityID:  entityID,  // Object upon which operation is performed
+        UserID:    actorUserID,  // Who performed the action
+        EntityID:  targetID,     // Object upon which operation is performed
         RequestID: requestID,
         IPAddress: ipAddress,
         UserAgent: userAgent,
@@ -440,7 +442,7 @@ func (al *AuditLogger) Log<EntityType><Operation>(requestID, entityID, ipAddress
 }
 ```
 
-**Note:** The UserID field should be set separately when the authenticated user performing the operation is known. For operations where the actor is not captured, UserID remains empty.
+**Note:** For operations where the authenticated actor is not available (public endpoints, system operations), pass an empty string for actorUserID.
 
 ### Generic Methods Available
 
@@ -463,12 +465,13 @@ However, prefer service-specific methods for better audit trail clarity and filt
 
 ```go
 // LogProductCreation logs product creation events
-func (al *AuditLogger) LogProductCreation(requestID, productID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
+func (al *AuditLogger) LogProductCreation(actorUserID, requestID, productID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
     event := AuditEvent{
         Timestamp: time.Now().UTC(),
         EventType: "product_creation",
         Service:   al.serviceName,
-        EntityID:  productID,  // The product being created
+        UserID:    actorUserID,  // Who created the product
+        EntityID:  productID,    // The product being created
         RequestID: requestID,
         IPAddress: ipAddress,
         UserAgent: userAgent,
@@ -489,12 +492,13 @@ func (al *AuditLogger) LogProductCreation(requestID, productID, ipAddress, userA
 }
 
 // LogProductUpdate logs product update events
-func (al *AuditLogger) LogProductUpdate(requestID, productID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
+func (al *AuditLogger) LogProductUpdate(actorUserID, requestID, productID, ipAddress, userAgent, traceID, spanID string, success bool, errorMsg string) {
     event := AuditEvent{
         Timestamp: time.Now().UTC(),
         EventType: "product_update",
         Service:   al.serviceName,
-        EntityID:  productID,  // The product being updated
+        UserID:    actorUserID,  // Who updated the product
+        EntityID:  productID,    // The product being updated
         RequestID: requestID,
         IPAddress: ipAddress,
         UserAgent: userAgent,
@@ -517,7 +521,7 @@ func (al *AuditLogger) LogProductUpdate(requestID, productID, ipAddress, userAge
 
 ### Usage in Service Handlers
 
-After adding the audit method, use it in your service handlers. When possible, include both the authenticated user (UserID) and the target entity (EntityID):
+After adding the audit method, use it in your service handlers. Always pass the authenticated user ID when available:
 
 ```go
 func (h *ProductHandler) CreateProduct(c *gin.Context) {
@@ -525,56 +529,46 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
     traceID := tracing.GetTraceID(c.Request.Context())
     spanID := tracing.GetSpanID(c.Request.Context())
 
-    // Get authenticated user ID (if available from middleware)
-    userID := getAuthenticatedUserID(c) // Implementation depends on your auth system
+    // Get authenticated user ID (if available from middleware/context)
+    // For now, using empty string until proper auth middleware is implemented
+    actorUserID := getAuthenticatedUserID(c) // Returns "" if not authenticated
 
     // Business logic...
     product, err := h.service.CreateProduct(c.Request.Context(), req)
 
     if err != nil {
-        event := AuditEvent{
-            Timestamp: time.Now().UTC(),
-            EventType: "product_creation",
-            Service:   h.auditLogger.serviceName,
-            UserID:    userID,    // Who initiated the operation
-            EntityID:  "",        // No product ID yet for creation failures
-            RequestID: c.GetHeader("X-Request-ID"),
-            IPAddress: c.ClientIP(),
-            UserAgent: c.GetHeader("User-Agent"),
-            Resource:  "product",
-            Action:    "create",
-            TraceID:   traceID,
-            SpanID:    spanID,
-            Result:    "failure",
-            Error:     err.Error(),
-        }
-        h.auditLogger.logEvent(event)
+        h.auditLogger.LogProductCreation(
+            actorUserID,                    // Who attempted to create
+            c.GetHeader("X-Request-ID"),    // Request correlation
+            "",                             // No product ID for failures
+            c.ClientIP(),
+            c.GetHeader("User-Agent"),
+            traceID,
+            spanID,
+            false,                          // success = false
+            err.Error(),
+        )
         // Handle error...
     }
 
     // Success case
-    event := AuditEvent{
-        Timestamp: time.Now().UTC(),
-        EventType: "product_creation",
-        Service:   h.auditLogger.serviceName,
-        UserID:    userID,           // Who initiated the operation
-        EntityID:  product.ID.String(), // The created product
-        RequestID: c.GetHeader("X-Request-ID"),
-        IPAddress: c.ClientIP(),
-        UserAgent: c.GetHeader("User-Agent"),
-        Resource:  "product",
-        Action:    "create",
-        TraceID:   traceID,
-        SpanID:    spanID,
-        Result:    "success",
-    }
-    h.auditLogger.logEvent(event)
+    h.auditLogger.LogProductCreation(
+        actorUserID,                        // Who created the product
+        c.GetHeader("X-Request-ID"),        // Request correlation
+        product.ID.String(),                // The created product ID
+        c.ClientIP(),
+        c.GetHeader("User-Agent"),
+        traceID,
+        spanID,
+        true,                               // success = true
+        "",                                 // no error
+    )
 
     // Return response...
 }
 ```
 
-**Note:** For backward compatibility, you can still use the convenience methods like `LogProductCreation()`, but for complete audit trails, consider setting both UserID and EntityID directly using the AuditEvent struct.
+**Authentication Context:** The `actorUserID` parameter should be extracted from the request context or JWT token. For public endpoints or when authentication is not required, pass an empty string.
 
 ### Best Practices
 

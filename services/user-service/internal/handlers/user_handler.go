@@ -95,7 +95,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		h.logger.WithFields(logrus.Fields{
 			"request_id": requestID,
 		}).WithError(err).Error("Invalid request body")
-		h.auditLogger.LogUserCreation(requestID, "", c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, "Invalid request format")
+		h.auditLogger.LogUserCreation("", requestID, "", c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, "Invalid request format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
 			"details": err.Error(),
@@ -111,7 +111,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	user, err := h.service.CreateUser(c.Request.Context(), &req)
 	if err != nil {
 		h.handleServiceError(c, err, "Failed to create user", requestID)
-		h.auditLogger.LogUserCreation(requestID, "", ipAddress, userAgent, traceID, spanID, false, err.Error())
+		h.auditLogger.LogUserCreation("", requestID, "", ipAddress, userAgent, traceID, spanID, false, err.Error())
 		return
 	}
 
@@ -120,7 +120,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		"request_id": requestID,
 	}).Info("User created successfully")
 	h.standardLogger.UserOperation(requestID, user.ID.String(), "create", true, nil)
-	h.auditLogger.LogUserCreation(requestID, user.ID.String(), ipAddress, userAgent, traceID, spanID, true, "")
+	h.auditLogger.LogUserCreation("", requestID, user.ID.String(), ipAddress, userAgent, traceID, spanID, true, "")
 	c.JSON(http.StatusCreated, gin.H{
 		"data":    user,
 		"message": "User created successfully",
