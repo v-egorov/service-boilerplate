@@ -2,6 +2,7 @@ package logging
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"time"
 
@@ -64,7 +65,21 @@ func (srl *ServiceRequestLogger) RequestResponseLogger() gin.HandlerFunc {
 		if uid, exists := c.Get("user_id"); exists {
 			if uuid, ok := uid.(string); ok {
 				userID = uuid
+			} else {
+				srl.logger.WithFields(logrus.Fields{
+					"request_id":    requestID,
+					"path":          c.Request.URL.Path,
+					"method":        c.Request.Method,
+					"user_id_type":  fmt.Sprintf("%T", uid),
+					"user_id_value": fmt.Sprintf("%v", uid),
+				}).Warn("Logging middleware: user_id exists in context but wrong type")
 			}
+		} else {
+			srl.logger.WithFields(logrus.Fields{
+				"request_id": requestID,
+				"path":       c.Request.URL.Path,
+				"method":     c.Request.Method,
+			}).Debug("Logging middleware: user_id not found in context")
 		}
 
 		// Create response writer wrapper to capture response size and status

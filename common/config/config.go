@@ -14,6 +14,7 @@ type Config struct {
 	Monitoring MonitoringConfig `mapstructure:"monitoring"`
 	Alerting   AlertingConfig   `mapstructure:"alerting"`
 	Tracing    TracingConfig    `mapstructure:"tracing"`
+	JWT        JWTConfig        `mapstructure:"jwt"`
 }
 
 type AppConfig struct {
@@ -68,6 +69,10 @@ type TracingConfig struct {
 	SamplingRate float64 `mapstructure:"sampling_rate"`
 }
 
+type JWTConfig struct {
+	PublicKey string `mapstructure:"public_key"`
+}
+
 func Load(configPath string) (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -99,6 +104,7 @@ func Load(configPath string) (*Config, error) {
 	viper.BindEnv("tracing.service_name", "TRACING_SERVICE_NAME")
 	viper.BindEnv("tracing.collector_url", "TRACING_COLLECTOR_URL")
 	viper.BindEnv("tracing.sampling_rate", "TRACING_SAMPLING_RATE")
+	viper.BindEnv("jwt.public_key", "JWT_PUBLIC_KEY")
 
 	// Set environment variable defaults for Docker
 	if os.Getenv("DOCKER_ENV") == "true" {

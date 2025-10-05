@@ -20,11 +20,26 @@ type JWTClaims struct {
 	jwt.RegisteredClaims
 }
 
+// TokenRevocationChecker interface for checking if a token has been revoked
+type TokenRevocationChecker interface {
+	IsTokenRevoked(tokenString string) bool
+}
+
 // JWTMiddleware creates JWT authentication middleware
-func JWTMiddleware(jwtSecret interface{}, logger *logrus.Logger) gin.HandlerFunc {
+func JWTMiddleware(jwtSecret interface{}, logger *logrus.Logger, revocationChecker TokenRevocationChecker) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		requestID := c.GetHeader("X-Request-ID")
+		if requestID == "" {
+			requestID = "unknown"
+		}
+
 		// If no JWT secret provided, skip authentication
 		if jwtSecret == nil {
+			logger.WithFields(logrus.Fields{
+				"request_id": requestID,
+				"path":       c.Request.URL.Path,
+				"method":     c.Request.Method,
+			}).Debug("JWT middleware: Skipping authentication (no JWT secret)")
 			c.Next()
 			return
 		}
@@ -32,11 +47,21 @@ func JWTMiddleware(jwtSecret interface{}, logger *logrus.Logger) gin.HandlerFunc
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			// No auth header - continue without authentication
+			logger.WithFields(logrus.Fields{
+				"request_id": requestID,
+				"path":       c.Request.URL.Path,
+				"method":     c.Request.Method,
+			}).Debug("JWT middleware: No Authorization header, continuing without authentication")
 			c.Next()
 			return
 		}
 
 		if !strings.HasPrefix(authHeader, "Bearer ") {
+			logger.WithFields(logrus.Fields{
+				"request_id": requestID,
+				"path":       c.Request.URL.Path,
+				"method":     c.Request.Method,
+			}).Warn("JWT middleware: Invalid authorization header format")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization format"})
 			c.Abort()
 			return
@@ -63,30 +88,67 @@ func JWTMiddleware(jwtSecret interface{}, logger *logrus.Logger) gin.HandlerFunc
 		})
 
 		if err != nil {
-			logger.WithError(err).Warn("Failed to parse JWT token")
+			logger.WithFields(logrus.Fields{
+				"request_id": requestID,
+				"path":       c.Request.URL.Path,
+				"method":     c.Request.Method,
+				"error":      err.Error(),
+			}).Warn("JWT middleware: Failed to parse JWT token")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 			c.Abort()
 			return
 		}
 
 		if !token.Valid {
+			logger.WithFields(logrus.Fields{
+				"request_id": requestID,
+				"path":       c.Request.URL.Path,
+				"method":     c.Request.Method,
+			}).Warn("JWT middleware: Token validation failed")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.Abort()
+			return
+		}
+
+		// Check if token has been revoked (if revocation checker is provided)
+		if revocationChecker != nil && revocationChecker.IsTokenRevoked(tokenString) {
+			logger.WithFields(logrus.Fields{
+				"request_id": requestID,
+				"path":       c.Request.URL.Path,
+				"method":     c.Request.Method,
+			}).Warn("JWT middleware: Token has been revoked")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token has been revoked"})
 			c.Abort()
 			return
 		}
 
 		claims, ok := token.Claims.(*JWTClaims)
 		if !ok {
+			logger.WithFields(logrus.Fields{
+				"request_id": requestID,
+				"path":       c.Request.URL.Path,
+				"method":     c.Request.Method,
+			}).Warn("JWT middleware: Invalid token claims type")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
 			c.Abort()
 			return
 		}
 
 		// Set user information in context for use by handlers and logging
-		c.Set("user_id", claims.UserID.String())
+		userID := claims.UserID.String()
+		c.Set("user_id", userID)
 		c.Set("user_email", claims.Email)
 		c.Set("user_roles", claims.Roles)
 		c.Set("token_type", claims.TokenType)
+
+		logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"path":       c.Request.URL.Path,
+			"method":     c.Request.Method,
+			"user_id":    userID,
+			"user_email": claims.Email,
+			"token_type": claims.TokenType,
+		}).Debug("JWT middleware: Successfully authenticated user, set context")
 
 		c.Next()
 	}

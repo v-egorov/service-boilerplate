@@ -348,6 +348,10 @@ func (s *AuthService) GetCurrentUser(ctx context.Context, userID uuid.UUID, emai
 	return userInfo, nil
 }
 
+func (s *AuthService) GetPublicKeyPEM() ([]byte, error) {
+	return s.jwtUtils.GetPublicKeyPEM()
+}
+
 func (s *AuthService) ValidateToken(ctx context.Context, tokenString string) (*utils.JWTClaims, error) {
 	claims, err := s.jwtUtils.ValidateToken(tokenString)
 	if err != nil {

@@ -124,7 +124,7 @@ func main() {
 		router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
 	}
 	// JWT middleware (disabled for now - requires JWT secret configuration)
-	router.Use(middleware.JWTMiddleware(nil, logger.Logger))
+	router.Use(middleware.JWTMiddleware(nil, logger.Logger, nil))
 	router.Use(serviceLogger.RequestResponseLogger())
 
 	// Health check endpoints (public, no auth required)

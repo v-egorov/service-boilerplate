@@ -213,6 +213,42 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"user": user})
 }
 
+func (h *AuthHandler) ValidateToken(c *gin.Context) {
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
+		return
+	}
+
+	tokenParts := strings.Split(authHeader, " ")
+	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
+		return
+	}
+
+	tokenString := tokenParts[1]
+	_, err := h.authService.ValidateToken(c.Request.Context(), tokenString)
+	if err != nil {
+		h.logger.WithError(err).Warn("Token validation failed")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or revoked token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"valid": true})
+}
+
+func (h *AuthHandler) GetPublicKey(c *gin.Context) {
+	publicKeyPEM, err := h.authService.GetPublicKeyPEM()
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to get public key")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get public key"})
+		return
+	}
+
+	c.Header("Content-Type", "application/x-pem-file")
+	c.String(http.StatusOK, string(publicKeyPEM))
+}
+
 // Middleware function to validate JWT tokens
 func (h *AuthHandler) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {

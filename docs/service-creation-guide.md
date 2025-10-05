@@ -75,6 +75,56 @@ services/your-service-name/
 └── README.md                   # Service documentation
 ```
 
+## Authentication & Authorization
+
+### JWT Integration
+
+New services are created with JWT middleware integration for secure API access:
+
+- **JWT Middleware**: Automatically validates JWT tokens from the `Authorization` header
+- **User Context**: Extracts user information (ID, email, roles) and stores in Gin context
+- **Audit Logging**: All operations are logged with actor identification for security compliance
+
+#### JWT Configuration
+
+For services that need JWT token validation:
+
+```go
+// In cmd/main.go
+// Replace nil with JWT public key for token validation
+router.Use(middleware.JWTMiddleware(jwtPublicKey, logger.Logger))
+```
+
+#### Getting Authenticated User
+
+```go
+// In handlers
+actorUserID := middleware.GetAuthenticatedUserID(c)
+userEmail := middleware.GetAuthenticatedUserEmail(c)
+userRoles := middleware.GetAuthenticatedUserRoles(c)
+```
+
+#### Protected Routes
+
+```go
+// Require authentication
+protected := v1.Group("/protected")
+protected.Use(middleware.RequireAuth())
+
+// Require specific role
+admin := v1.Group("/admin")
+admin.Use(middleware.RequireRole("admin"))
+```
+
+### Audit Logging
+
+All entity operations include comprehensive audit trails:
+
+```go
+// Automatic audit logging in handlers
+h.auditLogger.LogEntityCreation(actorUserID, requestID, entityID, ipAddress, userAgent, traceID, spanID, success, errorMsg)
+```
+
 ## Configuration Files
 
 ### Environment Variables (.env)

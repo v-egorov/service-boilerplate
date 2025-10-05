@@ -23,6 +23,16 @@ import (
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/utils"
 )
 
+// authServiceRevocationChecker implements TokenRevocationChecker for auth-service
+type authServiceRevocationChecker struct {
+	authService *services.AuthService
+}
+
+func (c *authServiceRevocationChecker) IsTokenRevoked(tokenString string) bool {
+	_, err := c.authService.ValidateToken(context.Background(), tokenString)
+	return err != nil // If validation fails, token is considered revoked or invalid
+}
+
 func main() {
 	// Load configuration
 	cfg, err := config.Load(".")
@@ -84,6 +94,7 @@ func main() {
 	// Initialize repository and service only if database is available
 	var authHandler *handlers.AuthHandler
 	var healthHandler *handlers.HealthHandler
+	var revocationChecker middleware.TokenRevocationChecker
 
 	if db != nil {
 		// Initialize repository
@@ -100,10 +111,16 @@ func main() {
 		// Initialize handlers
 		authHandler = handlers.NewAuthHandler(authService, logger.Logger)
 		healthHandler = handlers.NewHealthHandler(db.GetPool(), logger.Logger, cfg)
+
+		// Create token revocation checker for JWT middleware
+		revocationChecker = &authServiceRevocationChecker{
+			authService: authService,
+		}
 	} else {
 		// Initialize handlers without database
 		healthHandler = handlers.NewHealthHandler(nil, logger.Logger, cfg)
 		authHandler = nil // Auth operations won't work without database
+		revocationChecker = nil
 	}
 
 	// Initialize service request logger
@@ -150,7 +167,7 @@ func main() {
 		router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
 	}
 	// JWT middleware for authentication
-	router.Use(middleware.JWTMiddleware(jwtUtils.GetPublicKey(), logger.Logger))
+	router.Use(middleware.JWTMiddleware(jwtUtils.GetPublicKey(), logger.Logger, revocationChecker))
 	router.Use(serviceLogger.RequestResponseLogger())
 
 	// Health check endpoints (public, no auth required)
@@ -159,6 +176,11 @@ func main() {
 	router.GET("/live", healthHandler.LivenessHandler)
 	router.GET("/status", healthHandler.StatusHandler) // Direct status endpoint
 	router.GET("/ping", healthHandler.PingHandler)     // Direct ping endpoint
+
+	// Public key endpoint (public, no auth required)
+	if authHandler != nil {
+		router.GET("/public-key", authHandler.GetPublicKey)
+	}
 
 	// API routes
 	v1 := router.Group("/api/v1")
@@ -187,6 +209,9 @@ func main() {
 				auth.POST("/register", authHandler.Register)
 				auth.POST("/refresh", authHandler.RefreshToken)
 				auth.POST("/logout", authHandler.Logout)
+
+				// Token validation endpoint (public - validates the token in the request)
+				auth.POST("/validate-token", authHandler.ValidateToken)
 
 				// Protected routes
 				protected := auth.Group("")

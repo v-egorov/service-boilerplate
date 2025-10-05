@@ -29,3 +29,6 @@ tracing:
   service_name: "api-gateway"
   collector_url: "http://jaeger:4318/v1/traces"
   sampling_rate: 1.0
+
+jwt:
+  public_key: ""  # Set via JWT_PUBLIC_KEY environment variable

@@ -606,6 +606,97 @@ router.Use(middleware.JWTMiddleware(nil, logger)) // Skips authentication
 }
 ```
 
+## Middleware Configuration Patterns
+
+### Recommended Middleware Order
+
+```go
+// 1. Recovery middleware (catch panics)
+router.Use(gin.Recovery())
+
+// 2. CORS middleware (handle preflight requests)
+router.Use(corsMiddleware())
+
+// 3. Request ID middleware (generate/extract request IDs)
+router.Use(requestIDMiddleware())
+
+// 4. Tracing middleware (inject trace context)
+if cfg.Tracing.Enabled {
+    router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
+}
+
+// 5. JWT middleware (authenticate and set user context)
+router.Use(middleware.JWTMiddleware(jwtPublicKey, logger.Logger))
+
+// 6. Logging middleware (log requests with user context)
+router.Use(serviceLogger.RequestResponseLogger())
+```
+
+### Route Protection Patterns
+
+#### Public Endpoints
+```go
+// Health checks - no authentication required
+router.GET("/health", healthHandler.LivenessHandler)
+router.GET("/ready", healthHandler.ReadinessHandler)
+```
+
+#### Protected Endpoints
+```go
+// All API routes require authentication
+v1 := router.Group("/api/v1")
+v1.Use(middleware.RequireAuth()) // Applied to all routes in group
+
+// Role-based access control
+admin := v1.Group("/admin")
+admin.Use(middleware.RequireRole("admin"))
+
+moderator := v1.Group("/moderate")
+moderator.Use(middleware.RequireRole("admin", "moderator")) // Multiple roles allowed
+```
+
+#### Mixed Public/Private Routes
+```go
+v1 := router.Group("/api/v1")
+
+// Public routes
+v1.POST("/auth/login", authHandler.Login)
+v1.POST("/auth/register", authHandler.Register)
+
+// Protected routes
+protected := v1.Group("")
+protected.Use(middleware.RequireAuth())
+{
+    protected.GET("/users", userHandler.ListUsers)
+    protected.POST("/users", userHandler.CreateUser)
+}
+```
+
+### Error Handling with Audit Logging
+
+```go
+func (h *Handler) handleError(c *gin.Context, err error, operation string) {
+    requestID := c.GetHeader("X-Request-ID")
+    actorUserID := middleware.GetAuthenticatedUserID(c)
+
+    // Extract trace info
+    span := trace.SpanFromContext(c.Request.Context())
+    traceID := span.SpanContext().TraceID().String()
+    spanID := span.SpanContext().SpanID().String()
+
+    // Log audit event for failed operation
+    h.auditLogger.LogEntityUpdate(actorUserID, requestID, entityID,
+        c.ClientIP(), c.GetHeader("User-Agent"),
+        traceID, spanID, false, err.Error())
+
+    // Return appropriate error response
+    c.JSON(http.StatusInternalServerError, gin.H{
+        "error": "Operation failed",
+        "type":  "internal_error",
+    })
+}
+```
+
 ### Best Practices
 
 - **Consistent Naming**: Use clear, descriptive entity and operation names

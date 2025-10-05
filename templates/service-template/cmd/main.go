@@ -14,6 +14,7 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/config"
 	"github.com/v-egorov/service-boilerplate/common/database"
 	"github.com/v-egorov/service-boilerplate/common/logging"
+	"github.com/v-egorov/service-boilerplate/common/middleware"
 	"github.com/v-egorov/service-boilerplate/common/tracing"
 	// ENTITY_IMPORT_HANDLERS
 	// ENTITY_IMPORT_REPOSITORY
@@ -126,6 +127,9 @@ func main() {
 	if cfg.Tracing.Enabled {
 		router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
 	}
+	// JWT middleware for authentication (configure jwtSecret for token validation)
+	// For development, you may need to share JWT public key with auth-service
+	router.Use(middleware.JWTMiddleware(nil, logger.Logger, nil)) // nil disables JWT validation
 	router.Use(serviceLogger.RequestResponseLogger())
 
 	// Health check endpoints (public, no auth required)
