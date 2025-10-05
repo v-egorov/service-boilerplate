@@ -17,6 +17,7 @@ A comprehensive boilerplate for building scalable Golang-based REST API services
 ## 📚 Documentation
 
 ### Core Features
+- **[Middleware Architecture](docs/middleware-architecture.md)**: Authentication, logging, tracing, and request processing patterns
 - **[Security Architecture](docs/security-architecture.md)**: Authentication, authorization, and service exposure guidelines
 - **[Logging System](docs/logging-system.md)**: Comprehensive guide to logging configuration, options, and troubleshooting
 - **[Distributed Tracing](docs/tracing/)**: Complete OpenTelemetry implementation with Jaeger

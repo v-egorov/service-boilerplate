@@ -553,3 +553,12 @@ make dev
 ```
 
 This workflow creates a fully functional microservice integrated with your existing infrastructure.
+
+## 📚 Related Documentation
+
+- **[Middleware Architecture](middleware-architecture.md)**: Complete middleware patterns, authentication, logging, and tracing implementation
+- **[Security Architecture](security-architecture.md)**: Authentication, authorization, and service exposure guidelines
+- **[Logging System](logging-system.md)**: Comprehensive guide to logging configuration, options, and troubleshooting
+- **[Distributed Tracing](tracing/)**: Complete OpenTelemetry implementation with Jaeger
+- **[Database Migrations](migrations/)**: Database migration management and best practices
+- **[CLI Utilities](cli-utility-comprehensive.md)**: Command-line tools for development and operations
