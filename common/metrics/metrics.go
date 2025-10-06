@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"fmt"
 	"regexp"
 	"sort"
 	"strings"
@@ -9,6 +10,28 @@ import (
 
 	"github.com/sirupsen/logrus"
 )
+
+// formatDuration formats a duration in a human-readable format
+func formatDuration(d time.Duration) string {
+	days := int(d.Hours() / 24)
+	hours := int(d.Hours()) % 24
+	minutes := int(d.Minutes()) % 60
+	seconds := int(d.Seconds()) % 60
+
+	var parts []string
+	if days > 0 {
+		parts = append(parts, fmt.Sprintf("%dd", days))
+	}
+	if hours > 0 || days > 0 {
+		parts = append(parts, fmt.Sprintf("%dh", hours))
+	}
+	if minutes > 0 || hours > 0 || days > 0 {
+		parts = append(parts, fmt.Sprintf("%dm", minutes))
+	}
+	parts = append(parts, fmt.Sprintf("%ds", seconds))
+
+	return strings.Join(parts, " ")
+}
 
 // MetricsCollector provides basic metrics collection for services
 type MetricsCollector struct {
@@ -64,20 +87,29 @@ type EndpointMetricsSummary struct {
 	AvgResponseTime time.Duration `json:"avg_response_time"`
 	P95ResponseTime time.Duration `json:"p95_response_time,omitempty"`
 	P99ResponseTime time.Duration `json:"p99_response_time,omitempty"`
+	// New millisecond fields for clarity
+	AvgResponseTimeMs float64 `json:"avg_response_time_ms"`
+	P95ResponseTimeMs float64 `json:"p95_response_time_ms,omitempty"`
+	P99ResponseTimeMs float64 `json:"p99_response_time_ms,omitempty"`
 }
 
 // ServiceMetrics represents aggregated metrics for the service
 type ServiceMetrics struct {
-	ServiceName     string                            `json:"service_name"`
-	Uptime          time.Duration                     `json:"uptime"`
-	RequestCount    int64                             `json:"request_count"`
-	ErrorCount      int64                             `json:"error_count"`
-	ErrorRate       float64                           `json:"error_rate"`
-	AvgResponseTime time.Duration                     `json:"avg_response_time"`
-	P95ResponseTime time.Duration                     `json:"p95_response_time,omitempty"`
-	P99ResponseTime time.Duration                     `json:"p99_response_time,omitempty"`
-	EndpointMetrics map[string]EndpointMetricsSummary `json:"endpoint_metrics,omitempty"`
-	BusinessMetrics map[string]int64                  `json:"business_metrics,omitempty"`
+	ServiceName     string        `json:"service_name"`
+	Uptime          time.Duration `json:"uptime"`
+	UptimeHuman     string        `json:"uptime_human"`
+	RequestCount    int64         `json:"request_count"`
+	ErrorCount      int64         `json:"error_count"`
+	ErrorRate       float64       `json:"error_rate"`
+	AvgResponseTime time.Duration `json:"avg_response_time"`
+	P95ResponseTime time.Duration `json:"p95_response_time,omitempty"`
+	P99ResponseTime time.Duration `json:"p99_response_time,omitempty"`
+	// New millisecond fields for clarity
+	AvgResponseTimeMs float64                           `json:"avg_response_time_ms"`
+	P95ResponseTimeMs float64                           `json:"p95_response_time_ms,omitempty"`
+	P99ResponseTimeMs float64                           `json:"p99_response_time_ms,omitempty"`
+	EndpointMetrics   map[string]EndpointMetricsSummary `json:"endpoint_metrics,omitempty"`
+	BusinessMetrics   map[string]int64                  `json:"business_metrics,omitempty"`
 }
 
 // NewMetricsCollector creates a new metrics collector
@@ -249,17 +281,23 @@ func (mc *MetricsCollector) GetMetrics() ServiceMetrics {
 		businessMetrics[k] = v
 	}
 
+	uptime := time.Since(mc.startTime)
 	return ServiceMetrics{
 		ServiceName:     mc.serviceName,
-		Uptime:          time.Since(mc.startTime),
+		Uptime:          uptime,
+		UptimeHuman:     formatDuration(uptime),
 		RequestCount:    mc.requestCount,
 		ErrorCount:      mc.errorCount,
 		ErrorRate:       errorRate,
 		AvgResponseTime: avgResponseTime,
 		P95ResponseTime: p95ResponseTime,
 		P99ResponseTime: p99ResponseTime,
-		EndpointMetrics: endpointMetrics,
-		BusinessMetrics: businessMetrics,
+		// New millisecond fields
+		AvgResponseTimeMs: float64(avgResponseTime.Nanoseconds()) / 1e6,
+		P95ResponseTimeMs: float64(p95ResponseTime.Nanoseconds()) / 1e6,
+		P99ResponseTimeMs: float64(p99ResponseTime.Nanoseconds()) / 1e6,
+		EndpointMetrics:   endpointMetrics,
+		BusinessMetrics:   businessMetrics,
 	}
 }
 
@@ -308,6 +346,10 @@ func (mc *MetricsCollector) calculateEndpointMetrics() map[string]EndpointMetric
 			AvgResponseTime: avgResponseTime,
 			P95ResponseTime: p95ResponseTime,
 			P99ResponseTime: p99ResponseTime,
+			// New millisecond fields
+			AvgResponseTimeMs: float64(avgResponseTime.Nanoseconds()) / 1e6,
+			P95ResponseTimeMs: float64(p95ResponseTime.Nanoseconds()) / 1e6,
+			P99ResponseTimeMs: float64(p99ResponseTime.Nanoseconds()) / 1e6,
 		}
 	}
 
