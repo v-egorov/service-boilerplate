@@ -28,6 +28,7 @@ type AlertManager struct {
 	serviceName      string
 	config           *config.AlertingConfig
 	metricsCollector *metrics.MetricsCollector
+	jwtUtils         interface{} // For JWT key checks, will be cast to appropriate type
 	alerts           []Alert
 	lastAlertTimes   map[string]time.Time
 }
@@ -41,6 +42,40 @@ func NewAlertManager(logger *logrus.Logger, serviceName string, config *config.A
 		metricsCollector: metricsCollector,
 		alerts:           make([]Alert, 0),
 		lastAlertTimes:   make(map[string]time.Time),
+	}
+}
+
+// SetJWTChecker sets a JWT health checker function
+func (am *AlertManager) SetJWTChecker(checker func() (bool, string)) {
+	am.jwtUtils = checker
+}
+
+// CheckJWTKeys checks JWT key health and triggers alerts if there are issues
+func (am *AlertManager) CheckJWTKeys() {
+	if !am.config.Enabled || am.jwtUtils == nil {
+		return
+	}
+
+	checker, ok := am.jwtUtils.(func() (bool, string))
+	if !ok {
+		return
+	}
+
+	healthy, errorMsg := checker()
+	if !healthy {
+		alertKey := "jwt_key_issue"
+		if am.shouldTriggerAlert(alertKey) {
+			alert := Alert{
+				ID:          fmt.Sprintf("%s_%s_%d", am.serviceName, alertKey, time.Now().Unix()),
+				ServiceName: am.serviceName,
+				Type:        "jwt_key",
+				Severity:    "critical",
+				Message:     fmt.Sprintf("JWT key health check failed: %s", errorMsg),
+				Timestamp:   time.Now(),
+				Acked:       false,
+			}
+			am.triggerAlert(alert)
+		}
 	}
 }
 

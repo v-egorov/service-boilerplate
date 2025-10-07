@@ -85,18 +85,20 @@ func main() {
 		defer db.Close()
 	}
 
-	// Initialize JWT utils
-	jwtUtils, err := utils.NewJWTUtils()
-	if err != nil {
-		logger.Fatal("Failed to initialize JWT utils", err)
-	}
-
 	// Initialize repository and service only if database is available
 	var authHandler *handlers.AuthHandler
 	var healthHandler *handlers.HealthHandler
 	var revocationChecker middleware.TokenRevocationChecker
+	var jwtUtils *utils.JWTUtils
 
 	if db != nil {
+		// Initialize JWT utils with database connection
+		var err error
+		jwtUtils, err = utils.NewJWTUtils(db.Pool)
+		if err != nil {
+			logger.Fatal("Failed to initialize JWT utils", err)
+		}
+
 		// Initialize repository
 		authRepo := repository.NewAuthRepository(db.GetPool())
 
@@ -110,7 +112,7 @@ func main() {
 
 		// Initialize handlers
 		authHandler = handlers.NewAuthHandler(authService, logger.Logger)
-		healthHandler = handlers.NewHealthHandler(db.GetPool(), logger.Logger, cfg)
+		healthHandler = handlers.NewHealthHandler(db.GetPool(), jwtUtils, logger.Logger, cfg)
 
 		// Create token revocation checker for JWT middleware
 		revocationChecker = &authServiceRevocationChecker{
@@ -118,9 +120,10 @@ func main() {
 		}
 	} else {
 		// Initialize handlers without database
-		healthHandler = handlers.NewHealthHandler(nil, logger.Logger, cfg)
+		healthHandler = handlers.NewHealthHandler(nil, nil, logger.Logger, cfg)
 		authHandler = nil // Auth operations won't work without database
 		revocationChecker = nil
+		jwtUtils = nil
 	}
 
 	// Initialize service request logger
@@ -129,6 +132,21 @@ func main() {
 	// Initialize alert manager
 	alertManager := alerting.NewAlertManager(logger.Logger, "auth-service", &cfg.Alerting, serviceLogger.GetMetricsCollector())
 
+	// Set JWT health checker if JWT utils are available
+	if jwtUtils != nil {
+		alertManager.SetJWTChecker(func() (bool, string) {
+			keyID := jwtUtils.GetKeyID()
+			if keyID == "" {
+				return false, "No active JWT key found"
+			}
+			_, err := jwtUtils.GetPublicKeyPEM()
+			if err != nil {
+				return false, fmt.Sprintf("Failed to access JWT key: %v", err)
+			}
+			return true, ""
+		})
+	}
+
 	// Start alert checking goroutine
 	if cfg.Alerting.Enabled {
 		go func() {
@@ -136,6 +154,7 @@ func main() {
 			defer ticker.Stop()
 			for range ticker.C {
 				alertManager.CheckMetrics()
+				alertManager.CheckJWTKeys()
 			}
 		}()
 	}
@@ -218,6 +237,14 @@ func main() {
 				protected.Use(middleware.RequireAuth())
 				{
 					protected.GET("/me", authHandler.GetCurrentUser)
+				}
+
+				// Admin routes
+				admin := auth.Group("")
+				admin.Use(middleware.RequireAuth())
+				admin.Use(middleware.RequireRole("admin"))
+				{
+					admin.POST("/rotate-keys", authHandler.RotateKeys)
 				}
 			}
 		}

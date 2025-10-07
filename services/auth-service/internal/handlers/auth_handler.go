@@ -249,6 +249,46 @@ func (h *AuthHandler) GetPublicKey(c *gin.Context) {
 	c.String(http.StatusOK, string(publicKeyPEM))
 }
 
+func (h *AuthHandler) RotateKeys(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	// Get authenticated user ID
+	actorUserID := middleware.GetAuthenticatedUserID(c)
+
+	ipAddress := c.ClientIP()
+	userAgent := c.GetHeader("User-Agent")
+	requestID := c.GetHeader("X-Request-ID")
+
+	// Check if user has admin role
+	userRoles := middleware.GetAuthenticatedUserRoles(c)
+	isAdmin := false
+	for _, role := range userRoles {
+		if role == "admin" {
+			isAdmin = true
+			break
+		}
+	}
+
+	if !isAdmin {
+		h.auditLogger.LogTokenOperation(actorUserID, requestID, "", ipAddress, userAgent, "admin_rotate_keys", traceID, spanID, false, "Insufficient permissions")
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin privileges required"})
+		return
+	}
+
+	if err := h.authService.RotateKeys(c.Request.Context()); err != nil {
+		h.logger.WithError(err).Error("Failed to rotate JWT keys")
+		h.auditLogger.LogTokenOperation(actorUserID, requestID, "", ipAddress, userAgent, "admin_rotate_keys", traceID, spanID, false, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to rotate keys"})
+		return
+	}
+
+	h.auditLogger.LogTokenOperation(actorUserID, requestID, "", ipAddress, userAgent, "admin_rotate_keys", traceID, spanID, true, "")
+	c.JSON(http.StatusOK, gin.H{"message": "JWT keys rotated successfully"})
+}
+
 // Middleware function to validate JWT tokens
 func (h *AuthHandler) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {

@@ -10,11 +10,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 	"github.com/v-egorov/service-boilerplate/common/config"
+	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/utils"
 )
 
 // HealthHandler provides health check endpoints for the service
 type HealthHandler struct {
 	db        *pgxpool.Pool
+	jwtUtils  *utils.JWTUtils
 	logger    *logrus.Logger
 	config    *config.Config
 	startTime time.Time
@@ -34,6 +36,7 @@ type StatusResponse struct {
 	Timestamp time.Time      `json:"timestamp"`
 	Service   ServiceInfo    `json:"service"`
 	Database  DatabaseHealth `json:"database"`
+	JWTKeys   JWTKeyHealth   `json:"jwt_keys"`
 	Checks    CheckSummary   `json:"checks"`
 }
 
@@ -53,6 +56,14 @@ type DatabaseHealth struct {
 	Error        string          `json:"error,omitempty"`
 }
 
+// JWTKeyHealth represents JWT key health information
+type JWTKeyHealth struct {
+	Status       string `json:"status"`
+	KeyID        string `json:"key_id,omitempty"`
+	ResponseTime string `json:"response_time"`
+	Error        string `json:"error,omitempty"`
+}
+
 // ConnectionStats represents database connection statistics
 type ConnectionStats struct {
 	Active int `json:"active"`
@@ -68,9 +79,10 @@ type CheckSummary struct {
 }
 
 // NewHealthHandler creates a new health handler
-func NewHealthHandler(db *pgxpool.Pool, logger *logrus.Logger, cfg *config.Config) *HealthHandler {
+func NewHealthHandler(db *pgxpool.Pool, jwtUtils *utils.JWTUtils, logger *logrus.Logger, cfg *config.Config) *HealthHandler {
 	return &HealthHandler{
 		db:        db,
+		jwtUtils:  jwtUtils,
 		logger:    logger,
 		config:    cfg,
 		startTime: time.Now(),
@@ -139,6 +151,7 @@ func (h *HealthHandler) PingHandler(c *gin.Context) {
 func (h *HealthHandler) StatusHandler(c *gin.Context) {
 	// Check database health if database is available
 	var dbHealth DatabaseHealth
+	var jwtHealth JWTKeyHealth
 	var totalChecks int
 	var failedChecks int
 
@@ -158,6 +171,14 @@ func (h *HealthHandler) StatusHandler(c *gin.Context) {
 		}
 	}
 
+	// Check JWT key health
+	jwtHealth = h.checkJWTKeyHealth()
+	totalChecks++ // JWT key check
+
+	if jwtHealth.Status != "healthy" && jwtHealth.Status != "unavailable" {
+		failedChecks++
+	}
+
 	// Calculate overall status
 	overallStatus := "healthy"
 	if failedChecks > 0 {
@@ -175,6 +196,7 @@ func (h *HealthHandler) StatusHandler(c *gin.Context) {
 			Uptime:      h.calculateUptime(),
 		},
 		Database: dbHealth,
+		JWTKeys:  jwtHealth,
 		Checks: CheckSummary{
 			Total:  totalChecks,
 			Passed: totalChecks - failedChecks,
@@ -188,6 +210,47 @@ func (h *HealthHandler) StatusHandler(c *gin.Context) {
 	}
 
 	c.JSON(statusCode, response)
+}
+
+// checkJWTKeyHealth performs JWT key health check
+func (h *HealthHandler) checkJWTKeyHealth() JWTKeyHealth {
+	if h.jwtUtils == nil {
+		return JWTKeyHealth{
+			Status: "unavailable",
+			Error:  "JWT utils not configured",
+		}
+	}
+
+	start := time.Now()
+
+	// Try to get the current key ID and verify we can access keys
+	keyID := h.jwtUtils.GetKeyID()
+	if keyID == "" {
+		return JWTKeyHealth{
+			Status:       "unhealthy",
+			ResponseTime: time.Since(start).Round(time.Millisecond).String(),
+			Error:        "No active JWT key found",
+		}
+	}
+
+	// Try to get public key PEM to verify key is accessible
+	_, err := h.jwtUtils.GetPublicKeyPEM()
+	if err != nil {
+		h.logger.WithError(err).Warn("JWT key health check failed")
+		return JWTKeyHealth{
+			Status:       "unhealthy",
+			ResponseTime: time.Since(start).Round(time.Millisecond).String(),
+			Error:        err.Error(),
+		}
+	}
+
+	responseTime := time.Since(start)
+
+	return JWTKeyHealth{
+		Status:       "healthy",
+		KeyID:        keyID,
+		ResponseTime: responseTime.Round(time.Millisecond).String(),
+	}
 }
 
 // checkDatabaseHealth performs database health check
