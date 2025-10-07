@@ -90,6 +90,7 @@ func main() {
 	var healthHandler *handlers.HealthHandler
 	var revocationChecker middleware.TokenRevocationChecker
 	var jwtUtils *utils.JWTUtils
+	var keyRotationManager *services.KeyRotationManager
 
 	if db != nil {
 		// Initialize JWT utils with database connection
@@ -98,6 +99,17 @@ func main() {
 		if err != nil {
 			logger.Fatal("Failed to initialize JWT utils", err)
 		}
+
+		// Initialize key rotation manager
+		rotationConfig := services.RotationConfig{
+			Enabled:        true,
+			Type:           "time",
+			IntervalDays:   30,
+			MaxTokens:      100000,
+			OverlapMinutes: 60,
+			CheckInterval:  1 * time.Hour, // Check every hour
+		}
+		keyRotationManager = services.NewKeyRotationManager(jwtUtils, db.Pool, rotationConfig, logger.Logger)
 
 		// Initialize repository
 		authRepo := repository.NewAuthRepository(db.GetPool())
@@ -112,7 +124,7 @@ func main() {
 
 		// Initialize handlers
 		authHandler = handlers.NewAuthHandler(authService, logger.Logger)
-		healthHandler = handlers.NewHealthHandler(db.GetPool(), jwtUtils, logger.Logger, cfg)
+		healthHandler = handlers.NewHealthHandler(db.GetPool(), jwtUtils, keyRotationManager, logger.Logger, cfg)
 
 		// Create token revocation checker for JWT middleware
 		revocationChecker = &authServiceRevocationChecker{
@@ -120,10 +132,11 @@ func main() {
 		}
 	} else {
 		// Initialize handlers without database
-		healthHandler = handlers.NewHealthHandler(nil, nil, logger.Logger, cfg)
+		healthHandler = handlers.NewHealthHandler(nil, nil, nil, logger.Logger, cfg)
 		authHandler = nil // Auth operations won't work without database
 		revocationChecker = nil
 		jwtUtils = nil
+		keyRotationManager = nil
 	}
 
 	// Initialize service request logger
@@ -145,6 +158,14 @@ func main() {
 			}
 			return true, ""
 		})
+	}
+
+	// Start key rotation manager
+	if keyRotationManager != nil {
+		go func() {
+			ctx := context.Background()
+			keyRotationManager.Start(ctx)
+		}()
 	}
 
 	// Start alert checking goroutine

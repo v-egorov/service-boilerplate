@@ -419,14 +419,18 @@ func (s *AuthService) GetPublicKeyPEM() ([]byte, error) {
 }
 
 func (s *AuthService) RotateKeys(ctx context.Context) error {
-	s.logger.Info("Starting JWT key rotation")
+	return s.RotateKeysWithReason(ctx, "manual")
+}
+
+func (s *AuthService) RotateKeysWithReason(ctx context.Context, reason string) error {
+	s.logger.WithField("reason", reason).Info("Starting JWT key rotation")
 
 	if err := s.jwtUtils.RotateKeys(ctx); err != nil {
 		s.logger.WithError(err).Error("Failed to rotate JWT keys")
 		return fmt.Errorf("failed to rotate JWT keys: %w", err)
 	}
 
-	s.logger.Info("JWT key rotation completed successfully")
+	s.logger.WithField("reason", reason).Info("JWT key rotation completed successfully")
 	return nil
 }
 

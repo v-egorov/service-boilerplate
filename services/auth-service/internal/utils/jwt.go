@@ -27,15 +27,17 @@ type JWTClaims struct {
 
 // JWTKey represents a stored JWT key in the database
 type JWTKey struct {
-	ID            uuid.UUID       `db:"id"`
-	KeyID         string          `db:"key_id"`
-	PrivateKeyPEM string          `db:"private_key_pem"`
-	PublicKeyPEM  string          `db:"public_key_pem"`
-	Algorithm     string          `db:"algorithm"`
-	IsActive      bool            `db:"is_active"`
-	CreatedAt     time.Time       `db:"created_at"`
-	ExpiresAt     *time.Time      `db:"expires_at"`
-	Metadata      json.RawMessage `db:"metadata"`
+	ID             uuid.UUID       `db:"id"`
+	KeyID          string          `db:"key_id"`
+	PrivateKeyPEM  string          `db:"private_key_pem"`
+	PublicKeyPEM   string          `db:"public_key_pem"`
+	Algorithm      string          `db:"algorithm"`
+	IsActive       bool            `db:"is_active"`
+	CreatedAt      time.Time       `db:"created_at"`
+	ExpiresAt      *time.Time      `db:"expires_at"`
+	RotationReason *string         `db:"rotation_reason"`
+	RotatedAt      *time.Time      `db:"rotated_at"`
+	Metadata       json.RawMessage `db:"metadata"`
 }
 
 type JWTUtils struct {
@@ -67,7 +69,7 @@ func NewJWTUtils(db *pgxpool.Pool) (*JWTUtils, error) {
 	return utils.generateAndStoreNewKey(context.Background())
 }
 
-func (j *JWTUtils) generateAndStoreNewKey(ctx context.Context) (*JWTUtils, error) {
+func (j *JWTUtils) generateAndStoreNewKeyWithReason(ctx context.Context, reason string) (*JWTUtils, error) {
 	// Generate RSA key pair for JWT signing
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
@@ -89,13 +91,16 @@ func (j *JWTUtils) generateAndStoreNewKey(ctx context.Context) (*JWTUtils, error
 	}
 
 	// Store in database
+	now := time.Now()
 	jwtKey := &JWTKey{
-		KeyID:         keyID,
-		PrivateKeyPEM: string(privateKeyPEM),
-		PublicKeyPEM:  string(publicKeyPEM),
-		Algorithm:     "RS256",
-		IsActive:      true,
-		Metadata:      json.RawMessage(`{"key_size": 2048}`),
+		KeyID:          keyID,
+		PrivateKeyPEM:  string(privateKeyPEM),
+		PublicKeyPEM:   string(publicKeyPEM),
+		Algorithm:      "RS256",
+		IsActive:       true,
+		RotationReason: &reason,
+		RotatedAt:      &now,
+		Metadata:       json.RawMessage(`{"key_size": 2048}`),
 	}
 
 	if err := j.storeKey(ctx, jwtKey); err != nil {
@@ -108,6 +113,10 @@ func (j *JWTUtils) generateAndStoreNewKey(ctx context.Context) (*JWTUtils, error
 		keyID:      keyID,
 		db:         j.db,
 	}, nil
+}
+
+func (j *JWTUtils) generateAndStoreNewKey(ctx context.Context) (*JWTUtils, error) {
+	return j.generateAndStoreNewKeyWithReason(ctx, "manual")
 }
 
 func (j *JWTUtils) GenerateAccessToken(userID uuid.UUID, email string, roles []string, expiration time.Duration) (string, error) {
@@ -206,7 +215,12 @@ func (j *JWTUtils) GetKeyID() string {
 
 // RotateKeys generates a new RSA key pair and replaces the current active key
 func (j *JWTUtils) RotateKeys(ctx context.Context) error {
-	newUtils, err := j.generateAndStoreNewKey(ctx)
+	return j.RotateKeysWithReason(ctx, "manual")
+}
+
+// RotateKeysWithReason generates a new RSA key pair and replaces the current active key with a specific reason
+func (j *JWTUtils) RotateKeysWithReason(ctx context.Context, reason string) error {
+	newUtils, err := j.generateAndStoreNewKeyWithReason(ctx, reason)
 	if err != nil {
 		return fmt.Errorf("failed to generate and store new key: %w", err)
 	}
@@ -222,7 +236,7 @@ func (j *JWTUtils) RotateKeys(ctx context.Context) error {
 // loadActiveKey loads the active JWT key from the database
 func (j *JWTUtils) loadActiveKey(ctx context.Context) (*JWTKey, error) {
 	query := `
-		SELECT id, key_id, private_key_pem, public_key_pem, algorithm, is_active, created_at, expires_at, metadata
+		SELECT id, key_id, private_key_pem, public_key_pem, algorithm, is_active, created_at, expires_at, rotation_reason, rotated_at, metadata
 		FROM auth_service.jwt_keys
 		WHERE is_active = true
 		ORDER BY created_at DESC
@@ -232,7 +246,7 @@ func (j *JWTUtils) loadActiveKey(ctx context.Context) (*JWTKey, error) {
 	var key JWTKey
 	err := j.db.QueryRow(ctx, query).Scan(
 		&key.ID, &key.KeyID, &key.PrivateKeyPEM, &key.PublicKeyPEM,
-		&key.Algorithm, &key.IsActive, &key.CreatedAt, &key.ExpiresAt, &key.Metadata,
+		&key.Algorithm, &key.IsActive, &key.CreatedAt, &key.ExpiresAt, &key.RotationReason, &key.RotatedAt, &key.Metadata,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -254,12 +268,12 @@ func (j *JWTUtils) storeKey(ctx context.Context, key *JWTKey) error {
 
 	// Insert the new key
 	query := `
-		INSERT INTO auth_service.jwt_keys (key_id, private_key_pem, public_key_pem, algorithm, is_active, metadata)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO auth_service.jwt_keys (key_id, private_key_pem, public_key_pem, algorithm, is_active, rotation_reason, rotated_at, metadata)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
 
 	_, err = j.db.Exec(ctx, query,
-		key.KeyID, key.PrivateKeyPEM, key.PublicKeyPEM, key.Algorithm, key.IsActive, key.Metadata)
+		key.KeyID, key.PrivateKeyPEM, key.PublicKeyPEM, key.Algorithm, key.IsActive, key.RotationReason, key.RotatedAt, key.Metadata)
 	if err != nil {
 		return fmt.Errorf("failed to insert JWT key: %w", err)
 	}
