@@ -355,17 +355,17 @@ Request → JWT Validation → Role Check (admin) → RBAC Handler
 │ - Auth Check    │    │ - JWT Tokens    │    │ - Passwords     │
 │ - Admin Role    │    │ - Audit Logs    │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         └───────────────────────┼───────────────────────┘
-                                 │
-                    ┌─────────────────┐
-                    │   PostgreSQL    │
-                    │                 │
-                    │ - roles         │
-                    │ - permissions   │
-                    │ - user_roles    │
+         │                    │                       │
+         └────────────────────┼───────────────────────┘
+                              │
+                    ┌───────────────────┐
+                    │   PostgreSQL      │
+                    │                   │
+                    │ - roles           │
+                    │ - permissions     │
+                    │ - user_roles      │
                     │ - role_permissions│
-                    └─────────────────┘
+                    └───────────────────┘
 ```
 
 ### Service Responsibilities
@@ -829,4 +829,3 @@ This RBAC system provides:
 - **Production-ready architecture** with proper error handling
 
 For questions or issues, refer to the troubleshooting section or check the service logs.
-
