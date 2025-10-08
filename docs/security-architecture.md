@@ -75,6 +75,25 @@ The service-boilerplate implements a microservice architecture with centralized 
 - **Refresh Tokens**: Stored in database with revocation tracking
 - **Revoked Tokens**: Marked in database, checked on each request
 
+### JWT Key Rotation
+
+The system implements automatic JWT key rotation for enhanced security:
+
+- **Automatic Rotation**: Keys rotated every 30 days by default
+- **Manual Rotation**: Admin-initiated rotation via API endpoint
+- **Key Overlap**: Old keys remain valid during transition period (60 minutes)
+- **Audit Logging**: All rotation operations are logged with actor identification
+- **Health Monitoring**: Rotation status included in service health checks
+
+**Security Benefits:**
+
+- Limits impact of key compromise to 30-day windows
+- Ensures cryptographic key freshness
+- Provides emergency rotation capabilities
+- Maintains audit trail for compliance
+
+See [JWT Key Rotation](jwt-key-rotation.md) for complete operational details.
+
 ## TokenRevocationChecker Pattern
 
 ### Interface Definition
@@ -348,6 +367,4 @@ curl -H "Authorization: Bearer <token>" \
 - [Authentication API Examples](auth-api-examples.md)
 - [Troubleshooting Auth & Logging](troubleshooting-auth-logging.md)
 - [Service Creation Guide](service-creation-guide.md)
-- [Logging System](logging-system.md)</content>
-  </xai:function_call<parameter name="filePath">docs/security-architecture.md
-
+- [Logging System](logging-system.md)

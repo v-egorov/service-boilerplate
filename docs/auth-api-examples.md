@@ -5,6 +5,7 @@ This document provides practical examples of authenticating with the API gateway
 ## 📢 Phase 2 Updates
 
 **Important Changes in Phase 2:**
+
 - User creation now goes through the auth service registration endpoint (`POST /api/v1/auth/register`)
 - Users are no longer created directly through the user service (`POST /api/v1/users`)
 - Password hashing and validation is now handled by the auth service
@@ -14,12 +15,14 @@ This document provides practical examples of authenticating with the API gateway
 ## 📋 Available Endpoints
 
 ### Authentication Endpoints (Public)
+
 - `POST /api/v1/auth/login` - User login
 - `POST /api/v1/auth/register` - User registration
 - `POST /api/v1/auth/refresh` - Refresh access token
 - `POST /api/v1/auth/logout` - Logout user
 
 ### Protected Endpoints (Require Authentication)
+
 - `GET /api/v1/auth/me` - Get current user info
 - `GET /api/v1/users` - List all users
 - `GET /api/v1/users/{id}` - Get user by ID
@@ -490,16 +493,19 @@ if client.login("user@example.com", "password"):
 ## 🔧 Testing the Examples
 
 ### Prerequisites
+
 1. Start the services: `make dev`
 2. Ensure all services are running and healthy
 
 ### Running the Bash Example
+
 ```bash
 chmod +x auth-examples.sh
 ./auth-examples.sh
 ```
 
 ### Running the Python Example
+
 ```bash
 pip install requests
 python auth-client.py
@@ -508,6 +514,7 @@ python auth-client.py
 ## 📊 Response Examples
 
 ### Successful Login Response
+
 ```json
 {
   "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
@@ -518,6 +525,7 @@ python auth-client.py
 ```
 
 ### User Info Response
+
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -530,6 +538,7 @@ python auth-client.py
 ```
 
 ### Error Response (401 Unauthorized)
+
 ```json
 {
   "error": "Invalid or expired token",
@@ -542,19 +551,431 @@ python auth-client.py
 ### Common Issues
 
 1. **401 Unauthorized**: Token expired or invalid
+
    - Solution: Refresh token or login again
 
 2. **403 Forbidden**: Insufficient permissions
+
    - Solution: Check user roles and permissions
 
 3. **Connection refused**: Services not running
+
    - Solution: Start services with `make dev`
 
 4. **Invalid JSON**: Malformed request body
    - Solution: Validate JSON syntax
 
 ### Debug Tips
+
 - Check service logs: `docker-compose logs auth-service`
 - Verify tokens: Use JWT debugger online
 - Test endpoints individually with curl
 - Check API gateway routing configuration
+
+## 🛡️ Role-Based Access Control (RBAC) Examples
+
+### Admin User Registration and Authentication
+
+```bash
+#!/bin/bash
+
+# Configuration
+API_BASE="http://localhost:8080"
+
+echo "🔐 Admin user authentication flow..."
+
+# 1. Register admin user (requires manual database setup or admin creation endpoint)
+echo "📝 Note: Admin users should be created through secure admin processes"
+echo "For demo purposes, assuming admin user exists: admin@example.com"
+
+# 2. Login as admin
+echo "🔑 Logging in as admin..."
+ADMIN_LOGIN=$(curl -s -X POST $API_BASE/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@example.com",
+    "password": "admin123"
+  }')
+
+ADMIN_ACCESS_TOKEN=$(echo $ADMIN_LOGIN | jq -r '.access_token')
+ADMIN_REFRESH_TOKEN=$(echo $ADMIN_LOGIN | jq -r '.refresh_token')
+
+echo "Admin Access Token: ${ADMIN_ACCESS_TOKEN:0:50}..."
+
+# 3. Access admin-only endpoint (JWT key rotation)
+echo "🔄 Performing admin operation: JWT key rotation..."
+ROTATE_RESPONSE=$(curl -s -X POST $API_BASE/api/v1/admin/rotate-keys \
+  -H "Authorization: Bearer $ADMIN_ACCESS_TOKEN" \
+  -H "Content-Type: application/json")
+
+echo "Rotation Response: $ROTATE_RESPONSE"
+
+# 4. Try accessing admin endpoint with regular user token
+echo "❌ Testing access denial for regular user..."
+USER_LOGIN=$(curl -s -X POST $API_BASE/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "demo@example.com",
+    "password": "password123"
+  }')
+
+USER_ACCESS_TOKEN=$(echo $USER_LOGIN | jq -r '.access_token')
+
+DENIED_RESPONSE=$(curl -s -X POST $API_BASE/api/v1/admin/rotate-keys \
+  -H "Authorization: Bearer $USER_ACCESS_TOKEN" \
+  -H "Content-Type: application/json")
+
+echo "Access Denied Response: $DENIED_RESPONSE"
+```
+
+### Role-Based API Testing
+
+```bash
+#!/bin/bash
+
+# Test different role-based endpoints
+API_BASE="http://localhost:8080"
+
+# Get admin token
+ADMIN_TOKEN=$(curl -s -X POST $API_BASE/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"admin123"}' | jq -r '.access_token')
+
+# Get user token
+USER_TOKEN=$(curl -s -X POST $API_BASE/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"demo@example.com","password":"password123"}' | jq -r '.access_token')
+
+echo "🧪 Testing role-based access control..."
+
+# Test 1: Admin can access admin endpoints
+echo "✅ Admin accessing admin endpoint:"
+curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+  $API_BASE/api/v1/auth/me | jq '.email'
+
+# Test 2: User cannot access admin endpoints
+echo "❌ User trying to access admin endpoint:"
+curl -s -H "Authorization: Bearer $USER_TOKEN" \
+  $API_BASE/api/v1/admin/rotate-keys
+
+# Test 3: Both can access user endpoints
+echo "✅ Both admin and user can access user endpoints:"
+curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+  $API_BASE/api/v1/auth/me | jq '.roles'
+
+curl -s -H "Authorization: Bearer $USER_TOKEN" \
+  $API_BASE/api/v1/auth/me | jq '.roles'
+```
+
+## 🔗 Service-to-Service Authentication Examples
+
+### Internal Service Communication
+
+When services need to communicate internally (bypassing the API gateway), they should use service-specific authentication patterns:
+
+```bash
+#!/bin/bash
+
+# Example: Auth service calling User service internally
+# This would typically be done in Go code, but here's the curl equivalent
+
+AUTH_SERVICE="http://localhost:8083"
+USER_SERVICE="http://localhost:8081"
+
+# 1. Auth service validates user and gets internal token
+echo "🔐 Internal service authentication..."
+
+# In actual implementation, services would use:
+# - Shared secrets for service-to-service auth
+# - Internal JWT tokens with service roles
+# - mTLS certificates
+# - API keys
+
+# Example internal call (simplified)
+INTERNAL_RESPONSE=$(curl -s -H "X-Service-Auth: internal-service-secret" \
+  -H "X-Requested-By: auth-service" \
+  $USER_SERVICE/api/v1/internal/users/validate)
+
+echo "Internal service response: $INTERNAL_RESPONSE"
+```
+
+### Service Token Generation
+
+```go
+// In auth service - generate service-to-service tokens
+func (s *AuthService) GenerateServiceToken(serviceName string) (string, error) {
+    claims := &middleware.JWTClaims{
+        UserID:    uuid.Nil,  // No specific user
+        Email:     serviceName + "@internal",
+        Roles:     []string{"service", serviceName},
+        TokenType: "service",
+        RegisteredClaims: jwt.RegisteredClaims{
+            ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+            IssuedAt:  jwt.NewNumericDate(time.Now()),
+            Subject:   serviceName,
+        },
+    }
+
+    token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+    return token.SignedString(s.jwtUtils.GetPrivateKey())
+}
+```
+
+### Service Authentication Middleware
+
+```go
+// Middleware for service-to-service authentication
+func ServiceAuthMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        // Check for service authentication headers
+        serviceAuth := c.GetHeader("X-Service-Auth")
+        requestedBy := c.GetHeader("X-Requested-By")
+
+        if serviceAuth == "" || requestedBy == "" {
+            c.JSON(http.StatusUnauthorized, gin.H{"error": "Service authentication required"})
+            c.Abort()
+            return
+        }
+
+        // Validate service credentials
+        if !validateServiceCredentials(requestedBy, serviceAuth) {
+            c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid service credentials"})
+            c.Abort()
+            return
+        }
+
+        c.Set("service_caller", requestedBy)
+        c.Next()
+    }
+}
+```
+
+### Error Handling for Service Calls
+
+```go
+// Service-to-service call with error handling
+func callUserService(ctx context.Context, userID string) (*User, error) {
+    client := &http.Client{Timeout: 5 * time.Second}
+
+    req, err := http.NewRequestWithContext(ctx, "GET",
+        "http://user-service:8081/api/v1/internal/users/"+userID, nil)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create request: %w", err)
+    }
+
+    // Add service authentication
+    req.Header.Set("X-Service-Auth", "auth-service-secret")
+    req.Header.Set("X-Requested-By", "auth-service")
+    req.Header.Set("Content-Type", "application/json")
+
+    resp, err := client.Do(req)
+    if err != nil {
+        return nil, fmt.Errorf("service call failed: %w", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        body, _ := io.ReadAll(resp.Body)
+        return nil, fmt.Errorf("service returned %d: %s", resp.StatusCode, string(body))
+    }
+
+    var user User
+    if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+        return nil, fmt.Errorf("failed to decode response: %w", err)
+    }
+
+    return &user, nil
+}
+```
+
+## 🔐 Advanced Authentication Patterns
+
+### Multi-Role User Management
+
+```bash
+#!/bin/bash
+
+# Example: User with multiple roles
+API_BASE="http://localhost:8080"
+
+# Login user with multiple roles (admin + user)
+MULTI_ROLE_LOGIN=$(curl -s -X POST $API_BASE/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "multi-role@example.com",
+    "password": "password123"
+  }')
+
+TOKEN=$(echo $MULTI_ROLE_LOGIN | jq -r '.access_token')
+
+# Check user roles
+echo "👤 User roles:"
+curl -s -H "Authorization: Bearer $TOKEN" \
+  $API_BASE/api/v1/auth/me | jq '.roles'
+
+# Access both user and admin endpoints
+echo "✅ Accessing user endpoint:"
+curl -s -H "Authorization: Bearer $TOKEN" \
+  $API_BASE/api/v1/users | jq '.[0].email'
+
+echo "✅ Accessing admin endpoint:"
+curl -s -H "Authorization: Bearer $TOKEN" \
+  $API_BASE/api/v1/admin/rotate-keys
+```
+
+### Token Introspection
+
+```bash
+#!/bin/bash
+
+# Check token validity and extract claims
+TOKEN="your-jwt-token-here"
+
+# Decode token payload (without verification)
+PAYLOAD=$(echo $TOKEN | cut -d'.' -f2 | base64 -d 2>/dev/null | jq .)
+
+echo "🔍 Token claims:"
+echo $PAYLOAD | jq .
+
+# Check token expiration
+EXP=$(echo $PAYLOAD | jq '.exp')
+NOW=$(date +%s)
+
+if [ $EXP -lt $NOW ]; then
+    echo "❌ Token expired"
+else
+    echo "✅ Token valid"
+fi
+
+# Extract roles
+ROLES=$(echo $PAYLOAD | jq -r '.roles[]')
+echo "👤 User roles: $ROLES"
+```
+
+## 📊 Response Examples with RBAC
+
+### Successful Admin Operation
+
+```json
+{
+  "message": "JWT keys rotated successfully",
+  "timestamp": "2025-01-15T10:30:00Z",
+  "admin_user": "admin@example.com",
+  "operation": "key_rotation"
+}
+```
+
+### Access Denied Response
+
+```json
+{
+  "error": "Insufficient permissions",
+  "required_role": "admin",
+  "user_roles": ["user"],
+  "endpoint": "/api/v1/admin/rotate-keys",
+  "timestamp": "2025-01-15T10:30:00Z"
+}
+```
+
+### Service Authentication Error
+
+```json
+{
+  "error": "Service authentication required",
+  "type": "service_auth_error",
+  "missing_headers": ["X-Service-Auth", "X-Requested-By"],
+  "timestamp": "2025-01-15T10:30:00Z"
+}
+```
+
+## 🔧 Testing Authentication & RBAC
+
+### Automated Testing Script
+
+```bash
+#!/bin/bash
+
+# Comprehensive auth and RBAC testing
+API_BASE="http://localhost:8080"
+
+echo "🧪 Running authentication and RBAC tests..."
+
+# Test 1: Public endpoints (no auth required)
+echo "✅ Testing public endpoints..."
+curl -s -f $API_BASE/health > /dev/null && echo "Health check: PASS" || echo "Health check: FAIL"
+
+# Test 2: Authentication flow
+echo "✅ Testing authentication..."
+LOGIN_RESPONSE=$(curl -s -X POST $API_BASE/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}')
+
+if echo $LOGIN_RESPONSE | jq -e '.access_token' > /dev/null; then
+    echo "Login: PASS"
+    TOKEN=$(echo $LOGIN_RESPONSE | jq -r '.access_token')
+else
+    echo "Login: FAIL"
+    exit 1
+fi
+
+# Test 3: Protected endpoints
+echo "✅ Testing protected endpoints..."
+curl -s -f -H "Authorization: Bearer $TOKEN" \
+  $API_BASE/api/v1/auth/me > /dev/null && echo "Protected access: PASS" || echo "Protected access: FAIL"
+
+# Test 4: RBAC - user cannot access admin
+echo "✅ Testing RBAC (user denied admin access)..."
+if curl -s -H "Authorization: Bearer $TOKEN" \
+  $API_BASE/api/v1/admin/rotate-keys 2>&1 | grep -q "403"; then
+    echo "RBAC enforcement: PASS"
+else
+    echo "RBAC enforcement: FAIL"
+fi
+
+echo "🎉 All tests completed!"
+```
+
+### Load Testing Authentication
+
+```bash
+#!/bin/bash
+
+# Load test authentication endpoints
+API_BASE="http://localhost:8080"
+CONCURRENT_USERS=10
+REQUESTS_PER_USER=50
+
+echo "🔥 Load testing authentication..."
+
+# Function to simulate user authentication
+simulate_user() {
+    local user_id=$1
+
+    for i in $(seq 1 $REQUESTS_PER_USER); do
+        # Register user
+        curl -s -X POST $API_BASE/api/v1/auth/register \
+          -H "Content-Type: application/json" \
+          -d "{\"email\":\"loadtest$user_id-$i@example.com\",\"password\":\"password123\",\"first_name\":\"Load\",\"last_name\":\"Test\"}" > /dev/null
+
+        # Login
+        LOGIN=$(curl -s -X POST $API_BASE/api/v1/auth/login \
+          -H "Content-Type: application/json" \
+          -d "{\"email\":\"loadtest$user_id-$i@example.com\",\"password\":\"password123\"}")
+
+        TOKEN=$(echo $LOGIN | jq -r '.access_token')
+
+        # Access protected endpoint
+        curl -s -H "Authorization: Bearer $TOKEN" \
+          $API_BASE/api/v1/auth/me > /dev/null
+    done
+}
+
+# Run concurrent users
+for user in $(seq 1 $CONCURRENT_USERS); do
+    simulate_user $user &
+done
+
+wait
+echo "✅ Load test completed!"
+```
+

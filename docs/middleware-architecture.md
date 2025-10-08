@@ -81,6 +81,7 @@ func AuthMiddleware() gin.HandlerFunc {
 #### 2. Request Processing Middleware (`auth.go`)
 
 **CORS Middleware:**
+
 ```go
 func CORSMiddleware() gin.HandlerFunc {
     return func(c *gin.Context) {
@@ -99,6 +100,7 @@ func CORSMiddleware() gin.HandlerFunc {
 ```
 
 **Request ID Middleware:**
+
 ```go
 func RequestIDMiddleware() gin.HandlerFunc {
     return func(c *gin.Context) {
@@ -120,6 +122,7 @@ func RequestIDMiddleware() gin.HandlerFunc {
 **Purpose:** Gateway-level request/response logging with metrics collection.
 
 **Key Features:**
+
 - Request/response logging with structured fields
 - Metrics collection for monitoring
 - Response size and status tracking
@@ -149,12 +152,14 @@ router.Use(gatewayLogger.RequestResponseLogger()) // Gateway logging
 #### Key Features
 
 **Token Validation:**
+
 - RSA and HMAC JWT support
 - Token expiration checking
 - Signature verification
 - Claims extraction
 
 **Revocation Checking:**
+
 ```go
 type TokenRevocationChecker interface {
     IsTokenRevoked(tokenString string) bool
@@ -162,6 +167,7 @@ type TokenRevocationChecker interface {
 ```
 
 **User Context:**
+
 - Extracts user ID, email, roles from JWT claims
 - Sets context variables for handlers
 - Integrates with tracing
@@ -182,6 +188,7 @@ func JWTMiddleware(jwtSecret interface{}, logger *logrus.Logger, revocationCheck
 #### Usage Patterns
 
 **API Gateway (with revocation):**
+
 ```go
 revocationChecker := &httpTokenRevocationChecker{
     authServiceURL: "http://auth-service:8083",
@@ -191,12 +198,14 @@ router.Use(middleware.JWTMiddleware(jwtPublicKey, logger.Logger, revocationCheck
 ```
 
 **Internal Services (trust gateway):**
+
 ```go
 // No revocation checking - trusts gateway validation
 router.Use(middleware.JWTMiddleware(nil, logger.Logger, nil))
 ```
 
 **Direct Exposed Services:**
+
 ```go
 // Full validation for services that may be directly accessed
 router.Use(middleware.JWTMiddleware(jwtPublicKey, logger.Logger, revocationChecker))
@@ -213,6 +222,7 @@ router.Use(middleware.JWTMiddleware(jwtPublicKey, logger.Logger, revocationCheck
 #### 1. Core Logger (`logger.go`)
 
 **Features:**
+
 - Structured JSON logging
 - File rotation with lumberjack
 - ANSI escape code stripping
@@ -223,12 +233,14 @@ router.Use(middleware.JWTMiddleware(jwtPublicKey, logger.Logger, revocationCheck
 **Purpose:** HTTP request/response logging for all services.
 
 **Key Features:**
+
 - Trace context extraction (trace_id, span_id)
 - User context logging (user_id)
 - Request/response metrics
 - Error tracking
 
 **Standardized Fields:**
+
 ```go
 logEntry := logger.WithFields(logrus.Fields{
     "timestamp":     time.Now().Format(time.RFC3339),
@@ -253,6 +265,7 @@ logEntry := logger.WithFields(logrus.Fields{
 **Purpose:** Security event logging for compliance and monitoring.
 
 **Features:**
+
 - Actor-target separation
 - Security event categorization
 - Trace correlation
@@ -342,6 +355,7 @@ func main() {
 ### Service-Specific Variations
 
 #### API Gateway Pattern
+
 ```go
 // Additional gateway middleware
 router.Use(middleware.RequestIDMiddleware())    // Generate request IDs
@@ -349,16 +363,236 @@ router.Use(commonMiddleware.RequireAuth())      // Route-level auth
 ```
 
 #### Auth Service Pattern
+
 ```go
-// Full JWT validation with revocation checking
-revocationChecker := &dbTokenRevocationChecker{db: db}
-router.Use(middleware.JWTMiddleware(jwtPublicKey, logger.Logger, revocationChecker))
+func main() {
+    // Auth service has both public and protected endpoints
+    router := gin.New()
+
+    // Basic middleware for all routes
+    router.Use(gin.Recovery())
+    router.Use(corsMiddleware())
+    router.Use(middleware.RequestIDMiddleware())
+
+    // Tracing
+    if cfg.Tracing.Enabled {
+        router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
+    }
+
+    // Public auth endpoints (no JWT required)
+    public := router.Group("/api/v1/auth")
+    {
+        public.POST("/register", authHandler.Register)
+        public.POST("/login", authHandler.Login)
+        public.POST("/refresh", authHandler.RefreshToken)
+    }
+
+    // Protected endpoints (JWT required)
+    protected := router.Group("/api/v1")
+    protected.Use(middleware.JWTMiddleware(jwtPublicKey, logger.Logger, revocationChecker))
+    protected.Use(middleware.RequireAuth())
+    {
+        protected.GET("/auth/me", authHandler.GetCurrentUser)
+        protected.POST("/auth/logout", authHandler.Logout)
+        protected.POST("/auth/validate-token", authHandler.ValidateToken)
+    }
+
+    // Admin-only endpoints (JWT + admin role required)
+    admin := router.Group("/api/v1/admin")
+    admin.Use(middleware.JWTMiddleware(jwtPublicKey, logger.Logger, revocationChecker))
+    admin.Use(middleware.RequireAuth())
+    admin.Use(middleware.RequireRole("admin"))
+    {
+        admin.POST("/rotate-keys", adminHandler.RotateKeys)
+        admin.GET("/system/status", adminHandler.SystemStatus)
+        admin.POST("/users", adminHandler.CreateUser)
+    }
+
+    // Logging middleware (after auth to include user context)
+    router.Use(serviceLogger.RequestResponseLogger())
+}
+```
+
+#### User Service Pattern (Auth Integration)
+
+```go
+func main() {
+    // User service integrates with auth service
+    router := gin.New()
+
+    // Basic middleware
+    router.Use(gin.Recovery())
+    router.Use(corsMiddleware())
+    router.Use(middleware.RequestIDMiddleware())
+
+    // Tracing
+    if cfg.Tracing.Enabled {
+        router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
+    }
+
+    // For internal services, trust gateway validation
+    // JWT middleware extracts user context without validation
+    router.Use(middleware.JWTMiddleware(nil, logger.Logger, nil))
+
+    // Service-to-service endpoints (require service auth)
+    internal := router.Group("/api/v1/internal")
+    internal.Use(serviceAuthMiddleware()) // Custom service auth
+    {
+        internal.GET("/users/:id", userHandler.GetUserInternal)
+        internal.POST("/users", userHandler.CreateUserInternal)
+    }
+
+    // Public endpoints through gateway (JWT validated at gateway)
+    api := router.Group("/api/v1")
+    {
+        // These endpoints are called through API gateway
+        // Gateway validates JWT, we trust the user context
+        api.GET("/users/:id", userHandler.GetUser)
+        api.PUT("/users/:id", userHandler.UpdateUser)
+        api.DELETE("/users/:id", userHandler.DeleteUser)
+    }
+
+    router.Use(serviceLogger.RequestResponseLogger())
+}
+```
+
+#### Service-to-Service Authentication Middleware
+
+```go
+// Custom middleware for service-to-service calls
+func serviceAuthMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        // Check for service authentication
+        serviceToken := c.GetHeader("X-Service-Token")
+        serviceCaller := c.GetHeader("X-Service-Caller")
+
+        if serviceToken == "" || serviceCaller == "" {
+            c.JSON(http.StatusUnauthorized, gin.H{"error": "Service authentication required"})
+            c.Abort()
+            return
+        }
+
+        // Validate service token (implementation depends on your auth system)
+        if !validateServiceToken(serviceToken, serviceCaller) {
+            c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid service token"})
+            c.Abort()
+            return
+        }
+
+        c.Set("service_caller", serviceCaller)
+        c.Set("internal_call", true)
+        c.Next()
+    }
+}
+```
+
+#### API Gateway Pattern (Auth Integration)
+
+```go
+func main() {
+    // API Gateway routes auth requests and validates JWTs
+    router := gin.New()
+
+    // Basic middleware
+    router.Use(gin.Recovery())
+    router.Use(corsMiddleware())
+    router.Use(middleware.RequestIDMiddleware())
+
+    // Tracing
+    if cfg.Tracing.Enabled {
+        router.Use(tracing.HTTPMiddleware("api-gateway"))
+    }
+
+    // JWT validation for protected routes
+    revocationChecker := &httpTokenRevocationChecker{
+        authServiceURL: "http://auth-service:8083",
+        logger:         logger.Logger,
+    }
+    protectedRoutes := router.Group("/api/v1")
+    protectedRoutes.Use(middleware.JWTMiddleware(jwtPublicKey, logger.Logger, revocationChecker))
+    protectedRoutes.Use(middleware.RequireAuth())
+
+    // Auth service proxy (public endpoints)
+    router.Any("/api/v1/auth/*path", gatewayHandler.ProxyToService("auth-service"))
+
+    // User service proxy (protected)
+    protectedRoutes.Any("/users/*path", gatewayHandler.ProxyToService("user-service"))
+
+    // Admin routes (additional role checking)
+    adminRoutes := protectedRoutes.Group("/admin")
+    adminRoutes.Use(middleware.RequireRole("admin"))
+    adminRoutes.Any("/*path", gatewayHandler.ProxyToService("auth-service"))
+
+    router.Use(gatewayLogger.RequestResponseLogger())
+}
 ```
 
 #### Internal Service Pattern
+
 ```go
-// Trust gateway validation
+// Trust gateway validation - no JWT secret needed
 router.Use(middleware.JWTMiddleware(nil, logger.Logger, nil))
+
+// Or completely skip JWT middleware for internal services
+// if all requests come through the gateway
+// router.Use(extractUserContextFromHeaders())
+```
+
+#### Custom Auth Middleware Examples
+
+```go
+// API key authentication for external integrations
+func apiKeyMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        apiKey := c.GetHeader("X-API-Key")
+        if apiKey == "" {
+            c.JSON(http.StatusUnauthorized, gin.H{"error": "API key required"})
+            c.Abort()
+            return
+        }
+
+        // Validate API key and set user context
+        user, err := validateAPIKey(apiKey)
+        if err != nil {
+            c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid API key"})
+            c.Abort()
+            return
+        }
+
+        c.Set("user_id", user.ID)
+        c.Set("user_roles", user.Roles)
+        c.Set("auth_method", "api_key")
+        c.Next()
+    }
+}
+
+// Hybrid authentication (JWT or API key)
+func hybridAuthMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        // Try JWT first
+        authHeader := c.GetHeader("Authorization")
+        if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+            // JWT authentication logic
+            // ... (similar to JWTMiddleware)
+            c.Set("auth_method", "jwt")
+            c.Next()
+            return
+        }
+
+        // Fallback to API key
+        apiKey := c.GetHeader("X-API-Key")
+        if apiKey != "" {
+            // API key authentication logic
+            // ... (similar to apiKeyMiddleware)
+            c.Set("auth_method", "api_key")
+            c.Next()
+            return
+        }
+
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+        c.Abort()
+    }
+}
 ```
 
 ## Future Service Guidelines
@@ -366,17 +600,20 @@ router.Use(middleware.JWTMiddleware(nil, logger.Logger, nil))
 ### Adding New Middleware
 
 #### 1. Assess Requirements
+
 - **Gateway Level**: Request routing, basic validation
 - **Service Level**: Business logic validation, detailed logging
 - **Shared Level**: Common utilities, tracing integration
 
 #### 2. Follow Patterns
+
 - **Context Propagation**: Pass context through middleware chain
 - **Error Handling**: Use appropriate HTTP status codes
 - **Logging**: Include trace context in all log entries
 - **Metrics**: Record relevant metrics for monitoring
 
 #### 3. Integration Points
+
 - **Tracing**: Create spans for significant operations
 - **Logging**: Use standardized field names
 - **Metrics**: Record performance and error metrics
@@ -397,6 +634,7 @@ router.Use(serviceLogger.RequestResponseLogger()) // 6. Logging
 ### Testing Middleware
 
 #### Unit Testing
+
 ```go
 func TestJWTMiddleware(t *testing.T) {
     // Test valid tokens
@@ -407,6 +645,7 @@ func TestJWTMiddleware(t *testing.T) {
 ```
 
 #### Integration Testing
+
 ```go
 func TestMiddlewareStack(t *testing.T) {
     // Test complete middleware chain
@@ -428,5 +667,5 @@ func TestMiddlewareStack(t *testing.T) {
 - [Security Architecture](security-architecture.md) - Authentication and authorization patterns
 - [Distributed Tracing](tracing/) - Complete tracing implementation guide
 - [Logging System](logging-system.md) - Logging configuration and usage
-- [Service Creation Guide](service-creation-guide.md) - How to implement middleware in new services</content>
-</xai:function_call<parameter name="filePath">docs/middleware-architecture.md
+- [Service Creation Guide](service-creation-guide.md) - How to implement middleware in new services
+
