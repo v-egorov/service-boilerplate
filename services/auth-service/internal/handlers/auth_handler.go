@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -322,4 +323,528 @@ func (h *AuthHandler) AuthMiddleware() gin.HandlerFunc {
 
 		c.Next()
 	}
+}
+
+// Role Management Handlers
+
+// CreateRole creates a new role
+func (h *AuthHandler) CreateRole(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	// Get authenticated user ID
+	actorUserID := middleware.GetAuthenticatedUserID(c)
+
+	var req struct {
+		Name        string `json:"name" binding:"required"`
+		Description string `json:"description"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_role", traceID, spanID, false, "Invalid request data")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		return
+	}
+
+	role, err := h.authService.CreateRole(c.Request.Context(), req.Name, req.Description)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to create role")
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_role", traceID, spanID, false, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create role"})
+		return
+	}
+
+	h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), role.ID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "create_role", traceID, spanID, true, "")
+	c.JSON(http.StatusCreated, role)
+}
+
+// ListRoles returns all roles
+func (h *AuthHandler) ListRoles(c *gin.Context) {
+	roles, err := h.authService.ListRoles(c.Request.Context())
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to list roles")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list roles"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"roles": roles})
+}
+
+// GetRole returns a specific role
+func (h *AuthHandler) GetRole(c *gin.Context) {
+	roleID, err := uuid.Parse(c.Param("role_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		return
+	}
+
+	role, err := h.authService.GetRole(c.Request.Context(), roleID)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to get role")
+		c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, role)
+}
+
+// UpdateRole updates a role
+func (h *AuthHandler) UpdateRole(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	// Get authenticated user ID
+	actorUserID := middleware.GetAuthenticatedUserID(c)
+
+	roleID, err := uuid.Parse(c.Param("role_id"))
+	if err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("role_id"), c.ClientIP(), c.GetHeader("User-Agent"), "update_role", traceID, spanID, false, "Invalid role ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		return
+	}
+
+	var req struct {
+		Name        string `json:"name" binding:"required"`
+		Description string `json:"description"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_role", traceID, spanID, false, "Invalid request data")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		return
+	}
+
+	role, err := h.authService.UpdateRole(c.Request.Context(), roleID, req.Name, req.Description)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to update role")
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_role", traceID, spanID, false, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update role"})
+		return
+	}
+
+	h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_role", traceID, spanID, true, "")
+	c.JSON(http.StatusOK, role)
+}
+
+// DeleteRole deletes a role
+func (h *AuthHandler) DeleteRole(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	// Get authenticated user ID
+	actorUserID := middleware.GetAuthenticatedUserID(c)
+
+	roleID, err := uuid.Parse(c.Param("role_id"))
+	if err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("role_id"), c.ClientIP(), c.GetHeader("User-Agent"), "delete_role", traceID, spanID, false, "Invalid role ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		return
+	}
+
+	err = h.authService.DeleteRole(c.Request.Context(), roleID)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to delete role")
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "delete_role", traceID, spanID, false, err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "delete_role", traceID, spanID, true, "")
+	c.JSON(http.StatusOK, gin.H{"message": "Role deleted successfully"})
+}
+
+// Permission Management Handlers
+
+// CreatePermission creates a new permission
+func (h *AuthHandler) CreatePermission(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	// Get authenticated user ID
+	actorUserID := middleware.GetAuthenticatedUserID(c)
+
+	var req struct {
+		Name     string `json:"name" binding:"required"`
+		Resource string `json:"resource" binding:"required"`
+		Action   string `json:"action" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_permission", traceID, spanID, false, "Invalid request data")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		return
+	}
+
+	permission, err := h.authService.CreatePermission(c.Request.Context(), req.Name, req.Resource, req.Action)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to create permission")
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_permission", traceID, spanID, false, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create permission"})
+		return
+	}
+
+	h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), permission.ID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "create_permission", traceID, spanID, true, "")
+	c.JSON(http.StatusCreated, permission)
+}
+
+// ListPermissions returns all permissions
+func (h *AuthHandler) ListPermissions(c *gin.Context) {
+	permissions, err := h.authService.ListPermissions(c.Request.Context())
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to list permissions")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list permissions"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"permissions": permissions})
+}
+
+// GetPermission returns a specific permission
+func (h *AuthHandler) GetPermission(c *gin.Context) {
+	permissionID, err := uuid.Parse(c.Param("permission_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid permission ID"})
+		return
+	}
+
+	permission, err := h.authService.GetPermission(c.Request.Context(), permissionID)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to get permission")
+		c.JSON(http.StatusNotFound, gin.H{"error": "Permission not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, permission)
+}
+
+// UpdatePermission updates a permission
+func (h *AuthHandler) UpdatePermission(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	// Get authenticated user ID
+	actorUserID := middleware.GetAuthenticatedUserID(c)
+
+	permissionID, err := uuid.Parse(c.Param("permission_id"))
+	if err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("permission_id"), c.ClientIP(), c.GetHeader("User-Agent"), "update_permission", traceID, spanID, false, "Invalid permission ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid permission ID"})
+		return
+	}
+
+	var req struct {
+		Name     string `json:"name" binding:"required"`
+		Resource string `json:"resource" binding:"required"`
+		Action   string `json:"action" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), permissionID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_permission", traceID, spanID, false, "Invalid request data")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		return
+	}
+
+	permission, err := h.authService.UpdatePermission(c.Request.Context(), permissionID, req.Name, req.Resource, req.Action)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to update permission")
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), permissionID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_permission", traceID, spanID, false, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update permission"})
+		return
+	}
+
+	h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), permissionID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_permission", traceID, spanID, true, "")
+	c.JSON(http.StatusOK, permission)
+}
+
+// DeletePermission deletes a permission
+func (h *AuthHandler) DeletePermission(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	// Get authenticated user ID
+	actorUserID := middleware.GetAuthenticatedUserID(c)
+
+	permissionID, err := uuid.Parse(c.Param("permission_id"))
+	if err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("permission_id"), c.ClientIP(), c.GetHeader("User-Agent"), "delete_permission", traceID, spanID, false, "Invalid permission ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid permission ID"})
+		return
+	}
+
+	err = h.authService.DeletePermission(c.Request.Context(), permissionID)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to delete permission")
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), permissionID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "delete_permission", traceID, spanID, false, err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), permissionID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "delete_permission", traceID, spanID, true, "")
+	c.JSON(http.StatusOK, gin.H{"message": "Permission deleted successfully"})
+}
+
+// Role-Permission Management Handlers
+
+// AssignPermissionToRole assigns a permission to a role
+func (h *AuthHandler) AssignPermissionToRole(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	// Get authenticated user ID
+	actorUserID := middleware.GetAuthenticatedUserID(c)
+
+	roleID, err := uuid.Parse(c.Param("role_id"))
+	if err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("role_id"), c.ClientIP(), c.GetHeader("User-Agent"), "assign_permission_to_role", traceID, spanID, false, "Invalid role ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		return
+	}
+
+	var req struct {
+		PermissionID string `json:"permission_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_permission_to_role", traceID, spanID, false, "Invalid request data")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		return
+	}
+
+	permissionID, err := uuid.Parse(req.PermissionID)
+	if err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_permission_to_role", traceID, spanID, false, "Invalid permission ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid permission ID"})
+		return
+	}
+
+	err = h.authService.AssignPermissionToRole(c.Request.Context(), roleID, permissionID)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to assign permission to role")
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_permission_to_role", traceID, spanID, false, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign permission to role"})
+		return
+	}
+
+	h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_permission_to_role", traceID, spanID, true, fmt.Sprintf("permission_id: %s", permissionID.String()))
+	c.JSON(http.StatusOK, gin.H{"message": "Permission assigned to role successfully"})
+}
+
+// RemovePermissionFromRole removes a permission from a role
+func (h *AuthHandler) RemovePermissionFromRole(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	// Get authenticated user ID
+	actorUserID := middleware.GetAuthenticatedUserID(c)
+
+	roleID, err := uuid.Parse(c.Param("role_id"))
+	if err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("role_id"), c.ClientIP(), c.GetHeader("User-Agent"), "remove_permission_from_role", traceID, spanID, false, "Invalid role ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		return
+	}
+
+	permissionID, err := uuid.Parse(c.Param("perm_id"))
+	if err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "remove_permission_from_role", traceID, spanID, false, "Invalid permission ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid permission ID"})
+		return
+	}
+
+	err = h.authService.RemovePermissionFromRole(c.Request.Context(), roleID, permissionID)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to remove permission from role")
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "remove_permission_from_role", traceID, spanID, false, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove permission from role"})
+		return
+	}
+
+	h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "remove_permission_from_role", traceID, spanID, true, fmt.Sprintf("permission_id: %s", permissionID.String()))
+	c.JSON(http.StatusOK, gin.H{"message": "Permission removed from role successfully"})
+}
+
+// GetRolePermissions returns permissions for a role
+func (h *AuthHandler) GetRolePermissions(c *gin.Context) {
+	roleID, err := uuid.Parse(c.Param("role_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		return
+	}
+
+	permissions, err := h.authService.GetRolePermissions(c.Request.Context(), roleID)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to get role permissions")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get role permissions"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"permissions": permissions})
+}
+
+// User Role Management Handlers
+
+// AssignRoleToUser assigns a role to a user
+func (h *AuthHandler) AssignRoleToUser(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	// Get authenticated user ID
+	actorUserID := middleware.GetAuthenticatedUserID(c)
+
+	userID, err := uuid.Parse(c.Param("user_id"))
+	if err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("user_id"), c.ClientIP(), c.GetHeader("User-Agent"), "assign_role_to_user", traceID, spanID, false, "Invalid user ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	var req struct {
+		RoleID string `json:"role_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_role_to_user", traceID, spanID, false, "Invalid request data")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		return
+	}
+
+	roleID, err := uuid.Parse(req.RoleID)
+	if err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_role_to_user", traceID, spanID, false, "Invalid role ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		return
+	}
+
+	err = h.authService.AssignRoleToUser(c.Request.Context(), userID, roleID)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to assign role to user")
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_role_to_user", traceID, spanID, false, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign role to user"})
+		return
+	}
+
+	h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_role_to_user", traceID, spanID, true, fmt.Sprintf("role_id: %s", roleID.String()))
+	c.JSON(http.StatusOK, gin.H{"message": "Role assigned to user successfully"})
+}
+
+// RemoveRoleFromUser removes a role from a user
+func (h *AuthHandler) RemoveRoleFromUser(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	// Get authenticated user ID
+	actorUserID := middleware.GetAuthenticatedUserID(c)
+
+	userID, err := uuid.Parse(c.Param("user_id"))
+	if err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("user_id"), c.ClientIP(), c.GetHeader("User-Agent"), "remove_role_from_user", traceID, spanID, false, "Invalid user ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	roleID, err := uuid.Parse(c.Param("role_id"))
+	if err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "remove_role_from_user", traceID, spanID, false, "Invalid role ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		return
+	}
+
+	err = h.authService.RemoveRoleFromUser(c.Request.Context(), userID, roleID)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to remove role from user")
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "remove_role_from_user", traceID, spanID, false, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove role from user"})
+		return
+	}
+
+	h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "remove_role_from_user", traceID, spanID, true, fmt.Sprintf("role_id: %s", roleID.String()))
+	c.JSON(http.StatusOK, gin.H{"message": "Role removed from user successfully"})
+}
+
+// GetUserRoles returns roles for a user
+func (h *AuthHandler) GetUserRoles(c *gin.Context) {
+	userID, err := uuid.Parse(c.Param("user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	roles, err := h.authService.GetUserRoles(c.Request.Context(), userID)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to get user roles")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user roles"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"roles": roles})
+}
+
+// UpdateUserRoles updates all roles for a user (bulk operation)
+func (h *AuthHandler) UpdateUserRoles(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	// Get authenticated user ID
+	actorUserID := middleware.GetAuthenticatedUserID(c)
+
+	userID, err := uuid.Parse(c.Param("user_id"))
+	if err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("user_id"), c.ClientIP(), c.GetHeader("User-Agent"), "update_user_roles", traceID, spanID, false, "Invalid user ID")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	var req struct {
+		RoleIDs []string `json:"role_ids" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_user_roles", traceID, spanID, false, "Invalid request data")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		return
+	}
+
+	roleIDs := make([]uuid.UUID, len(req.RoleIDs))
+	for i, roleIDStr := range req.RoleIDs {
+		roleID, err := uuid.Parse(roleIDStr)
+		if err != nil {
+			h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_user_roles", traceID, spanID, false, "Invalid role ID in list")
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID in list"})
+			return
+		}
+		roleIDs[i] = roleID
+	}
+
+	err = h.authService.UpdateUserRoles(c.Request.Context(), userID, roleIDs)
+	if err != nil {
+		h.logger.WithError(err).Error("Failed to update user roles")
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_user_roles", traceID, spanID, false, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user roles"})
+		return
+	}
+
+	h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_user_roles", traceID, spanID, true, fmt.Sprintf("role_count: %d", len(roleIDs)))
+	c.JSON(http.StatusOK, gin.H{"message": "User roles updated successfully"})
 }

@@ -173,6 +173,36 @@ func main() {
 		protectedAuth := api.Group("/v1/auth")
 		{
 			protectedAuth.GET("/me", gatewayHandler.ProxyRequest("auth-service"))
+
+			// Admin RBAC routes (require admin role)
+			admin := protectedAuth.Group("")
+			admin.Use(commonMiddleware.RequireRole("admin"))
+			{
+				// Role management
+				admin.POST("/roles", gatewayHandler.ProxyRequest("auth-service"))
+				admin.GET("/roles", gatewayHandler.ProxyRequest("auth-service"))
+				admin.GET("/roles/:role_id", gatewayHandler.ProxyRequest("auth-service"))
+				admin.PUT("/roles/:role_id", gatewayHandler.ProxyRequest("auth-service"))
+				admin.DELETE("/roles/:role_id", gatewayHandler.ProxyRequest("auth-service"))
+
+				// Permission management
+				admin.POST("/permissions", gatewayHandler.ProxyRequest("auth-service"))
+				admin.GET("/permissions", gatewayHandler.ProxyRequest("auth-service"))
+				admin.GET("/permissions/:permission_id", gatewayHandler.ProxyRequest("auth-service"))
+				admin.PUT("/permissions/:permission_id", gatewayHandler.ProxyRequest("auth-service"))
+				admin.DELETE("/permissions/:permission_id", gatewayHandler.ProxyRequest("auth-service"))
+
+				// Role-Permission management
+				admin.POST("/roles/:role_id/permissions", gatewayHandler.ProxyRequest("auth-service"))
+				admin.DELETE("/roles/:role_id/permissions/:perm_id", gatewayHandler.ProxyRequest("auth-service"))
+				admin.GET("/roles/:role_id/permissions", gatewayHandler.ProxyRequest("auth-service"))
+
+				// User-Role management
+				admin.POST("/users/:user_id/roles", gatewayHandler.ProxyRequest("auth-service"))
+				admin.DELETE("/users/:user_id/roles/:role_id", gatewayHandler.ProxyRequest("auth-service"))
+				admin.GET("/users/:user_id/roles", gatewayHandler.ProxyRequest("auth-service"))
+				admin.PUT("/users/:user_id/roles", gatewayHandler.ProxyRequest("auth-service"))
+			}
 		}
 
 		// User service routes

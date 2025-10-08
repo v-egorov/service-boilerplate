@@ -486,3 +486,257 @@ func (s *AuthService) hashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return fmt.Sprintf("%x", hash)
 }
+
+// GetUserRoles returns roles for a user (already exists but making sure it's accessible)
+func (s *AuthService) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]models.Role, error) {
+	return s.repo.GetUserRoles(ctx, userID)
+}
+
+// Role Management Service Methods
+func (s *AuthService) CreateRole(ctx context.Context, name, description string) (*models.Role, error) {
+	var descPtr *string
+	if description != "" {
+		descPtr = &description
+	}
+
+	role := &models.Role{
+		Name:        name,
+		Description: descPtr,
+	}
+
+	createdRole, err := s.repo.CreateRole(ctx, role)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to create role")
+		return nil, fmt.Errorf("failed to create role: %w", err)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"role_id":   createdRole.ID,
+		"role_name": createdRole.Name,
+	}).Info("Role created successfully")
+
+	return createdRole, nil
+}
+
+func (s *AuthService) ListRoles(ctx context.Context) ([]models.Role, error) {
+	roles, err := s.repo.ListRoles(ctx)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to list roles")
+		return nil, fmt.Errorf("failed to list roles: %w", err)
+	}
+
+	return roles, nil
+}
+
+func (s *AuthService) GetRole(ctx context.Context, roleID uuid.UUID) (*models.Role, error) {
+	role, err := s.repo.GetRole(ctx, roleID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get role")
+		return nil, fmt.Errorf("failed to get role: %w", err)
+	}
+
+	return role, nil
+}
+
+func (s *AuthService) UpdateRole(ctx context.Context, roleID uuid.UUID, name, description string) (*models.Role, error) {
+	updatedRole, err := s.repo.UpdateRole(ctx, roleID, name, description)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to update role")
+		return nil, fmt.Errorf("failed to update role: %w", err)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"role_id":   updatedRole.ID,
+		"role_name": updatedRole.Name,
+	}).Info("Role updated successfully")
+
+	return updatedRole, nil
+}
+
+func (s *AuthService) DeleteRole(ctx context.Context, roleID uuid.UUID) error {
+	// Check if role is in use
+	userCount, err := s.repo.CountUsersWithRole(ctx, roleID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to check role usage")
+		return fmt.Errorf("failed to check role usage: %w", err)
+	}
+
+	if userCount > 0 {
+		return fmt.Errorf("cannot delete role: %d users are assigned to this role", userCount)
+	}
+
+	err = s.repo.DeleteRole(ctx, roleID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to delete role")
+		return fmt.Errorf("failed to delete role: %w", err)
+	}
+
+	s.logger.WithField("role_id", roleID).Info("Role deleted successfully")
+	return nil
+}
+
+// Permission Management Service Methods
+func (s *AuthService) CreatePermission(ctx context.Context, name, resource, action string) (*models.Permission, error) {
+	permission := &models.Permission{
+		Name:     name,
+		Resource: resource,
+		Action:   action,
+	}
+
+	createdPermission, err := s.repo.CreatePermission(ctx, permission)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to create permission")
+		return nil, fmt.Errorf("failed to create permission: %w", err)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"permission_id":   createdPermission.ID,
+		"permission_name": createdPermission.Name,
+	}).Info("Permission created successfully")
+
+	return createdPermission, nil
+}
+
+func (s *AuthService) ListPermissions(ctx context.Context) ([]models.Permission, error) {
+	permissions, err := s.repo.ListPermissions(ctx)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to list permissions")
+		return nil, fmt.Errorf("failed to list permissions: %w", err)
+	}
+
+	return permissions, nil
+}
+
+func (s *AuthService) GetPermission(ctx context.Context, permissionID uuid.UUID) (*models.Permission, error) {
+	permission, err := s.repo.GetPermission(ctx, permissionID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get permission")
+		return nil, fmt.Errorf("failed to get permission: %w", err)
+	}
+
+	return permission, nil
+}
+
+func (s *AuthService) UpdatePermission(ctx context.Context, permissionID uuid.UUID, name, resource, action string) (*models.Permission, error) {
+	updatedPermission, err := s.repo.UpdatePermission(ctx, permissionID, name, resource, action)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to update permission")
+		return nil, fmt.Errorf("failed to update permission: %w", err)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"permission_id":   updatedPermission.ID,
+		"permission_name": updatedPermission.Name,
+	}).Info("Permission updated successfully")
+
+	return updatedPermission, nil
+}
+
+func (s *AuthService) DeletePermission(ctx context.Context, permissionID uuid.UUID) error {
+	// Check if permission is in use
+	roleCount, err := s.repo.CountRolesWithPermission(ctx, permissionID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to check permission usage")
+		return fmt.Errorf("failed to check permission usage: %w", err)
+	}
+
+	if roleCount > 0 {
+		return fmt.Errorf("cannot delete permission: %d roles are assigned this permission", roleCount)
+	}
+
+	err = s.repo.DeletePermission(ctx, permissionID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to delete permission")
+		return fmt.Errorf("failed to delete permission: %w", err)
+	}
+
+	s.logger.WithField("permission_id", permissionID).Info("Permission deleted successfully")
+	return nil
+}
+
+// Role-Permission Management Service Methods
+func (s *AuthService) AssignPermissionToRole(ctx context.Context, roleID, permissionID uuid.UUID) error {
+	err := s.repo.AssignPermissionToRole(ctx, roleID, permissionID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to assign permission to role")
+		return fmt.Errorf("failed to assign permission to role: %w", err)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"role_id":       roleID,
+		"permission_id": permissionID,
+	}).Info("Permission assigned to role successfully")
+
+	return nil
+}
+
+func (s *AuthService) RemovePermissionFromRole(ctx context.Context, roleID, permissionID uuid.UUID) error {
+	err := s.repo.RemovePermissionFromRole(ctx, roleID, permissionID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to remove permission from role")
+		return fmt.Errorf("failed to remove permission from role: %w", err)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"role_id":       roleID,
+		"permission_id": permissionID,
+	}).Info("Permission removed from role successfully")
+
+	return nil
+}
+
+func (s *AuthService) GetRolePermissions(ctx context.Context, roleID uuid.UUID) ([]models.Permission, error) {
+	permissions, err := s.repo.GetRolePermissions(ctx, roleID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get role permissions")
+		return nil, fmt.Errorf("failed to get role permissions: %w", err)
+	}
+
+	return permissions, nil
+}
+
+// User Role Management Service Methods
+func (s *AuthService) AssignRoleToUser(ctx context.Context, userID, roleID uuid.UUID) error {
+	err := s.repo.AssignRoleToUser(ctx, userID, roleID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to assign role to user")
+		return fmt.Errorf("failed to assign role to user: %w", err)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"user_id": userID,
+		"role_id": roleID,
+	}).Info("Role assigned to user successfully")
+
+	return nil
+}
+
+func (s *AuthService) RemoveRoleFromUser(ctx context.Context, userID, roleID uuid.UUID) error {
+	err := s.repo.RemoveRoleFromUser(ctx, userID, roleID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to remove role from user")
+		return fmt.Errorf("failed to remove role from user: %w", err)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"user_id": userID,
+		"role_id": roleID,
+	}).Info("Role removed from user successfully")
+
+	return nil
+}
+
+func (s *AuthService) UpdateUserRoles(ctx context.Context, userID uuid.UUID, roleIDs []uuid.UUID) error {
+	err := s.repo.UpdateUserRoles(ctx, userID, roleIDs)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to update user roles")
+		return fmt.Errorf("failed to update user roles: %w", err)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"user_id":    userID,
+		"role_count": len(roleIDs),
+	}).Info("User roles updated successfully")
+
+	return nil
+}

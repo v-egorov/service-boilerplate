@@ -200,3 +200,230 @@ func (r *AuthRepository) CheckPermission(ctx context.Context, userID uuid.UUID, 
 	err := r.db.QueryRow(ctx, query, userID, resource, action).Scan(&exists)
 	return exists, err
 }
+
+// Role CRUD methods
+func (r *AuthRepository) CreateRole(ctx context.Context, role *models.Role) (*models.Role, error) {
+	query := `
+		INSERT INTO auth_service.roles (name, description)
+		VALUES ($1, $2)
+		RETURNING id, name, description, created_at`
+
+	err := r.db.QueryRow(ctx, query, role.Name, role.Description).Scan(
+		&role.ID, &role.Name, &role.Description, &role.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return role, nil
+}
+
+func (r *AuthRepository) ListRoles(ctx context.Context) ([]models.Role, error) {
+	query := `SELECT id, name, description, created_at FROM auth_service.roles ORDER BY name`
+
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var roles []models.Role
+	for rows.Next() {
+		var role models.Role
+		err := rows.Scan(&role.ID, &role.Name, &role.Description, &role.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		roles = append(roles, role)
+	}
+	return roles, rows.Err()
+}
+
+func (r *AuthRepository) GetRole(ctx context.Context, roleID uuid.UUID) (*models.Role, error) {
+	query := `SELECT id, name, description, created_at FROM auth_service.roles WHERE id = $1`
+
+	var role models.Role
+	err := r.db.QueryRow(ctx, query, roleID).Scan(
+		&role.ID, &role.Name, &role.Description, &role.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &role, nil
+}
+
+func (r *AuthRepository) UpdateRole(ctx context.Context, roleID uuid.UUID, name, description string) (*models.Role, error) {
+	query := `
+		UPDATE auth_service.roles
+		SET name = $2, description = $3
+		WHERE id = $1
+		RETURNING id, name, description, created_at`
+
+	var role models.Role
+	err := r.db.QueryRow(ctx, query, roleID, name, description).Scan(
+		&role.ID, &role.Name, &role.Description, &role.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &role, nil
+}
+
+func (r *AuthRepository) DeleteRole(ctx context.Context, roleID uuid.UUID) error {
+	query := `DELETE FROM auth_service.roles WHERE id = $1`
+	_, err := r.db.Exec(ctx, query, roleID)
+	return err
+}
+
+// Permission CRUD methods
+func (r *AuthRepository) CreatePermission(ctx context.Context, permission *models.Permission) (*models.Permission, error) {
+	query := `
+		INSERT INTO auth_service.permissions (name, resource, action)
+		VALUES ($1, $2, $3)
+		RETURNING id, name, resource, action, created_at`
+
+	err := r.db.QueryRow(ctx, query, permission.Name, permission.Resource, permission.Action).Scan(
+		&permission.ID, &permission.Name, &permission.Resource, &permission.Action, &permission.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return permission, nil
+}
+
+func (r *AuthRepository) ListPermissions(ctx context.Context) ([]models.Permission, error) {
+	query := `SELECT id, name, resource, action, created_at FROM auth_service.permissions ORDER BY resource, action`
+
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var permissions []models.Permission
+	for rows.Next() {
+		var permission models.Permission
+		err := rows.Scan(&permission.ID, &permission.Name, &permission.Resource, &permission.Action, &permission.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		permissions = append(permissions, permission)
+	}
+	return permissions, rows.Err()
+}
+
+func (r *AuthRepository) GetPermission(ctx context.Context, permissionID uuid.UUID) (*models.Permission, error) {
+	query := `SELECT id, name, resource, action, created_at FROM auth_service.permissions WHERE id = $1`
+
+	var permission models.Permission
+	err := r.db.QueryRow(ctx, query, permissionID).Scan(
+		&permission.ID, &permission.Name, &permission.Resource, &permission.Action, &permission.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &permission, nil
+}
+
+func (r *AuthRepository) UpdatePermission(ctx context.Context, permissionID uuid.UUID, name, resource, action string) (*models.Permission, error) {
+	query := `
+		UPDATE auth_service.permissions
+		SET name = $2, resource = $3, action = $4
+		WHERE id = $1
+		RETURNING id, name, resource, action, created_at`
+
+	var permission models.Permission
+	err := r.db.QueryRow(ctx, query, permissionID, name, resource, action).Scan(
+		&permission.ID, &permission.Name, &permission.Resource, &permission.Action, &permission.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &permission, nil
+}
+
+func (r *AuthRepository) DeletePermission(ctx context.Context, permissionID uuid.UUID) error {
+	query := `DELETE FROM auth_service.permissions WHERE id = $1`
+	_, err := r.db.Exec(ctx, query, permissionID)
+	return err
+}
+
+// Role-Permission management
+func (r *AuthRepository) AssignPermissionToRole(ctx context.Context, roleID, permissionID uuid.UUID) error {
+	query := `
+		INSERT INTO auth_service.role_permissions (role_id, permission_id)
+		VALUES ($1, $2)
+		ON CONFLICT (role_id, permission_id) DO NOTHING`
+	_, err := r.db.Exec(ctx, query, roleID, permissionID)
+	return err
+}
+
+func (r *AuthRepository) RemovePermissionFromRole(ctx context.Context, roleID, permissionID uuid.UUID) error {
+	query := `DELETE FROM auth_service.role_permissions WHERE role_id = $1 AND permission_id = $2`
+	_, err := r.db.Exec(ctx, query, roleID, permissionID)
+	return err
+}
+
+func (r *AuthRepository) GetRolePermissions(ctx context.Context, roleID uuid.UUID) ([]models.Permission, error) {
+	query := `
+		SELECT p.id, p.name, p.resource, p.action, p.created_at
+		FROM auth_service.permissions p
+		JOIN auth_service.role_permissions rp ON p.id = rp.permission_id
+		WHERE rp.role_id = $1
+		ORDER BY p.resource, p.action`
+
+	rows, err := r.db.Query(ctx, query, roleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var permissions []models.Permission
+	for rows.Next() {
+		var permission models.Permission
+		err := rows.Scan(&permission.ID, &permission.Name, &permission.Resource, &permission.Action, &permission.CreatedAt)
+		if err != nil {
+			return nil, err
+		}
+		permissions = append(permissions, permission)
+	}
+	return permissions, rows.Err()
+}
+
+// User role management (bulk operations)
+func (r *AuthRepository) UpdateUserRoles(ctx context.Context, userID uuid.UUID, roleIDs []uuid.UUID) error {
+	// Start transaction
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	// Remove all existing roles for user
+	_, err = tx.Exec(ctx, `DELETE FROM auth_service.user_roles WHERE user_id = $1`, userID)
+	if err != nil {
+		return err
+	}
+
+	// Assign new roles
+	for _, roleID := range roleIDs {
+		_, err = tx.Exec(ctx, `
+			INSERT INTO auth_service.user_roles (user_id, role_id)
+			VALUES ($1, $2)`, userID, roleID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
+// Utility methods for validation
+func (r *AuthRepository) CountUsersWithRole(ctx context.Context, roleID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM auth_service.user_roles WHERE role_id = $1`
+
+	var count int
+	err := r.db.QueryRow(ctx, query, roleID).Scan(&count)
+	return count, err
+}
+
+func (r *AuthRepository) CountRolesWithPermission(ctx context.Context, permissionID uuid.UUID) (int, error) {
+	query := `SELECT COUNT(*) FROM auth_service.role_permissions WHERE permission_id = $1`
+
+	var count int
+	err := r.db.QueryRow(ctx, query, permissionID).Scan(&count)
+	return count, err
+}

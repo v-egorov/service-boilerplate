@@ -266,6 +266,32 @@ func main() {
 				admin.Use(middleware.RequireRole("admin"))
 				{
 					admin.POST("/rotate-keys", authHandler.RotateKeys)
+
+					// RBAC Management endpoints
+					// Role management
+					admin.POST("/roles", authHandler.CreateRole)
+					admin.GET("/roles", authHandler.ListRoles)
+					admin.GET("/roles/:role_id", authHandler.GetRole)
+					admin.PUT("/roles/:role_id", authHandler.UpdateRole)
+					admin.DELETE("/roles/:role_id", authHandler.DeleteRole)
+
+					// Permission management
+					admin.POST("/permissions", authHandler.CreatePermission)
+					admin.GET("/permissions", authHandler.ListPermissions)
+					admin.GET("/permissions/:permission_id", authHandler.GetPermission)
+					admin.PUT("/permissions/:permission_id", authHandler.UpdatePermission)
+					admin.DELETE("/permissions/:permission_id", authHandler.DeletePermission)
+
+					// Role-Permission management
+					admin.POST("/roles/:role_id/permissions", authHandler.AssignPermissionToRole)
+					admin.DELETE("/roles/:role_id/permissions/:perm_id", authHandler.RemovePermissionFromRole)
+					admin.GET("/roles/:role_id/permissions", authHandler.GetRolePermissions)
+
+					// User-Role management
+					admin.POST("/users/:user_id/roles", authHandler.AssignRoleToUser)
+					admin.DELETE("/users/:user_id/roles/:role_id", authHandler.RemoveRoleFromUser)
+					admin.GET("/users/:user_id/roles", authHandler.GetUserRoles)
+					admin.PUT("/users/:user_id/roles", authHandler.UpdateUserRoles)
 				}
 			}
 		}

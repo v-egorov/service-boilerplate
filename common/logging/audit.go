@@ -230,6 +230,33 @@ func (al *AuditLogger) LogEntityDeletion(actorUserID, requestID, entityID, ipAdd
 	al.logEvent(event)
 }
 
+// LogAdminAction logs administrative actions performed by authorized users
+func (al *AuditLogger) LogAdminAction(actorUserID, requestID, entityID, ipAddress, userAgent, action, traceID, spanID string, success bool, errorMsg string) {
+	event := AuditEvent{
+		Timestamp: time.Now().UTC(),
+		EventType: "admin_action",
+		Service:   al.serviceName,
+		UserID:    actorUserID, // Who performed the admin action
+		EntityID:  entityID,    // The entity being acted upon
+		RequestID: requestID,
+		IPAddress: ipAddress,
+		UserAgent: userAgent,
+		Resource:  "admin",
+		Action:    action,
+		TraceID:   traceID,
+		SpanID:    spanID,
+	}
+
+	if success {
+		event.Result = "success"
+	} else {
+		event.Result = "failure"
+		event.Error = errorMsg
+	}
+
+	al.logEvent(event)
+}
+
 // LogSuspiciousActivity logs potentially suspicious activities
 func (al *AuditLogger) LogSuspiciousActivity(actorUserID, requestID, ipAddress, userAgent, activityType, traceID, spanID string, details map[string]interface{}) {
 	event := AuditEvent{
