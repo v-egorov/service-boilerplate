@@ -38,6 +38,7 @@ A comprehensive boilerplate for building scalable Golang-based REST API services
 
 ### API & Examples
 
+- **[RBAC API Guide](docs/rbac-api-guide.md)**: Complete Role-Based Access Control system documentation with API endpoints, implementation details, and testing
 - **[Authentication API Examples](docs/auth-api-examples.md)**: Complete API usage examples with authentication
 - **[Distributed Tracing Implementation Plan](docs/distributed-tracing-implementation-plan.md)**: Detailed roadmap for implementing OpenTelemetry tracing across microservices
 

@@ -7,8 +7,8 @@ set -e
 
 # Configuration
 API_GATEWAY_URL="http://localhost:8080"
-ADMIN_EMAIL="admin@example.com"  # Admin user we set up
-ADMIN_PASSWORD="admin123"       # Password we configured
+ADMIN_EMAIL="dev.admin@example.com" # Admin user we set up
+ADMIN_PASSWORD="devadmin123"        # Password we configured
 
 # Colors for output
 RED='\033[0;31m'
@@ -251,7 +251,7 @@ cleanup_test_data() {
 # Main test execution
 main() {
     # Check if jq is available
-    if ! command -v jq &> /dev/null; then
+    if ! command -v jq &>/dev/null; then
         echo -e "${RED}✗ jq is required for this script. Please install jq.${NC}"
         exit 1
     fi
