@@ -22,6 +22,20 @@
       "risk_level": "low",
       "rollback_safe": true,
       "environment": "development"
+    },
+    "000004": {
+      "description": "Setup development admin accounts with RBAC roles",
+      "depends_on": [
+        "000001",
+        "000003"
+      ],
+      "affects_tables": [
+        "auth_service.user_roles"
+      ],
+      "estimated_duration": "10s",
+      "risk_level": "low",
+      "rollback_safe": true,
+      "environment": "development"
     }
   },
   "global_config": {

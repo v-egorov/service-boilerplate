@@ -17,6 +17,7 @@ A comprehensive boilerplate for building scalable Golang-based REST API services
 ## 📚 Documentation
 
 ### Core Features
+
 - **[Middleware Architecture](docs/middleware-architecture.md)**: Authentication, logging, tracing, and request processing patterns
 - **[Security Architecture](docs/security-architecture.md)**: Authentication, authorization, and service exposure guidelines
 - **[Logging System](docs/logging-system.md)**: Comprehensive guide to logging configuration, options, and troubleshooting
@@ -29,16 +30,19 @@ A comprehensive boilerplate for building scalable Golang-based REST API services
   - [Best Practices](docs/tracing/best-practices.md)
 
 ### Development & Deployment
+
 - **[Service Creation Guide](docs/service-creation-guide.md)**: How to create new services using the boilerplate
 - **[Air Hot Reload](docs/air-hot-reload/)**: Development setup with live reloading
 - **[Migrations](docs/migrations/)**: Database migration management and best practices
 - **[CLI Utilities](docs/cli-utility-comprehensive.md)**: Command-line tools for development and operations
 
 ### API & Examples
+
 - **[Authentication API Examples](docs/auth-api-examples.md)**: Complete API usage examples with authentication
 - **[Distributed Tracing Implementation Plan](docs/distributed-tracing-implementation-plan.md)**: Detailed roadmap for implementing OpenTelemetry tracing across microservices
 
 ### Planning & Future
+
 - **[Future Development Plan](docs/future_development_plan.md)**: Roadmap of planned features and enhancements
 - **[CLI Utility Plan](docs/cli-utility-plan.md)**: Planned CLI enhancements and features
 
@@ -99,12 +103,14 @@ External Client → API Gateway (Port 8080) → Auth Service (Port 8083)
 ```
 
 **Production Security:**
+
 - ✅ Only API Gateway exposed externally
 - ✅ All requests validated for authentication and token revocation
 - ✅ Internal services trust gateway validation
 - ✅ Comprehensive audit trails for security events
 
 **Development Security:**
+
 - ⚠️ Direct service access allowed for testing/debugging
 - ⚠️ Must not be used for production workflows
 - ✅ Same authentication and logging as production
@@ -131,11 +137,19 @@ External Client → API Gateway (Port 8080) → Auth Service (Port 8083)
    # 🛠️  Start DEVELOPMENT environment with hot reload and debug logging
    make dev
 
-   # In another terminal, run database migrations:
+   # In another terminal, run database migrations to set up the database:
    make db-migrate
 
-   # Create test users and check auth flow
+   # This automatically creates:
+   # - Database tables and schemas for all services
+   # - Dev admin account: dev.admin@example.com / devadmin123 (full admin access)
+   # - Test users for development and testing
+
+   # Test basic authentication flow
    ./scripts/test-auth-flow.sh
+
+   # Test RBAC (Role-Based Access Control) endpoints with dev admin account
+   ./scripts/test-rbac-endpoints.sh
 
    # View distributed traces in Jaeger UI:
    # http://localhost:16686
@@ -164,9 +178,9 @@ External Client → API Gateway (Port 8080) → Auth Service (Port 8083)
    make down
    ```
 
-    **⚠️  Important:** Use `make dev` for development/debugging and `make prod` for production.
+   **⚠️ Important:** Use `make dev` for development/debugging and `make prod` for production.
 
-5. **Interactive development menu:**
+4. **Interactive development menu:**
 
    ```bash
    ./scripts/dev.sh
@@ -188,6 +202,28 @@ The project includes **Air** for hot reloading during development:
 - **Health Checks**: Automatic service health monitoring
 - **Environment Configuration**: Flexible config management
 
+#### **Development Admin Account**
+
+For development and testing purposes, a pre-configured admin account is **automatically created** when you run `make db-migrate`:
+
+- **Email**: `dev.admin@example.com`
+- **Password**: `devadmin123`
+- **Roles**: `admin`, `user`
+
+This account has full administrative privileges and can be used to test RBAC functionality, manage roles/permissions, and perform administrative operations.
+
+**Example usage:**
+
+```bash
+# Login as dev admin
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "dev.admin@example.com", "password": "devadmin123"}'
+
+# Use JWT token for admin operations
+./scripts/test-rbac-endpoints.sh
+```
+
 1. **Start all services with Air hot-reload:**
 
    ```bash
@@ -202,9 +238,9 @@ The project includes **Air** for hot reloading during development:
 
 3. **Stop services:**
 
-    ```bash
-    make down
-    ```
+   ```bash
+   make down
+   ```
 
 ### 🏭 Production Deployment
 
@@ -212,40 +248,40 @@ For production deployment with optimized Docker images:
 
 1. **Build and start production services:**
 
-    ```bash
-    # Build optimized production images and start services
-    make build-prod  # Build production images
-    make prod        # Start production containers
-    ```
+   ```bash
+   # Build optimized production images and start services
+   make build-prod  # Build production images
+   make prod        # Start production containers
+   ```
 
 2. **Switch from development to production:**
 
-    ```bash
-    # Stop development environment
-    make down
+   ```bash
+   # Stop development environment
+   make down
 
-    # Build and start production
-    make build-prod
-    make prod
-    ```
+   # Build and start production
+   make build-prod
+   make prod
+   ```
 
 3. **Switch from production to development:**
 
-    ```bash
-    # Stop production environment
-    make down
+   ```bash
+   # Stop production environment
+   make down
 
-    # Build development images and start
-    make build-dev
-    make dev
-    ```
+   # Build development images and start
+   make build-dev
+   make dev
+   ```
 
 ### 🔄 Environment Modes
 
-| Mode | Build Target | Start Target | Hot Reload | Image Size |
-|------|-------------|--------------|------------|------------|
-| **Development** | `make build-dev` | `make dev` | ✅ Air | ~1.2GB |
-| **Production** | `make build-prod` | `make prod` | ❌ None | ~15MB |
+| Mode            | Build Target      | Start Target | Hot Reload | Image Size |
+| --------------- | ----------------- | ------------ | ---------- | ---------- |
+| **Development** | `make build-dev`  | `make dev`   | ✅ Air     | ~1.2GB     |
+| **Production**  | `make build-prod` | `make prod`  | ❌ None    | ~15MB      |
 
 **Note:** Always run `make down` before switching between development and production modes to avoid image conflicts.
 
