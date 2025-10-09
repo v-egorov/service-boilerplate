@@ -11,13 +11,16 @@ WORKDIR /build
 COPY go.mod go.sum ./
 
 # Download dependencies
-RUN go mod download
+RUN GOPROXY=$GOPROXY go mod download
 
 # Copy source code
 COPY . .
 
+# Tidy go modules
+RUN GOPROXY=$GOPROXY go mod tidy
+
 # Build the migration orchestrator
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o migration-orchestrator ./cmd
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o migration-orchestrator .
 
 # Runtime stage
 FROM alpine:latest
@@ -31,12 +34,18 @@ COPY --from=migrate/migrate:latest /migrate /usr/local/bin/migrate
 # Copy our orchestrator binary
 COPY --from=builder /build/migration-orchestrator /usr/local/bin/migration-orchestrator
 
+# Make sure binaries are executable
+RUN chmod +x /usr/local/bin/migrate /usr/local/bin/migration-orchestrator
+
 # Create a non-root user
 RUN addgroup -g 1001 -S appgroup && \
     adduser -u 1001 -S appuser -G appgroup
 
 # Set working directory
 WORKDIR /workspace
+
+# Add /usr/local/bin to PATH
+ENV PATH="/usr/local/bin:$PATH"
 
 # Change ownership of working directory
 RUN chown -R appuser:appgroup /workspace

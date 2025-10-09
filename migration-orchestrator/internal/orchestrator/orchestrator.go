@@ -356,13 +356,22 @@ func (o *Orchestrator) resolveDependencies(candidateMigrations []string, applied
 		inDegree[migrationID] = len(dependencies)
 	}
 
+	// Reduce in-degree for migrations whose dependencies are already applied
+	for migrationID, deps := range graph {
+		for _, dep := range deps {
+			if applied[dep] {
+				inDegree[migrationID]--
+			}
+		}
+	}
+
 	// Perform topological sort using Kahn's algorithm
 	var queue []string
 	var result []string
 
-	// Add migrations with no dependencies to queue
-	for migrationID, deps := range inDegree {
-		if deps == 0 && !applied[migrationID] {
+	// Add migrations with no unresolved dependencies to queue
+	for migrationID, degree := range inDegree {
+		if degree == 0 && !applied[migrationID] {
 			queue = append(queue, migrationID)
 		}
 	}
@@ -507,7 +516,9 @@ func (o *Orchestrator) createMigrationRecord(ctx context.Context, migrationID, e
 func (o *Orchestrator) getAppliedVersionsFromGolangMigrate() map[int]bool {
 	applied := make(map[int]bool)
 
-	query := fmt.Sprintf("SELECT version FROM %s.schema_migrations WHERE dirty = false", o.schemaName)
+	// golang-migrate uses tables in public schema with service-specific names
+	tableName := fmt.Sprintf("%s_schema_migrations", o.schemaName)
+	query := fmt.Sprintf("SELECT version FROM public.%s WHERE dirty = false", tableName)
 	rows, err := o.db.GetPool().Query(context.Background(), query)
 	if err != nil {
 		o.logger.Errorf("Failed to query golang-migrate tracking table: %v", err)
@@ -527,9 +538,15 @@ func (o *Orchestrator) getAppliedVersionsFromGolangMigrate() map[int]bool {
 	return applied
 }
 
-// CreateMigrationExecutionsTable creates the migration_executions table in the service schema
+// CreateMigrationExecutionsTable creates the migration_executions table in the service schema if it doesn't exist
 func (o *Orchestrator) CreateMigrationExecutionsTable(ctx context.Context) error {
-	o.logger.Info("Creating migration_executions table in schema:", o.schemaName)
+	o.logger.Info("Ensuring migration_executions table exists in schema:", o.schemaName)
+
+	// Check if table already exists
+	if o.migrationExecutionsTableExists(ctx) {
+		o.logger.Info("Migration tracking table already exists, skipping creation")
+		return nil
+	}
 
 	// First, ensure the schema exists
 	schemaQuery := fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", o.schemaName)
@@ -540,33 +557,36 @@ func (o *Orchestrator) CreateMigrationExecutionsTable(ctx context.Context) error
 	// Create the migration_executions table
 	tableQuery := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s.migration_executions (
-			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			id BIGSERIAL PRIMARY KEY,
 			migration_id VARCHAR(255) NOT NULL,
-			service_name VARCHAR(100) NOT NULL,
+			migration_version VARCHAR(255) NOT NULL,
 			environment VARCHAR(50) NOT NULL,
-			execution_status VARCHAR(20) NOT NULL CHECK (execution_status IN ('success', 'failed', 'rolled_back')),
-			applied_at TIMESTAMP WITH TIME ZONE,
-			rolled_back_at TIMESTAMP WITH TIME ZONE,
-			execution_duration INTERVAL,
-			error_message TEXT,
-			checksum VARCHAR(64),
-			applied_by VARCHAR(100),
+			status VARCHAR(50) NOT NULL CHECK (status IN ('pending', 'running', 'completed', 'failed', 'rolled_back')),
+			started_at TIMESTAMP WITH TIME ZONE,
+			completed_at TIMESTAMP WITH TIME ZONE,
+			duration_ms BIGINT,
+			executed_by VARCHAR(255),
+			checksum VARCHAR(255),
+			dependencies JSONB,
 			metadata JSONB,
+			error_message TEXT,
+			rollback_version VARCHAR(255),
 			created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 
-			UNIQUE(service_name, migration_id, environment)
+			UNIQUE(migration_id, environment)
 		)`, o.schemaName)
 
 	if _, err := o.db.GetPool().Exec(ctx, tableQuery); err != nil {
 		return fmt.Errorf("failed to create migration_executions table: %w", err)
 	}
 
-	// Create indexes
+	// Create indexes (matching what's in the initial migration)
 	indexes := []string{
-		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%s_migration_executions_service_env ON %s.migration_executions(service_name, environment)", o.schemaName, o.schemaName),
-		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%s_migration_executions_status ON %s.migration_executions(execution_status)", o.schemaName, o.schemaName),
-		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_%s_migration_executions_applied_at ON %s.migration_executions(applied_at)", o.schemaName, o.schemaName),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_migration_executions_migration_id ON %s.migration_executions(migration_id)", o.schemaName),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_migration_executions_environment ON %s.migration_executions(environment)", o.schemaName),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_migration_executions_status ON %s.migration_executions(status)", o.schemaName),
+		fmt.Sprintf("CREATE INDEX IF NOT EXISTS idx_migration_executions_created_at ON %s.migration_executions(created_at)", o.schemaName),
 	}
 
 	for _, indexQuery := range indexes {
