@@ -1,12 +1,13 @@
 {
   "migrations": {
     "000001": {
-      "description": "Create SCHEMA_NAME schema and entities table",
+      "description": "Create SCHEMA_NAME schema, migration tracking table, and entities table",
       "depends_on": [],
       "affects_tables": [
-        "SCHEMA_NAME.entities"
+        "SCHEMA_NAME.entities",
+        "SCHEMA_NAME.migration_executions"
       ],
-      "estimated_duration": "30s",
+      "estimated_duration": "45s",
       "risk_level": "low",
       "rollback_safe": true
     },

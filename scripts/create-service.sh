@@ -174,7 +174,7 @@ replace_vars() {
 }
 
 # Find and replace in all files
-find "$SERVICE_DIR" -type f \( -name "*.go" -o -name "*.yaml" -o -name "*.md" -o -name "*.sql" -o -name "*.toml" -o -name "Dockerfile*" \) | while read -r file; do
+find "$SERVICE_DIR" -type f \( -name "*.go" -o -name "*.yaml" -o -name "*.md" -o -name "*.sql" -o -name "*.toml" -o -name "*.json" -o -name "Dockerfile*" \) | while read -r file; do
     replace_vars "$file"
 done
 
@@ -459,6 +459,8 @@ if [ "$CREATE_DB_SCHEMA" = true ]; then
 
     if [ -f "services/$SERVICE_NAME/migrations/000001_initial.up.sql" ]; then
         echo "Database schema created. Run migrations with: make db-migrate-up SERVICE_NAME=$SERVICE_NAME"
+        echo "Migration orchestrator is configured and ready to use."
+        echo "Enhanced migration tracking will be available after running initial migrations."
     fi
 fi
 
@@ -529,6 +531,7 @@ echo "1. Review and customize the generated code in services/$SERVICE_NAME/"
 echo "2. Update API gateway routes in api-gateway/cmd/main.go for $SERVICE_NAME"
 if [ "$CREATE_DB_SCHEMA" = true ]; then
     echo "3. Run database migrations: make db-migrate-up SERVICE_NAME=$SERVICE_NAME"
+    echo "   - This will create the migration tracking table and enable enhanced migration features"
 fi
 echo "4. Build the service: make build-$SERVICE_NAME"
 echo "5. Start the service: make run-$SERVICE_NAME"
