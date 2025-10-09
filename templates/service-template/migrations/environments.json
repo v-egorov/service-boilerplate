@@ -2,12 +2,8 @@
   "environments": {
     "development": {
       "description": "Development environment with test data and debug features",
-      "migrations": [
-        "development/000003_dev_test_data.up.sql"
-      ],
-      "seed_files": [
-        "scripts/seeds/development/dev_entities.sql"
-      ],
+      "migrations": ["development/000003_dev_test_data.up.sql"],
+      "seed_files": [],
       "config": {
         "allow_destructive_operations": true,
         "skip_validation": false,
