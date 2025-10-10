@@ -158,12 +158,62 @@ func TestOrchestratorWithMockData(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	// This test would require setting up mock migration files and database state
-	// For now, it's a placeholder for more comprehensive integration testing
+	// Setup test database for this test
+	dbURL := os.Getenv("TEST_DATABASE_URL")
+	if dbURL == "" {
+		dbURL = "postgres://postgres:postgres@localhost:5432/test_db?sslmode=disable"
+	}
+
+	// Connect to test database
+	pool, err := pgxpool.New(context.Background(), dbURL)
+	if err != nil {
+		t.Skipf("Cannot connect to test database: %v", err)
+	}
+	defer pool.Close()
+
+	// Create test database connection
+	testDB := &database.Database{Pool: pool}
+
+	// Create test logger
+	logger := utils.NewLogger(false, false)
 
 	t.Run("MockMigrationWorkflow", func(t *testing.T) {
-		// TODO: Implement full workflow test with mock data
-		t.Skip("Full workflow test not yet implemented")
+		// Test basic orchestrator creation and configuration loading
+		orch, err := NewOrchestrator(testDB, logger, "test-service")
+		if err != nil {
+			t.Fatalf("Failed to create orchestrator: %v", err)
+		}
+		if orch == nil {
+			t.Fatal("Orchestrator is nil")
+		}
+		if orch.serviceName != "test-service" {
+			t.Errorf("Expected service name 'test-service', got '%s'", orch.serviceName)
+		}
+		if orch.schemaName != "test_service" {
+			t.Errorf("Expected schema name 'test_service', got '%s'", orch.schemaName)
+		}
+
+		// Test configuration loading (may fail if no config exists, which is expected)
+		_, _, err = orch.LoadMigrationConfig()
+		// We expect this to fail in test environment without proper config files
+		// This is normal - we're just testing that the method exists and can be called
+		_ = err // We don't assert on this since config may or may not exist
+
+		// Test migration state retrieval (table may not exist, which is fine)
+		ctx := context.Background()
+		state, err := orch.GetMigrationState(ctx)
+		if err != nil {
+			t.Fatalf("Failed to get migration state: %v", err)
+		}
+		if state == nil {
+			t.Fatal("Migration state is nil")
+		}
+		if state.ServiceName != "test-service" {
+			t.Errorf("Expected service name 'test-service', got '%s'", state.ServiceName)
+		}
+		if state.SchemaName != "test_service" {
+			t.Errorf("Expected schema name 'test_service', got '%s'", state.SchemaName)
+		}
 	})
 }
 

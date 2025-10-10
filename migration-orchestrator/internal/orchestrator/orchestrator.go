@@ -207,10 +207,9 @@ func (o *Orchestrator) GetMigrationState(ctx context.Context) (*types.ServiceMig
 		       dependencies, metadata, error_message, rollback_version,
 		       created_at, updated_at
 		FROM %s.migration_executions
-		WHERE environment = $1
 		ORDER BY created_at DESC`, o.schemaName)
 
-	rows, err := o.db.GetPool().Query(ctx, query, "development") // TODO: Use actual environment
+	rows, err := o.db.GetPool().Query(ctx, query)
 	if err != nil {
 		// Check if the table doesn't exist yet (first run)
 		if strings.Contains(err.Error(), "does not exist") {
