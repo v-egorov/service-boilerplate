@@ -2,8 +2,6 @@ module github.com/v-egorov/service-boilerplate/migration-orchestrator
 
 go 1.23.0
 
-toolchain go1.24.7
-
 require (
 	github.com/golang-migrate/migrate/v4 v4.19.0
 	github.com/jackc/pgx/v5 v5.5.4
