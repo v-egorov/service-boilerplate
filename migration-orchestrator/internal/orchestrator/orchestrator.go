@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -300,8 +301,8 @@ func (o *Orchestrator) getPendingMigrations(envConfig types.EnvironmentConfig, d
 	// Get all migrations that should be considered for this environment
 	var candidateMigrations []string
 
-	// Add base migrations that golang-migrate manages
-	baseMigrations := []string{"000001", "000002", "000003"}
+	// Add base migrations that golang-migrate manages (find all .up.sql files in root migrations dir)
+	baseMigrations := o.getBaseMigrations()
 	candidateMigrations = append(candidateMigrations, baseMigrations...)
 
 	// Add environment-specific migrations
@@ -513,6 +514,29 @@ func (o *Orchestrator) createMigrationRecord(ctx context.Context, migrationID, e
 	}
 }
 
+func (o *Orchestrator) getBaseMigrations() []string {
+	var baseMigrations []string
+
+	// Find all .up.sql files in the root migrations directory
+	files, err := os.ReadDir(o.servicePath + "/migrations")
+	if err != nil {
+		o.logger.Errorf("Failed to read migrations directory: %v", err)
+		return baseMigrations
+	}
+
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".up.sql") && strings.HasPrefix(file.Name(), "000") {
+			// Extract migration ID (e.g., "000001_initial.up.sql" -> "000001")
+			migrationID := file.Name()[:6]
+			baseMigrations = append(baseMigrations, migrationID)
+		}
+	}
+
+	// Sort to ensure consistent ordering
+	sort.Strings(baseMigrations)
+	return baseMigrations
+}
+
 func (o *Orchestrator) getAppliedVersionsFromGolangMigrate() map[int]bool {
 	applied := make(map[int]bool)
 
@@ -521,6 +545,11 @@ func (o *Orchestrator) getAppliedVersionsFromGolangMigrate() map[int]bool {
 	query := fmt.Sprintf("SELECT version FROM public.%s WHERE dirty = false", tableName)
 	rows, err := o.db.GetPool().Query(context.Background(), query)
 	if err != nil {
+		// Check if the table doesn't exist (fresh start scenario)
+		if strings.Contains(err.Error(), "does not exist") {
+			o.logger.Info("Golang-migrate tracking table does not exist yet, assuming fresh start")
+			return applied
+		}
 		o.logger.Errorf("Failed to query golang-migrate tracking table: %v", err)
 		return applied
 	}
@@ -719,7 +748,7 @@ func (o *Orchestrator) executeMigrationUp(ctx context.Context, migrationID, envi
 }
 
 func (o *Orchestrator) isBaseMigration(migrationID string) bool {
-	baseMigrations := []string{"000001", "000002", "000003"}
+	baseMigrations := o.getBaseMigrations()
 	for _, base := range baseMigrations {
 		if migrationID == base {
 			return true
@@ -751,9 +780,46 @@ func (o *Orchestrator) executeBaseMigrationUp(ctx context.Context, migrationID, 
 		return nil
 	}
 
-	// If not applied, we need to run it, but this shouldn't happen in normal operation
-	o.logger.WithMigration(migrationID).Warn("Base migration not applied by golang-migrate, this should not happen")
-	return fmt.Errorf("base migration %s not applied by golang-migrate", migrationID)
+	// If not applied, run it using golang-migrate (fresh start scenario)
+	o.logger.WithMigration(migrationID).Info("Base migration not applied yet, executing with golang-migrate")
+
+	// Record migration start in orchestrator
+	executionID, err := o.recordMigrationStart(ctx, migrationID, environment)
+	if err != nil {
+		return fmt.Errorf("failed to record migration start: %w", err)
+	}
+
+	startTime := time.Now()
+
+	// Create golang-migrate instance and run the migration
+	migrationPath := filepath.Join(o.servicePath, "migrations")
+	m, err := o.createMigrateInstance(migrationPath)
+	if err != nil {
+		o.recordMigrationFailure(ctx, executionID, err.Error())
+		return fmt.Errorf("failed to create migrate instance: %w", err)
+	}
+	defer m.Close()
+
+	// Handle dirty migrations first
+	if err := o.handleDirtyMigrations(m); err != nil {
+		o.recordMigrationFailure(ctx, executionID, err.Error())
+		return fmt.Errorf("failed to handle dirty migrations: %w", err)
+	}
+
+	// Run the specific migration up to this version
+	if err := m.Migrate(uint(version)); err != nil {
+		o.recordMigrationFailure(ctx, executionID, err.Error())
+		return fmt.Errorf("failed to run migration %s: %w", migrationID, err)
+	}
+
+	// Record migration success
+	duration := time.Since(startTime).Milliseconds()
+	if err := o.recordMigrationSuccess(ctx, executionID, duration); err != nil {
+		o.logger.Error("Failed to record migration success:", err)
+	}
+
+	o.logger.WithMigration(migrationID).Info("Base migration completed successfully")
+	return nil
 }
 
 func (o *Orchestrator) executeEnvironmentMigrationUp(ctx context.Context, migrationID, environment string) error {
@@ -767,10 +833,32 @@ func (o *Orchestrator) executeEnvironmentMigrationUp(ctx context.Context, migrat
 
 	startTime := time.Now()
 
-	// Execute the environment-specific migration file
-	migrationPath := filepath.Join(o.servicePath, "migrations", "development", fmt.Sprintf("%s_dev_test_data.up.sql", migrationID))
-	if migrationID == "000004" {
-		migrationPath = filepath.Join(o.servicePath, "migrations", "development", fmt.Sprintf("%s_dev_admin_setup.up.sql", migrationID))
+	// Load migration config to find the correct file path
+	migrationConfig, _, err := o.LoadMigrationConfig()
+	if err != nil {
+		o.recordMigrationFailure(ctx, executionID, err.Error())
+		return fmt.Errorf("failed to load migration config: %w", err)
+	}
+
+	// Find the migration file path for this environment
+	var migrationPath string
+	if envConfig, exists := migrationConfig.Environments[environment]; exists {
+		for _, migrationFile := range envConfig.Migrations {
+			// Extract migration ID from path (e.g., "development/000003_dev_test_data.up.sql" -> "000003")
+			parts := strings.Split(migrationFile, "/")
+			if len(parts) >= 2 {
+				filename := parts[len(parts)-1]
+				if strings.HasPrefix(filename, migrationID+"_") && strings.HasSuffix(filename, ".up.sql") {
+					migrationPath = filepath.Join(o.servicePath, "migrations", migrationFile)
+					break
+				}
+			}
+		}
+	}
+
+	if migrationPath == "" {
+		o.recordMigrationFailure(ctx, executionID, "migration file not found in environment config")
+		return fmt.Errorf("migration file for %s not found in environment %s config", migrationID, environment)
 	}
 
 	// Read and execute the SQL file
