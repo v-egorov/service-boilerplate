@@ -4,6 +4,8 @@
 
 The Database Migrations System is a comprehensive, enterprise-grade solution for managing database schema changes across multiple services and environments. Built with PostgreSQL and golang-migrate, it provides automated migration generation, validation, dependency management, and environment-specific deployments.
 
+**🚀 Migration Orchestrator**: For advanced use cases, the system includes a sophisticated **Migration Orchestrator** that provides intelligent dependency resolution, risk assessment, comprehensive tracking, and enterprise-grade migration management. See the [Migration Orchestrator guide](./orchestrator.md) for details.
+
 ## Key Features
 
 - 🚀 **Automated Generation**: Create complete migrations with templates
@@ -76,15 +78,20 @@ make db-migration-deps SERVICE_NAME=user-service
 ### 3. Run Migrations
 
 ```bash
-# Apply all pending migrations (specify service)
+# Initialize orchestrator tracking (recommended for new services)
+make db-migrate-init-orchestrator SERVICE_NAME=user-service
+
+# Apply all pending migrations with orchestrator (enhanced features)
 make db-migrate-up SERVICE_NAME=user-service
 
-# Check migration status
-make db-migrate-status SERVICE_NAME=user-service
+# Check comprehensive migration status
+make db-migrate-status-orchestrator SERVICE_NAME=user-service
 
-# Rollback if needed
+# Intelligent rollback with dependency checking
 make db-migrate-down SERVICE_NAME=user-service
 ```
+
+**Note**: The Migration Orchestrator provides enhanced features like dependency management, risk assessment, and comprehensive tracking. For basic golang-migrate functionality, use the standard commands. See [Migration Orchestrator](./orchestrator.md) for details.
 
 ### 4. Seed Data
 
@@ -98,6 +105,7 @@ make db-seed-enhanced ENV=development
 
 ## Documentation Structure
 
+- **[Migration Orchestrator](./orchestrator.md)**: Enterprise-grade migration management system
 - **[Getting Started](./getting-started.md)**: Basic setup and first migration
 - **[Migration Types](./migration-types.md)**: Different migration categories and templates
 - **[Advanced Features](./advanced-features.md)**: Dependencies, environments, validation
