@@ -10,10 +10,11 @@ import (
 
 func newUpCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "up <service-name>",
-		Short: "Run pending migrations up",
-		Long:  `Execute all pending migrations for the specified service in the correct order.`,
-		Args:  cobra.ExactArgs(1),
+		Use:          "up <service-name>",
+		Short:        "Run pending migrations up",
+		Long:         `Execute all pending migrations for the specified service in the correct order.`,
+		Args:         cobra.ExactArgs(1),
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			serviceName := args[0]
 

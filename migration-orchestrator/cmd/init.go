@@ -10,10 +10,11 @@ import (
 
 func newInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "init <service-name>",
-		Short: "Initialize migration tracking for a service",
-		Long:  `Initialize the migration tracking system for a newly created service by creating the necessary database schema and tables.`,
-		Args:  cobra.ExactArgs(1),
+		Use:          "init <service-name>",
+		Short:        "Initialize migration tracking for a service",
+		Long:         `Initialize the migration tracking system for a newly created service by creating the necessary database schema and tables.`,
+		Args:         cobra.ExactArgs(1),
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			serviceName := args[0]
 

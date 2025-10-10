@@ -19,10 +19,11 @@ func newStatusCmd() *cobra.Command {
 	var showDependencies bool
 
 	cmd := &cobra.Command{
-		Use:   "status <service-name>",
-		Short: "Show migration status",
-		Long:  `Display the current migration status for the specified service, including applied migrations, pending migrations, and execution history.`,
-		Args:  cobra.ExactArgs(1),
+		Use:          "status <service-name>",
+		Short:        "Show migration status",
+		Long:         `Display the current migration status for the specified service, including applied migrations, pending migrations, and execution history.`,
+		Args:         cobra.ExactArgs(1),
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			serviceName := args[0]
 

@@ -8,10 +8,11 @@ import (
 
 func newDownCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "down <service-name> [steps]",
-		Short: "Rollback migrations",
-		Long:  `Rollback the specified number of migrations for the given service.`,
-		Args:  cobra.RangeArgs(1, 2),
+		Use:          "down <service-name> [steps]",
+		Short:        "Rollback migrations",
+		Long:         `Rollback the specified number of migrations for the given service.`,
+		Args:         cobra.RangeArgs(1, 2),
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			serviceName := args[0]
 			steps := 1

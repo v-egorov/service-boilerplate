@@ -11,10 +11,11 @@ import (
 
 func newValidateCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "validate <service-name>",
-		Short: "Validate migration integrity",
-		Long:  `Validate that all migrations are properly applied, dependencies are satisfied, and environment configuration is correct.`,
-		Args:  cobra.ExactArgs(1),
+		Use:          "validate <service-name>",
+		Short:        "Validate migration integrity",
+		Long:         `Validate that all migrations are properly applied, dependencies are satisfied, and environment configuration is correct.`,
+		Args:         cobra.ExactArgs(1),
+		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			serviceName := args[0]
 
