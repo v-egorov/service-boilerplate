@@ -37,15 +37,16 @@ type MigrationExecution struct {
 
 // MigrationInfo represents information about a migration file
 type MigrationInfo struct {
-	ID                string   `json:"id"`
-	Version           string   `json:"version"`
-	Description       string   `json:"description"`
-	DependsOn         []string `json:"depends_on"`
-	AffectsTables     []string `json:"affects_tables"`
-	EstimatedDuration string   `json:"estimated_duration"`
-	RiskLevel         string   `json:"risk_level"`
-	RollbackSafe      bool     `json:"rollback_safe"`
-	Environment       *string  `json:"environment,omitempty"`
+	ID                    string              `json:"id"`
+	Version               string              `json:"version"`
+	Description           string              `json:"description"`
+	DependsOn             []string            `json:"depends_on"`
+	CrossServiceDependsOn map[string][]string `json:"cross_service_depends_on,omitempty"`
+	AffectsTables         []string            `json:"affects_tables"`
+	EstimatedDuration     string              `json:"estimated_duration"`
+	RiskLevel             string              `json:"risk_level"`
+	RollbackSafe          bool                `json:"rollback_safe"`
+	Environment           *string             `json:"environment,omitempty"`
 }
 
 // EnvironmentConfig represents the configuration for a specific environment

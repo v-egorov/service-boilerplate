@@ -1,4 +1,5 @@
 # Service Boilerplate Makefile
+MAKEFLAGS += --no-print-directory
 
 # Project variables
 PROJECT_NAME := service-boilerplate
@@ -362,8 +363,8 @@ DATABASE_SSL_MODE ?= disable
 # SERVICE_NAME defaults to empty (run all services) or can be set to specific service
 MIGRATION_IMAGE ?= migrate/migrate:latest
 
-# Auto-detect services with migrations
-SERVICES_WITH_MIGRATIONS := $(shell find services -name "migrations" -type d 2>/dev/null | sed 's|/migrations||' | sed 's|services/||' | sort)
+# Auto-detect services with migrations (exclude empty directories)
+SERVICES_WITH_MIGRATIONS := $(shell find services -name "migrations" -type d -exec test -f {}/dependencies.json \; -print 2>/dev/null | sed 's|/migrations||' | sed 's|services/||' | sort)
 POSTGRES_NAME ?= postgres
 
 # Database URL construction for targets
@@ -486,13 +487,26 @@ db-migrate: ## Run migrations for all services (or specific service if SERVICE_N
 	fi
 
 .PHONY: db-migrate-all
-db-migrate-all: ## Run migrations for all services with migrations using orchestrator
-	@for service in $(SERVICES_WITH_MIGRATIONS); do \
-		echo "📈 Running migrations for $$service..."; \
-		$(MAKE) db-migrate-init-orchestrator SERVICE_NAME=$$service; \
-		$(MAKE) db-migrate-up SERVICE_NAME=$$service || { echo "❌ Failed to migrate $$service"; exit 1; }; \
-	done; \
-	echo "✅ All service migrations completed successfully"
+db-migrate-all: ## Run migrations for all services with migrations using orchestrator (dependency-ordered)
+	@echo "🔗 Resolving service dependencies..."
+	@SERVICES_ORDER=$$(cd migration-orchestrator && go run main.go resolve-dependencies $(SERVICES_WITH_MIGRATIONS) 2>/dev/null | grep "SERVICES_ORDER:" | cut -d: -f2); \
+	if [ $$? -eq 0 ] && [ -n "$$SERVICES_ORDER" ]; then \
+		echo "📈 Running migrations in dependency order: $$SERVICES_ORDER"; \
+		for service in $$SERVICES_ORDER; do \
+			echo "📈 Running migrations for $$service..."; \
+			$(MAKE) db-migrate-init-orchestrator SERVICE_NAME=$$service; \
+			$(MAKE) db-migrate-up SERVICE_NAME=$$service || { echo "❌ Failed to migrate $$service"; exit 1; }; \
+		done; \
+		echo "✅ All service migrations completed successfully"; \
+	else \
+		echo "⚠️  Dependency resolution failed, falling back to alphabetical order: $(SERVICES_WITH_MIGRATIONS)"; \
+		for service in $(SERVICES_WITH_MIGRATIONS); do \
+			echo "📈 Running migrations for $$service..."; \
+			$(MAKE) db-migrate-init-orchestrator SERVICE_NAME=$$service; \
+			$(MAKE) db-migrate-up SERVICE_NAME=$$service || { echo "❌ Failed to migrate $$service"; exit 1; }; \
+		done; \
+		echo "✅ All service migrations completed successfully"; \
+	fi
 
 .PHONY: db-rollback
 db-rollback: db-migrate-down ## Rollback last migration (alias for db-migrate-down)

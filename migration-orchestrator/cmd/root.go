@@ -51,6 +51,7 @@ across multiple services in a schema-per-service architecture.`,
 		newListCmd(),
 		newValidateCmd(),
 		newInitCmd(),
+		newResolveDependenciesCmd(),
 	)
 
 	return rootCmd

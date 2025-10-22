@@ -15,6 +15,7 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/v-egorov/service-boilerplate/migration-orchestrator/internal/database"
+	"github.com/v-egorov/service-boilerplate/migration-orchestrator/internal/dependency"
 	"github.com/v-egorov/service-boilerplate/migration-orchestrator/pkg/types"
 	"github.com/v-egorov/service-boilerplate/migration-orchestrator/pkg/utils"
 )
@@ -1025,4 +1026,46 @@ func (o *Orchestrator) getRecentExecutions(ctx context.Context, environment stri
 	}
 
 	return executions, nil
+}
+
+// ResolveServiceDependencies analyzes all services and returns the execution order based on cross-service dependencies
+func ResolveServiceDependencies(db *database.Database, logger *utils.Logger, serviceNames []string) (*types.ServiceExecutionPlan, error) {
+	logger.Info("🔗 Resolving cross-service dependencies...")
+
+	resolver := dependency.NewServiceDependencyResolver()
+
+	// Load dependency configuration for each service
+	for _, serviceName := range serviceNames {
+		logger.Infof("Loading dependency config for service: %s", serviceName)
+
+		// Create a temporary orchestrator for this service to load its config
+		tempOrch, err := NewOrchestrator(db, logger, serviceName)
+		if err != nil {
+			logger.Warnf("Could not create orchestrator for service %s: %v", serviceName, err)
+			// Continue with empty config for this service
+			depConfig := &types.DependencyConfig{Migrations: make(map[string]types.MigrationInfo)}
+			resolver.AddService(serviceName, depConfig)
+			continue
+		}
+
+		_, depConfig, err := tempOrch.LoadMigrationConfig()
+		if err != nil {
+			logger.Warnf("Could not load dependency config for service %s: %v", serviceName, err)
+			// Continue with empty config for this service
+			depConfig = &types.DependencyConfig{Migrations: make(map[string]types.MigrationInfo)}
+		}
+
+		if err := resolver.AddService(serviceName, depConfig); err != nil {
+			return nil, fmt.Errorf("failed to add service %s to resolver: %w", serviceName, err)
+		}
+	}
+
+	// Resolve dependencies
+	plan, err := resolver.ResolveDependencies()
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve service dependencies: %w", err)
+	}
+
+	logger.Infof("✅ Service dependency resolution complete. Execution order: %v", plan.ServiceOrder)
+	return plan, nil
 }
