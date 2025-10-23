@@ -540,17 +540,19 @@ func (o *Orchestrator) getBaseMigrations() []string {
 func (o *Orchestrator) getAppliedVersionsFromGolangMigrate() map[int]bool {
 	applied := make(map[int]bool)
 
-	// golang-migrate uses tables in public schema with service-specific names
-	tableName := fmt.Sprintf("%s_schema_migrations", o.schemaName)
-	query := fmt.Sprintf("SELECT version FROM public.%s WHERE dirty = false", tableName)
+	// golang-migrate uses default table name "schema_migrations" in service schema
+	fullTableName := fmt.Sprintf("%s.schema_migrations", o.schemaName)
+
+	// Check if the table exists before querying to avoid PostgreSQL errors
+	if !o.tableExists(fullTableName) {
+		o.logger.Debug("Golang-migrate tracking table %s does not exist yet, assuming fresh start", fullTableName)
+		return applied
+	}
+
+	query := fmt.Sprintf("SELECT version FROM %s WHERE dirty = false", fullTableName)
 	rows, err := o.db.GetPool().Query(context.Background(), query)
 	if err != nil {
-		// Check if the table doesn't exist (fresh start scenario)
-		if strings.Contains(err.Error(), "does not exist") {
-			o.logger.Info("Golang-migrate tracking table does not exist yet, assuming fresh start")
-			return applied
-		}
-		o.logger.Errorf("Failed to query golang-migrate tracking table: %v", err)
+		o.logger.Errorf("Failed to query golang-migrate tracking table %s: %v", fullTableName, err)
 		return applied
 	}
 	defer rows.Close()
@@ -558,13 +560,48 @@ func (o *Orchestrator) getAppliedVersionsFromGolangMigrate() map[int]bool {
 	for rows.Next() {
 		var version int
 		if err := rows.Scan(&version); err != nil {
-			o.logger.Errorf("Failed to scan version: %v", err)
+			o.logger.Errorf("Failed to scan version from %s: %v", fullTableName, err)
 			continue
 		}
 		applied[version] = true
 	}
 
 	return applied
+}
+
+// tableExists checks if a table exists in the database
+func (o *Orchestrator) tableExists(tableName string) bool {
+	query := `
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.tables
+			WHERE table_schema || '.' || table_name = $1
+		)`
+	var exists bool
+	err := o.db.GetPool().QueryRow(context.Background(), query, tableName).Scan(&exists)
+	return err == nil && exists
+}
+
+// InitializeGolangMigrateTable initializes the golang-migrate tracking table by creating a migrate instance
+func (o *Orchestrator) InitializeGolangMigrateTable(ctx context.Context) error {
+	o.logger.Info("Initializing golang-migrate tracking table...")
+
+	// Create golang-migrate instance to initialize the tracking table
+	migrationPath := filepath.Join(o.servicePath, "migrations")
+	m, err := o.createMigrateInstance(migrationPath)
+	if err != nil {
+		return fmt.Errorf("failed to create migrate instance for initialization: %w", err)
+	}
+	defer m.Close()
+
+	// Getting the version will create the tracking table if it doesn't exist
+	_, _, err = m.Version()
+	if err != nil && err != migrate.ErrNilVersion {
+		return fmt.Errorf("failed to initialize golang-migrate tracking table: %w", err)
+	}
+
+	o.logger.Info("Golang-migrate tracking table initialized successfully")
+	return nil
 }
 
 // CreateMigrationExecutionsTable creates the migration_executions table in the service schema if it doesn't exist

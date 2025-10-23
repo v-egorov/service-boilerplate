@@ -40,6 +40,12 @@ func newInitCmd() *cobra.Command {
 				return fmt.Errorf("failed to create migration tracking table: %w", err)
 			}
 
+			// Initialize golang-migrate tracking table
+			logger.Info("Initializing golang-migrate tracking table...")
+			if err := orch.InitializeGolangMigrateTable(ctx); err != nil {
+				return fmt.Errorf("failed to initialize golang-migrate tracking table: %w", err)
+			}
+
 			logger.Info("✅ Migration tracking initialized successfully for service:", serviceName)
 			return nil
 		},

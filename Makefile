@@ -362,6 +362,7 @@ DATABASE_NAME ?= service_db
 DATABASE_SSL_MODE ?= disable
 # SERVICE_NAME defaults to empty (run all services) or can be set to specific service
 MIGRATION_IMAGE ?= migrate/migrate:latest
+ORCHESTRATOR_IMAGE ?= migration-orchestrator:latest
 
 # Auto-detect services with migrations (exclude empty directories)
 SERVICES_WITH_MIGRATIONS := $(shell find services -name "migrations" -type d -exec test -f {}/dependencies.json \; -print 2>/dev/null | sed 's|/migrations||' | sed 's|services/||' | sort)
@@ -487,9 +488,21 @@ db-migrate: ## Run migrations for all services (or specific service if SERVICE_N
 	fi
 
 .PHONY: db-migrate-all
-db-migrate-all: ## Run migrations for all services with migrations using orchestrator (dependency-ordered)
+db-migrate-all: build-migration-orchestrator ## Run migrations for all services with migrations using orchestrator (dependency-ordered)
 	@echo "🔗 Resolving service dependencies..."
-	@SERVICES_ORDER=$$(cd migration-orchestrator && go run main.go resolve-dependencies $(SERVICES_WITH_MIGRATIONS) 2>/dev/null | grep "SERVICES_ORDER:" | cut -d: -f2); \
+	@SERVICES_ORDER=$$(docker run --rm \
+		--network service-boilerplate-network \
+		--env-file $(ENV_FILE) \
+		-e DB_HOST=$(POSTGRES_NAME) \
+		-e DB_PORT=$(DATABASE_PORT) \
+		-e DB_USER=$(DATABASE_USER) \
+		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
+		-e DB_NAME=$(DATABASE_NAME) \
+		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
+		-v $(PWD):/workspace \
+		-w /workspace \
+		$(ORCHESTRATOR_IMAGE) \
+		resolve-dependencies $(SERVICES_WITH_MIGRATIONS) 2>/dev/null | grep "SERVICES_ORDER:" | cut -d: -f2); \
 	if [ $$? -eq 0 ] && [ -n "$$SERVICES_ORDER" ]; then \
 		echo "📈 Running migrations in dependency order: $$SERVICES_ORDER"; \
 		for service in $$SERVICES_ORDER; do \
@@ -557,7 +570,7 @@ db-migration-list: ## List available migration files
 .PHONY: build-migration-orchestrator
 build-migration-orchestrator: ## Build migration orchestrator Docker image
 	@echo "🏗️  Building migration orchestrator..."
-	@docker build -t migration-orchestrator:latest -f migration-orchestrator/Dockerfile ./migration-orchestrator
+	@docker build -t $(ORCHESTRATOR_IMAGE) -f migration-orchestrator/Dockerfile ./migration-orchestrator
 
 # Orchestrator-based migration targets
 .PHONY: db-migrate-init-orchestrator
