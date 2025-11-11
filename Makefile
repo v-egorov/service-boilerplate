@@ -114,14 +114,22 @@ help: ## Show this help message
 	@echo '  db-create          - Create database if it does not exist'
 	@echo '  db-drop            - Drop database (with confirmation)'
 	@echo '  db-recreate        - Recreate database from scratch'
-	@echo '  db-migrate-up      - Run migrations up'
-	@echo '  db-migrate-down    - Run migrations down'
-	@echo '  db-migrate-status  - Show migration status'
-	@echo '  db-migrate-goto VERSION= - Go to specific version'
-	@echo '  db-migrate-validate - Validate migration files'
-	@echo '  db-migration-create NAME= - Create migration file'
-	@echo '  db-migration-list  - List migration files'
+	@echo ''
+	@echo 'Migration Management (Orchestrator):'
+	@echo '  db-migrate-init    - Initialize migration tracking for service'
+	@echo '  db-migrate         - Run migrations for all services (or specific with SERVICE_NAME=)'
+	@echo '  db-migrate-up      - Run migrations up for specific service'
+	@echo '  db-migrate-down    - Run migrations down for specific service'
+	@echo '  db-migrate-status  - Show migration status for specific service'
+	@echo '  db-migrate-list    - List migration executions for specific service'
+	@echo '  db-migrate-validate - Validate migrations for specific service'
+	@echo '  db-migrate-create NAME= - Create migration file'
+	@echo '  db-migrate-generate NAME= TYPE= - Generate migration with templates'
+	@echo '  db-migrate-file-list  - List migration files'
+	@echo ''
+	@echo 'Data Management:'
 	@echo '  db-seed            - Seed database with test data'
+	@echo '  db-seed-enhanced ENV= - Environment-specific seeding'
 	@echo '  db-dump            - Create database dump'
 	@echo '  db-restore FILE=   - Restore database from dump'
 	@echo '  db-clean           - Clean all data from tables'
@@ -418,69 +426,125 @@ db-recreate: db-drop db-create ## Recreate database from scratch
 
 ## Migration Management (Docker-Based)
 # Service-specific migration table name (e.g., user_service_schema_migrations)
-MIGRATION_TABLE = $(shell echo $(SERVICE_NAME) | sed 's/-/_/g')_schema_migrations
-
-.PHONY: db-migrate-prepare
-db-migrate-prepare: ## Prepare migration environment (create required directories)
-	@echo "📁 Preparing migration environment..."
-	@mkdir -p tmp/migrations
-	@if [ ! -d "tmp/migrations" ]; then \
-		echo "❌ Failed to create tmp/migrations directory"; \
+.PHONY: db-migrate-init
+db-migrate-init: ## Initialize migration tracking for service using orchestrator
+	@echo "🔧 Initializing migration tracking for $(SERVICE_NAME) with orchestrator..."
+	@if [ -z "$(SERVICE_NAME)" ]; then \
+		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-init SERVICE_NAME=user-service)"; \
 		exit 1; \
 	fi
-	@echo "✅ Migration environment ready"
+	@docker run --rm --network service-boilerplate-network \
+		--env-file $(ENV_FILE) \
+		-e DB_HOST=$(POSTGRES_NAME) \
+		-e DB_PORT=$(DATABASE_PORT) \
+		-e DB_USER=$(DATABASE_USER) \
+		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
+		-e DB_NAME=$(DATABASE_NAME) \
+		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
+		-v $(PWD)/services:/services \
+		migration-orchestrator:latest \
+		init $(SERVICE_NAME)
 
 .PHONY: db-migrate-up
-db-migrate-up: db-migrate-up-orchestrator ## Run migrations up using orchestrator (enhanced features)
-	@echo "✅ Migrations completed using orchestrator"
-
-.PHONY: db-migrate-up-basic
-db-migrate-up-basic: db-migrate-prepare ## Run migrations up using basic golang-migrate (legacy)
-	@echo "📈 Running migrations up for $(SERVICE_NAME) (table: $(MIGRATION_TABLE))..."
+db-migrate-up: ## Run migrations up using orchestrator
+	@echo "📈 Running migrations up for $(SERVICE_NAME) with orchestrator..."
+	@if [ -z "$(SERVICE_NAME)" ]; then \
+		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-up SERVICE_NAME=user-service)"; \
+		exit 1; \
+	fi
 	@docker run --rm --network service-boilerplate-network \
-		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
-		$(MIGRATION_IMAGE) \
-		-path /migrations \
-		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)&x-migrations-table=$(MIGRATION_TABLE)" \
-		up
+		--env-file $(ENV_FILE) \
+		-e DB_HOST=$(POSTGRES_NAME) \
+		-e DB_PORT=$(DATABASE_PORT) \
+		-e DB_USER=$(DATABASE_USER) \
+		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
+		-e DB_NAME=$(DATABASE_NAME) \
+		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
+		-v $(PWD)/services:/services \
+		migration-orchestrator:latest \
+		up $(SERVICE_NAME) --env $(APP_ENV)
 
 .PHONY: db-migrate-down
-db-migrate-down: db-migrate-down-orchestrator ## Run migrations down using orchestrator (enhanced features)
-	@echo "✅ Migration rollback completed using orchestrator"
-
-.PHONY: db-migrate-down-basic
-db-migrate-down-basic: db-migrate-prepare ## Run migrations down using basic golang-migrate (legacy)
-	@echo "⏪ Running migrations down for $(SERVICE_NAME) (table: $(MIGRATION_TABLE))..."
+db-migrate-down: ## Run migrations down using orchestrator
+	@echo "⏪ Running migrations down for $(SERVICE_NAME) with orchestrator..."
+	@if [ -z "$(SERVICE_NAME)" ]; then \
+		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-down SERVICE_NAME=user-service)"; \
+		exit 1; \
+	fi
 	@docker run --rm --network service-boilerplate-network \
-		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
-		$(MIGRATION_IMAGE) \
-		-path /migrations \
-		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)&x-migrations-table=$(MIGRATION_TABLE)" \
-		down 1
+		--env-file $(ENV_FILE) \
+		-e DB_HOST=$(POSTGRES_NAME) \
+		-e DB_PORT=$(DATABASE_PORT) \
+		-e DB_USER=$(DATABASE_USER) \
+		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
+		-e DB_NAME=$(DATABASE_NAME) \
+		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
+		-v $(PWD)/services:/services \
+		migration-orchestrator:latest \
+		down $(SERVICE_NAME) 1 --env $(APP_ENV)
 
 .PHONY: db-migrate-status
-db-migrate-status: db-migrate-status-orchestrator ## Show migration status using orchestrator (enhanced features)
-	@echo "✅ Status displayed using orchestrator"
+db-migrate-status: ## Show migration status using orchestrator
+	@echo "📊 Migration status for $(SERVICE_NAME) with orchestrator..."
+	@if [ -z "$(SERVICE_NAME)" ]; then \
+		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-status SERVICE_NAME=user-service)"; \
+		exit 1; \
+	fi
+	@docker run --rm --network service-boilerplate-network \
+		--env-file $(ENV_FILE) \
+		-e DB_HOST=$(POSTGRES_NAME) \
+		-e DB_PORT=$(DATABASE_PORT) \
+		-e DB_USER=$(DATABASE_USER) \
+		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
+		-e DB_NAME=$(DATABASE_NAME) \
+		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
+		-v $(PWD)/services:/services \
+		migration-orchestrator:latest \
+		status $(SERVICE_NAME) --env $(APP_ENV)
 
 .PHONY: db-migrate-list
-db-migrate-list: db-migrate-list-orchestrator ## List all migrations using orchestrator (enhanced features)
-	@echo "✅ Migration list displayed using orchestrator"
-
-.PHONY: db-migrate-status-basic
-db-migrate-status-basic: db-migrate-prepare ## Show migration status using basic golang-migrate (legacy)
-	@echo "📋 Migration status for $(SERVICE_NAME) (table: $(MIGRATION_TABLE)):"
+db-migrate-list: ## List all migrations using orchestrator
+	@echo "📋 Migration list for $(SERVICE_NAME) with orchestrator..."
+	@if [ -z "$(SERVICE_NAME)" ]; then \
+		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-list SERVICE_NAME=user-service)"; \
+		exit 1; \
+	fi
 	@docker run --rm --network service-boilerplate-network \
-		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
-		$(MIGRATION_IMAGE) \
-		-path /migrations \
-		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)&x-migrations-table=$(MIGRATION_TABLE)" \
-		version
+		--env-file $(ENV_FILE) \
+		-e DB_HOST=$(POSTGRES_NAME) \
+		-e DB_PORT=$(DATABASE_PORT) \
+		-e DB_USER=$(DATABASE_USER) \
+		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
+		-e DB_NAME=$(DATABASE_NAME) \
+		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
+		-v $(PWD)/services:/services \
+		migration-orchestrator:latest \
+		list $(SERVICE_NAME) --env $(APP_ENV)
+
+.PHONY: db-migrate-validate
+db-migrate-validate: ## Validate migrations using orchestrator
+	@echo "✅ Validating migrations for $(SERVICE_NAME) with orchestrator..."
+	@if [ -z "$(SERVICE_NAME)" ]; then \
+		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-validate SERVICE_NAME=user-service)"; \
+		exit 1; \
+	fi
+	@docker run --rm --network service-boilerplate-network \
+		--env-file $(ENV_FILE) \
+		-e DB_HOST=$(POSTGRES_NAME) \
+		-e DB_PORT=$(DATABASE_PORT) \
+		-e DB_USER=$(DATABASE_USER) \
+		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
+		-e DB_NAME=$(DATABASE_NAME) \
+		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
+		-v $(PWD)/services:/services \
+		migration-orchestrator:latest \
+		validate $(SERVICE_NAME) --env $(APP_ENV)
 
 .PHONY: db-migrate
 db-migrate: ## Run migrations for all services (or specific service if SERVICE_NAME is set) using orchestrator
 	@if [ -n "$(SERVICE_NAME)" ]; then \
 		echo "📈 Running migrations for service: $(SERVICE_NAME)"; \
-		$(MAKE) db-migrate-init-orchestrator SERVICE_NAME=$(SERVICE_NAME); \
+		$(MAKE) db-migrate-init SERVICE_NAME=$(SERVICE_NAME); \
 		$(MAKE) db-migrate-up SERVICE_NAME=$(SERVICE_NAME); \
 	else \
 		echo "📈 Running migrations for all services: $(SERVICES_WITH_MIGRATIONS)"; \
@@ -503,56 +567,32 @@ db-migrate-all: build-migration-orchestrator ## Run migrations for all services 
 		-w /workspace \
 		$(ORCHESTRATOR_IMAGE) \
 		resolve-dependencies $(SERVICES_WITH_MIGRATIONS) 2>/dev/null | grep "SERVICES_ORDER:" | cut -d: -f2); \
-	if [ $$? -eq 0 ] && [ -n "$$SERVICES_ORDER" ]; then \
-		echo "📈 Running migrations in dependency order: $$SERVICES_ORDER"; \
-		for service in $$SERVICES_ORDER; do \
-			echo "📈 Running migrations for $$service..."; \
-			$(MAKE) db-migrate-init-orchestrator SERVICE_NAME=$$service; \
-			$(MAKE) db-migrate-up SERVICE_NAME=$$service || { echo "❌ Failed to migrate $$service"; exit 1; }; \
-		done; \
-		echo "✅ All service migrations completed successfully"; \
-	else \
-		echo "⚠️  Dependency resolution failed, falling back to alphabetical order: $(SERVICES_WITH_MIGRATIONS)"; \
-		for service in $(SERVICES_WITH_MIGRATIONS); do \
-			echo "📈 Running migrations for $$service..."; \
-			$(MAKE) db-migrate-init-orchestrator SERVICE_NAME=$$service; \
-			$(MAKE) db-migrate-up SERVICE_NAME=$$service || { echo "❌ Failed to migrate $$service"; exit 1; }; \
-		done; \
-		echo "✅ All service migrations completed successfully"; \
-	fi
+		if [ $$? -eq 0 ] && [ -n "$$SERVICES_ORDER" ]; then \
+			echo "📈 Running migrations in dependency order: $$SERVICES_ORDER"; \
+			for service in $$SERVICES_ORDER; do \
+				echo "📈 Running migrations for $$service..."; \
+				$(MAKE) db-migrate-init SERVICE_NAME=$$service; \
+				$(MAKE) db-migrate-up SERVICE_NAME=$$service || { echo "❌ Failed to migrate $$service"; exit 1; }; \
+			done; \
+			echo "✅ All service migrations completed successfully"; \
+		else \
+			echo "⚠️  Dependency resolution failed, falling back to alphabetical order: $(SERVICES_WITH_MIGRATIONS)"; \
+			for service in $(SERVICES_WITH_MIGRATIONS); do \
+				echo "📈 Running migrations for $$service..."; \
+				$(MAKE) db-migrate-init SERVICE_NAME=$$service; \
+				$(MAKE) db-migrate-up SERVICE_NAME=$$service || { echo "❌ Failed to migrate $$service"; exit 1; }; \
+			done; \
+			echo "✅ All service migrations completed successfully"; \
+		fi
 
 .PHONY: db-rollback
 db-rollback: db-migrate-down ## Rollback last migration (alias for db-migrate-down)
 
-.PHONY: db-migrate-goto
-db-migrate-goto: db-migrate-prepare ## Go to specific migration version (VERSION=001)
-	@echo "🎯 Going to migration version $(VERSION) for $(SERVICE_NAME) (table: $(MIGRATION_TABLE))..."
-	@if [ -z "$(VERSION)" ]; then \
-		echo "❌ Error: Please specify VERSION (e.g., make db-migrate-goto VERSION=001)"; \
-		exit 1; \
-	fi
-	@docker run --rm --network service-boilerplate-network \
-		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
-		$(MIGRATION_IMAGE) \
-		-path /migrations \
-		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)&x-migrations-table=$(MIGRATION_TABLE)" \
-		goto $(VERSION)
-
-.PHONY: db-migrate-validate
-db-migrate-validate: db-migrate-prepare ## Validate migration files
-	@echo "✅ Validating migration files for $(SERVICE_NAME) (table: $(MIGRATION_TABLE))..."
-	@docker run --rm --network service-boilerplate-network \
-		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
-		$(MIGRATION_IMAGE) \
-		-path /migrations \
-		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)&x-migrations-table=$(MIGRATION_TABLE)" \
-		up --dry-run
-
-.PHONY: db-migration-create
-db-migration-create: db-migrate-prepare ## Create new migration file (NAME=add_users_table)
+.PHONY: db-migrate-create
+db-migrate-create: ## Create new migration file (NAME=add_users_table)
 	@echo "📝 Creating migration: $(NAME)"
 	@if [ -z "$(NAME)" ]; then \
-		echo "❌ Error: Please specify NAME (e.g., make db-migration-create NAME=add_users_table)"; \
+		echo "❌ Error: Please specify NAME (e.g., make db-migrate-create NAME=add_users_table)"; \
 		exit 1; \
 	fi
 	@docker run --rm \
@@ -560,8 +600,8 @@ db-migration-create: db-migrate-prepare ## Create new migration file (NAME=add_u
 		$(MIGRATION_IMAGE) \
 		create -ext sql -dir /migrations -seq $(NAME)
 
-.PHONY: db-migration-list
-db-migration-list: ## List available migration files
+.PHONY: db-migrate-file-list
+db-migrate-file-list: ## List available migration files
 	@echo "📁 Migration files in services/$(SERVICE_NAME)/migrations:"
 	@ls -la services/$(SERVICE_NAME)/migrations/ 2>/dev/null || echo "No migration files found"
 
@@ -572,120 +612,7 @@ build-migration-orchestrator: ## Build migration orchestrator Docker image
 	@echo "🏗️  Building migration orchestrator..."
 	@docker build -t $(ORCHESTRATOR_IMAGE) -f migration-orchestrator/Dockerfile ./migration-orchestrator
 
-# Orchestrator-based migration targets
-.PHONY: db-migrate-init-orchestrator
-db-migrate-init-orchestrator: ## Initialize migration tracking for service using orchestrator
-	@echo "🔧 Initializing migration tracking for $(SERVICE_NAME) with orchestrator..."
-	@if [ -z "$(SERVICE_NAME)" ]; then \
-		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-init-orchestrator SERVICE_NAME=user-service)"; \
-		exit 1; \
-	fi
-	@docker run --rm --network service-boilerplate-network \
-		--env-file $(ENV_FILE) \
-		-e DB_HOST=$(POSTGRES_NAME) \
-		-e DB_PORT=$(DATABASE_PORT) \
-		-e DB_USER=$(DATABASE_USER) \
-		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
-		-e DB_NAME=$(DATABASE_NAME) \
-		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
-		-v $(PWD)/services:/services \
-		migration-orchestrator:latest \
-		init $(SERVICE_NAME)
 
-.PHONY: db-migrate-up-orchestrator
-db-migrate-up-orchestrator: ## Run migrations up using orchestrator (enhanced features)
-	@echo "📈 Running migrations up for $(SERVICE_NAME) with orchestrator..."
-	@if [ -z "$(SERVICE_NAME)" ]; then \
-		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-up-orchestrator SERVICE_NAME=user-service)"; \
-		exit 1; \
-	fi
-	@docker run --rm --network service-boilerplate-network \
-		--env-file $(ENV_FILE) \
-		-e DB_HOST=$(POSTGRES_NAME) \
-		-e DB_PORT=$(DATABASE_PORT) \
-		-e DB_USER=$(DATABASE_USER) \
-		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
-		-e DB_NAME=$(DATABASE_NAME) \
-		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
-		-v $(PWD)/services:/services \
-		migration-orchestrator:latest \
-		up $(SERVICE_NAME) --env $(APP_ENV)
-
-.PHONY: db-migrate-down-orchestrator
-db-migrate-down-orchestrator: ## Run migrations down using orchestrator
-	@echo "⏪ Running migrations down for $(SERVICE_NAME) with orchestrator..."
-	@if [ -z "$(SERVICE_NAME)" ]; then \
-		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-down-orchestrator SERVICE_NAME=user-service)"; \
-		exit 1; \
-	fi
-	@docker run --rm --network service-boilerplate-network \
-		--env-file $(ENV_FILE) \
-		-e DB_HOST=$(POSTGRES_NAME) \
-		-e DB_PORT=$(DATABASE_PORT) \
-		-e DB_USER=$(DATABASE_USER) \
-		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
-		-e DB_NAME=$(DATABASE_NAME) \
-		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
-		-v $(PWD)/services:/services \
-		migration-orchestrator:latest \
-		down $(SERVICE_NAME) 1 --env $(APP_ENV)
-
-.PHONY: db-migrate-status-orchestrator
-db-migrate-status-orchestrator: ## Show migration status using orchestrator
-	@echo "📊 Migration status for $(SERVICE_NAME) with orchestrator..."
-	@if [ -z "$(SERVICE_NAME)" ]; then \
-		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-status-orchestrator SERVICE_NAME=user-service)"; \
-		exit 1; \
-	fi
-	@docker run --rm --network service-boilerplate-network \
-		--env-file $(ENV_FILE) \
-		-e DB_HOST=$(POSTGRES_NAME) \
-		-e DB_PORT=$(DATABASE_PORT) \
-		-e DB_USER=$(DATABASE_USER) \
-		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
-		-e DB_NAME=$(DATABASE_NAME) \
-		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
-		-v $(PWD)/services:/services \
-		migration-orchestrator:latest \
-		status $(SERVICE_NAME) --env $(APP_ENV)
-
-.PHONY: db-migrate-list-orchestrator
-db-migrate-list-orchestrator: ## List all migrations using orchestrator
-	@echo "📋 Migration list for $(SERVICE_NAME) with orchestrator..."
-	@if [ -z "$(SERVICE_NAME)" ]; then \
-		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-list-orchestrator SERVICE_NAME=user-service)"; \
-		exit 1; \
-	fi
-	@docker run --rm --network service-boilerplate-network \
-		--env-file $(ENV_FILE) \
-		-e DB_HOST=$(POSTGRES_NAME) \
-		-e DB_PORT=$(DATABASE_PORT) \
-		-e DB_USER=$(DATABASE_USER) \
-		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
-		-e DB_NAME=$(DATABASE_NAME) \
-		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
-		-v $(PWD)/services:/services \
-		migration-orchestrator:latest \
-		list $(SERVICE_NAME) --env $(APP_ENV)
-
-.PHONY: db-migrate-validate-orchestrator
-db-migrate-validate-orchestrator: ## Validate migrations using orchestrator
-	@echo "✅ Validating migrations for $(SERVICE_NAME) with orchestrator..."
-	@if [ -z "$(SERVICE_NAME)" ]; then \
-		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-validate-orchestrator SERVICE_NAME=user-service)"; \
-		exit 1; \
-	fi
-	@docker run --rm --network service-boilerplate-network \
-		--env-file $(ENV_FILE) \
-		-e DB_HOST=$(POSTGRES_NAME) \
-		-e DB_PORT=$(DATABASE_PORT) \
-		-e DB_USER=$(DATABASE_USER) \
-		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
-		-e DB_NAME=$(DATABASE_NAME) \
-		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
-		-v $(PWD)/services:/services \
-		migration-orchestrator:latest \
-		validate $(SERVICE_NAME)
 
 ## Data Management
 .PHONY: db-seed
@@ -703,8 +630,8 @@ db-seed-enhanced: ## Environment-specific seeding (ENV=development)
 	@echo "🌱 Enhanced database seeding for environment: $(ENV)"
 	@./scripts/enhanced_seed.sh $(ENV) user-service
 
-.PHONY: db-migration-generate
-db-migration-generate: ## Generate new migration with templates (NAME=add_feature TYPE=table)
+.PHONY: db-migrate-generate
+db-migrate-generate: ## Generate new migration with templates (NAME=add_feature TYPE=table)
 	@echo "🚀 Generating migration: $(NAME) (type: $(TYPE))"
 	@./scripts/generate_migration.sh $(SERVICE_NAME) "$(NAME)" "$(TYPE)"
 
@@ -1600,22 +1527,17 @@ help-db: ## Show database commands
 	@echo "  db-drop            - Drop database (with confirmation)"
 	@echo "  db-recreate        - Recreate database from scratch"
 	@echo ""
-	@echo "Migration Management (Enhanced Orchestrator):"
+	@echo "Migration Management (Orchestrator):"
+	@echo "  db-migrate-init    - Initialize migration tracking for service"
 	@echo "  db-migrate         - Run migrations for all services (or specific with SERVICE_NAME=)"
-	@echo "  db-migrate-up      - Run migrations up for specific service (orchestrator)"
-	@echo "  db-migrate-down    - Run migrations down for specific service (orchestrator)"
-	@echo "  db-migrate-status  - Show migration status for specific service (orchestrator)"
-	@echo "  db-migrate-list    - List all migrations for specific service (orchestrator)"
-	@echo "  db-migrate-goto VERSION= - Go to specific version"
-	@echo "  db-migrate-validate - Validate migration files"
-	@echo "  db-migration-create NAME= - Create migration file"
-	@echo "  db-migration-generate NAME= TYPE= - Generate migration with templates"
-	@echo "  db-migration-list  - List migration files"
-	@echo ""
-	@echo "Legacy Migration Commands (Basic golang-migrate):"
-	@echo "  db-migrate-up-basic      - Run migrations up (basic)"
-	@echo "  db-migrate-down-basic    - Run migrations down (basic)"
-	@echo "  db-migrate-status-basic  - Show migration status (basic)"
+	@echo "  db-migrate-up      - Run migrations up for specific service"
+	@echo "  db-migrate-down    - Run migrations down for specific service"
+	@echo "  db-migrate-status  - Show migration status for specific service"
+	@echo "  db-migrate-list    - List migration executions for specific service"
+	@echo "  db-migrate-validate - Validate migrations for specific service"
+	@echo "  db-migrate-create NAME= - Create migration file"
+	@echo "  db-migrate-generate NAME= TYPE= - Generate migration with templates"
+	@echo "  db-migrate-file-list  - List migration files"
 	@echo ""
 	@echo "Data Management:"
 	@echo "  db-seed            - Seed database with test data"
@@ -1639,23 +1561,14 @@ help-db: ## Show database commands
 	@echo "  db-migration-deps  - Show migration dependency graph"
 	@echo "  db-backup          - Create timestamped database backup"
 	@echo ""
-	@echo "Migration Orchestrator (Enhanced - Now Default):"
-	@echo "  build-migration-orchestrator    - Build orchestrator Docker image"
-	@echo "  db-migrate-init-orchestrator    - Initialize migration tracking"
-	@echo "  db-migrate-up-orchestrator      - Run migrations up (enhanced)"
-	@echo "  db-migrate-down-orchestrator    - Run migrations down (enhanced)"
-	@echo "  db-migrate-status-orchestrator  - Show status (enhanced)"
-	@echo "  db-migrate-list-orchestrator    - List all migrations (enhanced)"
-	@echo "  db-migrate-validate-orchestrator - Validate migrations (enhanced)"
-	@echo ""
 	@echo "Examples:"
 	@echo "  make db-setup                    # Setup database for development"
 	@echo "  make db-connect                  # Open database shell"
-	@echo "  make db-migrate-up               # Run migrations"
-	@echo "  make db-migration-generate NAME=add_user_preferences TYPE=table"
+	@echo "  make db-migrate-init SERVICE_NAME=user-service  # Initialize migrations"
+	@echo "  make db-migrate-up SERVICE_NAME=user-service    # Run migrations"
+	@echo "  make db-migrate-generate NAME=add_user_preferences TYPE=table"
 	@echo "  make db-seed-enhanced ENV=development"
 	@echo "  make db-validate                 # Validate all migrations"
-	@echo "  make db-migrate-goto VERSION=001 # Go to specific version"
 	@echo "  make db-backup                   # Create backup before changes"
 
 .PHONY: build-auth-service
