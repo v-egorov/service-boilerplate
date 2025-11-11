@@ -7,7 +7,7 @@
 **✅ Good Practice:**
 ```bash
 # Generate migration with both up and down
-make db-migration-generate NAME=add_user_settings TYPE=table
+make db-migrate-generate NAME=add_user_settings TYPE=table
 
 # Results in:
 # - 000005_add_user_settings.up.sql
@@ -215,7 +215,7 @@ COMMIT;
 
 ```bash
 # ✅ Safe to experiment and iterate quickly
-make db-migration-generate NAME=experimental_feature TYPE=table
+make db-migrate-generate NAME=experimental_feature TYPE=table
 
 # ✅ Use development-specific data
 make db-seed-enhanced ENV=development
@@ -397,7 +397,7 @@ docker-compose -f docker-compose.test.yml up -d
 make db-migrate-up
 
 # Run application tests
-npm test
+make test-all
 
 # Verify data integrity
 make db-counts

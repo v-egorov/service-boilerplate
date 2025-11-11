@@ -41,13 +41,13 @@ services/{service}/migrations/
 ├── README.md                          # Service-specific docs
 ├── dependencies.json                  # Migration dependencies
 ├── environments.json                  # Environment config
-├── {NNNN}_{name}.up.sql              # Migration files
+├── {NNNN}_{name}.up.sql               # Migration files
 ├── {NNNN}_{name}.down.sql
 ├── development/                       # Environment-specific
 ├── staging/
 ├── production/
-├── docs/                             # Migration docs
-└── templates/                        # Custom templates
+├── docs/                              # Migration docs
+└── templates/                         # Custom templates
 ```
 
 ## Quick Start
@@ -56,13 +56,13 @@ services/{service}/migrations/
 
 ```bash
 # Generate a table migration (specify service)
-make db-migration-generate NAME=add_user_profiles TYPE=table SERVICE_NAME=user-service
+make db-migrate-generate NAME=add_user_profiles TYPE=table SERVICE_NAME=user-service
 
 # Generate an index migration
-make db-migration-generate NAME=optimize_user_queries TYPE=index SERVICE_NAME=user-service
+make db-migrate-generate NAME=optimize_user_queries TYPE=index SERVICE_NAME=user-service
 
 # Generate a data migration
-make db-migration-generate NAME=migrate_user_data TYPE=data SERVICE_NAME=user-service
+make db-migrate-generate NAME=migrate_user_data TYPE=data SERVICE_NAME=user-service
 ```
 
 ### 2. Validate Migration
@@ -79,13 +79,13 @@ make db-migration-deps SERVICE_NAME=user-service
 
 ```bash
 # Initialize orchestrator tracking (recommended for new services)
-make db-migrate-init-orchestrator SERVICE_NAME=user-service
+make db-migrate-init SERVICE_NAME=user-service
 
 # Apply all pending migrations with orchestrator (enhanced features)
 make db-migrate-up SERVICE_NAME=user-service
 
 # Check comprehensive migration status
-make db-migrate-status-orchestrator SERVICE_NAME=user-service
+make db-migrate-status SERVICE_NAME=user-service
 
 # Intelligent rollback with dependency checking
 make db-migrate-down SERVICE_NAME=user-service

@@ -71,7 +71,7 @@ make db-migrate-down
 **Force Rollback:**
 ```bash
 # Go to specific version
-make db-migrate-goto VERSION=000002
+
 
 # Or reset and reapply
 make db-fresh
@@ -161,7 +161,7 @@ ls services/user-service/migrations/
 **Update Dependencies:**
 ```bash
 # Regenerate dependencies
-make db-migration-generate NAME=new_feature TYPE=table
+make db-migrate-generate NAME=new_feature TYPE=table
 # This updates dependencies.json automatically
 ```
 
@@ -539,7 +539,7 @@ make db-connect -c "SELECT version();"
 make db-fresh
 
 # Emergency rollback
-make db-migrate-goto VERSION=000001
+
 
 # Database restart
 make down

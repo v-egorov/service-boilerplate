@@ -8,7 +8,7 @@
 
 #### Step 1: Generate Migration
 ```bash
-make db-migration-generate NAME=add_user_profiles TYPE=table
+make db-migrate-generate NAME=add_user_profiles TYPE=table
 ```
 
 #### Step 2: Edit Migration Files
@@ -162,7 +162,7 @@ make db-migrate-up
 
 #### Step 1: Generate Migration
 ```bash
-make db-migration-generate NAME=optimize_user_search TYPE=index
+make db-migrate-generate NAME=optimize_user_search TYPE=index
 ```
 
 #### Step 2: Edit Migration Files
@@ -240,7 +240,7 @@ ORDER BY u.created_at DESC;
 
 #### Step 1: Generate Migration
 ```bash
-make db-migration-generate NAME=migrate_user_profiles_data TYPE=data
+make db-migrate-generate NAME=migrate_user_profiles_data TYPE=data
 ```
 
 #### Step 2: Edit Migration Files
@@ -475,7 +475,7 @@ docker-compose exec postgres psql -U postgres -d service_db \
 
 #### Step 1: Generate Migration
 ```bash
-make db-migration-generate NAME=refactor_user_contacts TYPE=table
+make db-migrate-generate NAME=refactor_user_contacts TYPE=table
 ```
 
 #### Step 2: Complex Migration with Data Migration
@@ -675,10 +675,10 @@ make db-migrate-up
 make db-seed-enhanced ENV=development
 
 # Run application tests
-npm test -- --grep "migration"
+make test-all
 
 # Test rollback scenarios
-make db-migrate-goto VERSION=000001
+
 make db-migrate-up
 
 # Clean up

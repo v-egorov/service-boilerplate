@@ -172,16 +172,16 @@ Before execution, the orchestrator performs risk assessment:
 
 ```bash
 # 1. Initialize migration tracking for a new service
-make db-migrate-init-orchestrator SERVICE_NAME=user-service
+make db-migrate-init SERVICE_NAME=user-service
 
 # 2. Run all pending migrations
 make db-migrate-up SERVICE_NAME=user-service
 
 # 3. Check status
-make db-migrate-status-orchestrator SERVICE_NAME=user-service
+make db-migrate-status SERVICE_NAME=user-service
 
 # 4. List all migrations
-make db-migrate-list-orchestrator SERVICE_NAME=user-service
+make db-migrate-list SERVICE_NAME=user-service
 ```
 
 ### Available Commands
@@ -189,7 +189,7 @@ make db-migrate-list-orchestrator SERVICE_NAME=user-service
 #### Initialization
 ```bash
 # Initialize orchestrator tracking for a service
-make db-migrate-init-orchestrator SERVICE_NAME=user-service
+make db-migrate-init SERVICE_NAME=user-service
 ```
 Creates the `migration_executions` table in the service schema and validates configuration.
 
@@ -209,13 +209,13 @@ make db-migrate-down SERVICE_NAME=user-service STEPS=3
 #### Status & Monitoring
 ```bash
 # Show comprehensive status
-make db-migrate-status-orchestrator SERVICE_NAME=user-service
+make db-migrate-status SERVICE_NAME=user-service
 
 # List all migrations with status
-make db-migrate-list-orchestrator SERVICE_NAME=user-service
+make db-migrate-list SERVICE_NAME=user-service
 
 # Validate migration integrity
-make db-migrate-validate-orchestrator SERVICE_NAME=user-service
+make db-migrate-validate SERVICE_NAME=user-service
 ```
 
 ### Makefile Targets
@@ -228,8 +228,8 @@ The orchestrator integrates with the main Makefile through these targets:
 | `db-migrate-down` | Run migrations down | `down` |
 | `db-migrate-status` | Show migration status | `status` |
 | `db-migrate-list` | List all migrations | `list` |
-| `db-migrate-init-orchestrator` | Initialize tracking | `init` |
-| `db-migrate-validate-orchestrator` | Validate integrity | `validate` |
+| `db-migrate-init` | Initialize tracking | `init` |
+| `db-migrate-validate` | Validate integrity | `validate` |
 
 ### Environment Variables
 
@@ -260,7 +260,7 @@ graph TD
 
 1. **Pre-deployment validation**:
    ```bash
-   make db-migrate-validate-orchestrator SERVICE_NAME=user-service
+   make db-migrate-validate SERVICE_NAME=user-service
    ```
 
 2. **Backup database**:
@@ -275,7 +275,7 @@ graph TD
 
 4. **Verify results**:
    ```bash
-   make db-migrate-status-orchestrator SERVICE_NAME=user-service
+   make db-migrate-status SERVICE_NAME=user-service
    ```
 
 ### Rollback Procedures
@@ -302,7 +302,7 @@ make db-migrate-down SERVICE_NAME=user-service STEPS=2
 #### 1. "Migration tracking table does not exist"
 **Solution**: Initialize the service first
 ```bash
-make db-migrate-init-orchestrator SERVICE_NAME=user-service
+make db-migrate-init SERVICE_NAME=user-service
 ```
 
 #### 2. "Environment not found in configuration"
@@ -319,7 +319,7 @@ cat services/user-service/migrations/environments.json
 **Solution**: Review `dependencies.json` for circular dependencies
 ```bash
 # Validate configuration
-make db-migrate-validate-orchestrator SERVICE_NAME=user-service
+make db-migrate-validate SERVICE_NAME=user-service
 ```
 
 #### 4. "Migration already applied by golang-migrate"
@@ -368,7 +368,7 @@ cat services/user-service/migrations/dependencies.json | jq .
 3. **Migrate existing services gradually**:
    ```bash
    # For existing service
-   make db-migrate-init-orchestrator SERVICE_NAME=existing-service
+   make db-migrate-init SERVICE_NAME=existing-service
    # This will sync existing golang-migrate state into orchestrator tracking
    ```
 
@@ -406,7 +406,7 @@ cat services/user-service/migrations/dependencies.json | jq .
 
 1. **Validate before deployment**:
    ```bash
-   make db-migrate-validate-orchestrator SERVICE_NAME=user-service
+   make db-migrate-validate SERVICE_NAME=user-service
    ```
 
 2. **Backup before execution**:
@@ -416,7 +416,7 @@ cat services/user-service/migrations/dependencies.json | jq .
 
 3. **Monitor execution**:
    ```bash
-   make db-migrate-status-orchestrator SERVICE_NAME=user-service
+   make db-migrate-status SERVICE_NAME=user-service
    ```
 
 4. **Verify results** after execution

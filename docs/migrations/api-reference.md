@@ -69,40 +69,22 @@ No migrations to apply
 - ⏳ Pending migration (not yet applied)
 - ❌ Failed migration (dirty state)
 
-#### `make db-migrate-goto VERSION={number}`
-Go to a specific migration version.
 
-```bash
-# Go to migration version 2
-make db-migrate-goto VERSION=000002
-
-# Output:
-🎯 Going to migration version 000002...
-3/d dev_test_data (15.678901ms)
-✅ Migration version set to 000002
-```
-
-**Use Cases:**
-- Emergency rollback to known good state
-- Testing specific migration states
-- Debugging migration issues
-
----
 
 ### Advanced Migration Commands
 
-#### `make db-migration-generate NAME={name} TYPE={type}`
+#### `make db-migrate-generate NAME={name} TYPE={type}`
 Generate a new migration with templates and documentation.
 
 ```bash
 # Generate a table migration
-make db-migration-generate NAME=add_user_notifications TYPE=table
+make db-migrate-generate NAME=add_user_notifications TYPE=table
 
 # Generate an index migration
-make db-migration-generate NAME=optimize_user_queries TYPE=index
+make db-migrate-generate NAME=optimize_user_queries TYPE=index
 
 # Generate a data migration
-make db-migration-generate NAME=migrate_user_data TYPE=data
+make db-migrate-generate NAME=migrate_user_data TYPE=data
 ```
 
 **Parameters:**
@@ -614,7 +596,7 @@ graph TD
     C --> E[db-validate]
     C --> F[db-migration-deps]
 
-    G[db-migration-generate] --> H[db-validate]
+    G[db-migrate-generate] --> H[db-validate]
 
     I[db-restore] --> J[db-backup]
 
