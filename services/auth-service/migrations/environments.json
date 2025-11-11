@@ -3,7 +3,6 @@
     "development": {
       "description": "Development environment with test data and debug features",
       "migrations": [
-        "development/000003_dev_test_data.up.sql",
         "development/000004_dev_admin_setup.up.sql"
       ],
       "seed_files": [],

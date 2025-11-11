@@ -10,24 +10,10 @@
       "risk_level": "low",
       "rollback_safe": true
     },
-    "000003": {
-      "description": "Add development test data",
-      "depends_on": [
-        "000001"
-      ],
-      "affects_tables": [
-        "SCHEMA_NAME.entities"
-      ],
-      "estimated_duration": "15s",
-      "risk_level": "low",
-      "rollback_safe": true,
-      "environment": "development"
-    },
      "000004": {
        "description": "Setup development admin accounts with RBAC roles",
        "depends_on": [
-         "000001",
-         "000003"
+         "000001"
        ],
        "cross_service_depends_on": {
          "user-service": ["000001", "000002", "000003"]
