@@ -306,7 +306,7 @@ cat >>docker/docker-compose.override.yml <<EOF
     environment:
       - APP_ENV=development
       - LOGGING_LEVEL=debug
-      - LOGGING_FORMAT=text
+      - LOGGING_FORMAT=json
       - LOGGING_OUTPUT=file
       - LOGGING_DUAL_OUTPUT=${LOGGING_DUAL_OUTPUT:-true}
       - LOGGING_STRIP_ANSI_FROM_FILES=${LOGGING_STRIP_ANSI_FROM_FILES:-true}
@@ -326,72 +326,17 @@ cat >>docker/docker-compose.override.yml <<EOF
           - ${SERVICE_NAME}-svc
 EOF
 
-# Update .env file
-echo "Updating .env file..."
-if [ ! -f ".env" ]; then
-    echo "Creating .env file..."
-    cat >.env <<EOF
-# Database Configuration
-DATABASE_NAME=service_db
-DATABASE_USER=postgres
-DATABASE_PASSWORD=postgres
-DATABASE_PORT=5432
-DATABASE_SSL_MODE=disable
-
-# API Gateway Configuration
-API_GATEWAY_NAME=api-gateway
-API_GATEWAY_PORT=8080
-API_GATEWAY_IMAGE=docker-api-gateway
-API_GATEWAY_CONTAINER=service-boilerplate-api-gateway
-API_GATEWAY_TMP_VOLUME=service-boilerplate-api-gateway-tmp
-
-# User Service Configuration
-USER_SERVICE_NAME=user-service
-USER_SERVICE_PORT=8081
-USER_SERVICE_IMAGE=docker-user-service
-USER_SERVICE_CONTAINER=service-boilerplate-user-service
-USER_SERVICE_TMP_VOLUME=service-boilerplate-user-service-tmp
-
- # $SERVICE_NAME Service Configuration
- ${SERVICE_NAME_UPPER}_SERVICE_NAME=$SERVICE_NAME
- ${SERVICE_NAME_UPPER}_SERVICE_PORT=$PORT
- ${SERVICE_NAME_UPPER}_SERVICE_IMAGE=docker-$SERVICE_NAME
- ${SERVICE_NAME_UPPER}_SERVICE_CONTAINER=service-boilerplate-$SERVICE_NAME
- ${SERVICE_NAME_UPPER}_SERVICE_TMP_VOLUME=service-boilerplate-${SERVICE_NAME}-tmp
- ${SERVICE_NAME_UPPER}_LOGS_VOLUME=service-boilerplate-${SERVICE_NAME}-logs
-
-# PostgreSQL Configuration
-POSTGRES_NAME=postgres
-POSTGRES_CONTAINER=service-boilerplate-postgres
-POSTGRES_VOLUME=service-boilerplate-postgres-data
-POSTGRES_IMAGE=postgres:15-alpine
-
-# Network Configuration
-NETWORK_NAME=service-boilerplate-network
-NETWORK_DRIVER=bridge
-
-# Migration Configuration
-MIGRATION_IMAGE=migrate/migrate:latest
-MIGRATION_CONTAINER_NAME=service-boilerplate-migration
-MIGRATION_TMP_VOLUME=service-boilerplate-migration-tmp
-
-# Application Configuration
-APP_ENV=development
-LOGGING_LEVEL=debug
-LOGGING_FORMAT=json
-DOCKER_ENV=false
-EOF
-else
-    # Add service configuration to existing .env file
-    echo "" >>.env
-    echo "# $SERVICE_NAME Service Configuration" >>.env
-    echo "${SERVICE_NAME_UPPER}_SERVICE_NAME=$SERVICE_NAME" >>.env
-    echo "${SERVICE_NAME_UPPER}_SERVICE_PORT=$PORT" >>.env
-    echo "${SERVICE_NAME_UPPER}_SERVICE_IMAGE=docker-$SERVICE_NAME" >>.env
-    echo "${SERVICE_NAME_UPPER}_SERVICE_CONTAINER=service-boilerplate-$SERVICE_NAME" >>.env
-    echo "${SERVICE_NAME_UPPER}_SERVICE_TMP_VOLUME=service-boilerplate-${SERVICE_NAME}-tmp" >>.env
-    echo "${SERVICE_NAME_UPPER}_LOGS_VOLUME=service-boilerplate-${SERVICE_NAME}-logs" >>.env
-fi
+# Update .env.development file
+echo "Updating .env.development file..."
+# Add service configuration to .env.development file
+echo "" >>.env.development
+echo "# $SERVICE_NAME Service Configuration" >>.env.development
+echo "${SERVICE_NAME_UPPER}_SERVICE_NAME=$SERVICE_NAME" >>.env.development
+echo "${SERVICE_NAME_UPPER}_SERVICE_PORT=$PORT" >>.env.development
+echo "${SERVICE_NAME_UPPER}_SERVICE_IMAGE=docker-$SERVICE_NAME" >>.env.development
+echo "${SERVICE_NAME_UPPER}_SERVICE_CONTAINER=service-boilerplate-$SERVICE_NAME" >>.env.development
+echo "${SERVICE_NAME_UPPER}_SERVICE_TMP_VOLUME=service-boilerplate-${SERVICE_NAME}-tmp" >>.env.development
+echo "${SERVICE_NAME_UPPER}_LOGS_VOLUME=service-boilerplate-${SERVICE_NAME}-logs" >>.env.development
 
 # Update Makefile
 echo "Updating Makefile..."
@@ -443,13 +388,13 @@ mkdir -p "docker/volumes/$SERVICE_NAME/logs"
 if [ "$CREATE_DB_SCHEMA" = true ]; then
     echo "Creating database schema for $SERVICE_NAME..."
 
-    # Add schema to .env
+    # Add schema to .env.development
     SCHEMA_VAR="${SERVICE_NAME_UPPER}_SCHEMA"
     SCHEMA_VALUE=$(echo "$SERVICE_NAME" | sed 's/-/_/g')
 
-    if ! grep -q "^${SCHEMA_VAR}=" .env; then
-        echo "${SCHEMA_VAR}=${SCHEMA_VALUE}" >>.env
-        echo "Added ${SCHEMA_VAR}=${SCHEMA_VALUE} to .env"
+    if ! grep -q "^${SCHEMA_VAR}=" .env.development; then
+        echo "${SCHEMA_VAR}=${SCHEMA_VALUE}" >>.env.development
+        echo "Added ${SCHEMA_VAR}=${SCHEMA_VALUE} to .env.development"
     fi
 
     # Actually create the schema in database
@@ -458,9 +403,11 @@ if [ "$CREATE_DB_SCHEMA" = true ]; then
         echo "Note: Database may not be running yet. Schema will be created when migrations run."
 
     if [ -f "services/$SERVICE_NAME/migrations/000001_initial.up.sql" ]; then
-        echo "Database schema created. Run migrations with: make db-migrate-up SERVICE_NAME=$SERVICE_NAME"
-        echo "Migration orchestrator is configured and ready to use."
-        echo "Enhanced migration tracking will be available after running initial migrations."
+        echo "Database schema created. Run migrations with:"
+        echo "  make db-migrate-init SERVICE_NAME=$SERVICE_NAME"
+        echo "  make db-migrate-up SERVICE_NAME=$SERVICE_NAME"
+        echo "   - db-migrate-init creates the migration tracking table"
+        echo "   - db-migrate-up runs the actual migrations"
     fi
 fi
 
