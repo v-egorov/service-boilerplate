@@ -5,7 +5,7 @@
 -- Create user profiles table
 CREATE TABLE IF NOT EXISTS user_service.user_profiles (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES user_service.users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES user_service.users(id) ON DELETE CASCADE,
     bio TEXT,
     avatar_url VARCHAR(500),
     website VARCHAR(255),

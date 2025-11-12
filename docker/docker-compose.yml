@@ -36,10 +36,13 @@ services:
       - SERVER_PORT=8080
       - LOGGING_LEVEL=${LOGGING_LEVEL:-info}
       - LOGGING_FORMAT=${LOGGING_FORMAT:-json}
+      - LOGGING_OUTPUT=file
       - DOCKER_ENV=true
     depends_on:
       user-service:
         condition: service_healthy
+    volumes:
+      - api_gateway_logs:/app/logs
     networks:
       service-network:
         aliases:
@@ -73,9 +76,12 @@ services:
       - DATABASE_SSL_MODE=disable
       - LOGGING_LEVEL=${LOGGING_LEVEL:-info}
       - LOGGING_FORMAT=${LOGGING_FORMAT:-json}
+      - LOGGING_OUTPUT=file
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - user_service_logs:/app/logs
     networks:
       service-network:
         aliases:
@@ -103,7 +109,115 @@ services:
       - service-network
     command: ["version"]
     depends_on:
-       - postgres
+      - postgres
+
+  auth-service:
+    build:
+      context: ..
+      dockerfile: services/auth-service/Dockerfile
+    image: ${AUTH_SERVICE_SERVICE_IMAGE}
+    container_name: ${AUTH_SERVICE_SERVICE_CONTAINER}
+    ports:
+      - "${AUTH_SERVICE_SERVICE_PORT:-8083}:${AUTH_SERVICE_SERVICE_PORT:-8083}"
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - SERVER_PORT=${AUTH_SERVICE_SERVICE_PORT:-8083}
+      - DATABASE_HOST=${POSTGRES_NAME}
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${DATABASE_USER:-postgres}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-postgres}
+      - DATABASE_NAME=${DATABASE_NAME:-service_db}
+      - DATABASE_SSL_MODE=disable
+      - LOGGING_LEVEL=${LOGGING_LEVEL:-info}
+      - LOGGING_FORMAT=${LOGGING_FORMAT:-json}
+      - LOGGING_OUTPUT=file
+      - DOCKER_ENV=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - auth_service_logs:/app/logs
+    networks:
+      service-network:
+        aliases:
+          - auth-service
+          - auth-service-service
+          - auth-service-svc
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "http://localhost:${AUTH_SERVICE_SERVICE_PORT:-8083}/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "16686:16686" # Jaeger UI
+      - "14268:14268" # Accept jaeger.thrift over HTTP
+      - "14250:14250" # Accept jaeger.thrift over gRPC
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+    volumes:
+      - jaeger_data:/tmp
+    networks:
+      - service-network
+    restart: unless-stopped
+
+  loki:
+    image: ${LOKI_IMAGE}
+    container_name: ${LOKI_CONTAINER}
+    ports:
+      - "3100:3100" # Loki HTTP API
+    volumes:
+      - loki_data:/loki
+      - ./loki-config.yml:/etc/loki/config.yml:ro
+    command: -config.file=/etc/loki/config.yml
+    networks:
+      - service-network
+    restart: unless-stopped
+
+  promtail:
+    image: ${PROMTAIL_IMAGE}
+    container_name: ${PROMTAIL_CONTAINER}
+    volumes:
+      - promtail_positions:/tmp
+      - ./promtail-config.yml:/etc/promtail/config.yml:ro
+      - ./volumes/api-gateway/logs:/var/log/api-gateway:ro
+      - ./volumes/user-service/logs:/var/log/user-service:ro
+      - ./volumes/auth-service/logs:/var/log/auth-service:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - service-network
+    restart: unless-stopped
+    depends_on:
+      - loki
+
+  grafana:
+    image: ${GRAFANA_IMAGE}
+    container_name: ${GRAFANA_CONTAINER}
+    ports:
+      - "3001:3000" # Grafana UI
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    networks:
+      - service-network
+    restart: unless-stopped
+    depends_on:
+      - loki
 
 volumes:
   postgres_data:
@@ -137,6 +251,64 @@ volumes:
       type: none
       o: bind
       device: ${PWD}/tmp/migrations
+
+  auth-service_service_tmp:
+    name: ${AUTH_SERVICE_SERVICE_TMP_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/auth-service/tmp
+
+  api_gateway_logs:
+    name: ${API_GATEWAY_LOGS_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/api-gateway/logs
+
+  user_service_logs:
+    name: ${USER_SERVICE_LOGS_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/user-service/logs
+
+  auth_service_logs:
+    name: ${AUTH_SERVICE_LOGS_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/auth-service/logs
+
+  jaeger_data:
+
+  loki_data:
+    name: ${LOKI_DATA_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/loki/data
+
+  promtail_positions:
+    name: ${PROMTAIL_POSITIONS_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/promtail/positions
+
+  grafana_data:
+    name: ${GRAFANA_DATA_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/grafana/data
 
 networks:
   service-network:

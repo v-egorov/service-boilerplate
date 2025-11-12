@@ -16,6 +16,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/v-egorov/service-boilerplate/api-gateway/internal/services"
 	"github.com/v-egorov/service-boilerplate/common/config"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type GatewayHandler struct {
@@ -52,6 +55,9 @@ func (h *GatewayHandler) ProxyRequest(serviceName string) gin.HandlerFunc {
 			return
 		}
 
+		// Capture the trace context before creating proxy
+		ctx := c.Request.Context()
+
 		// Create reverse proxy
 		proxy := httputil.NewSingleHostReverseProxy(targetURL)
 
@@ -65,18 +71,28 @@ func (h *GatewayHandler) ProxyRequest(serviceName string) gin.HandlerFunc {
 			c.Request.Header.Set("X-Request-ID", requestID.(string))
 		}
 
+		// Extract trace information from context
+		span := trace.SpanFromContext(ctx)
+		traceID := span.SpanContext().TraceID().String()
+		spanID := span.SpanContext().SpanID().String()
+
 		// Log the proxy request
 		h.logger.WithFields(logrus.Fields{
 			"service":    serviceName,
 			"method":     c.Request.Method,
 			"path":       c.Request.URL.Path,
 			"request_id": c.GetString("request_id"),
+			"trace_id":   traceID,
+			"span_id":    spanID,
 		}).Info("Proxying request")
 
-		// Custom director to handle request body properly
+		// Custom director to handle request body and inject trace headers
 		originalDirector := proxy.Director
 		proxy.Director = func(req *http.Request) {
 			originalDirector(req)
+
+			// Inject trace context headers
+			otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
 
 			// Read request body
 			if req.Body != nil {

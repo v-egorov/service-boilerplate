@@ -2,7 +2,7 @@
 FROM golang:1.23-alpine
 
 # Install curl for health checks
-RUN apk --no-cache add curl
+RUN apk --no-cache add curl mc
 
 WORKDIR /app
 

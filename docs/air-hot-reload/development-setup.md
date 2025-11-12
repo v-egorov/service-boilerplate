@@ -252,7 +252,7 @@ curl http://localhost:8081/health
 | `make air-user-service` | Start User Service with Air |
 | `make logs` | View all service logs |
 | `make down` | Stop all services |
-| `make dev-build` | Rebuild development images |
+| `make build-dev` | Rebuild development images |
 
 ### Docker Commands
 
@@ -450,11 +450,10 @@ make db-migrate-down
 # Check migration status
 make db-migrate-status
 
-# Go to specific version
-make db-migrate-goto VERSION=001
+
 
 # Create new migration
-make db-migration-create NAME=add_users_table
+make db-migrate-create NAME=add_users_table
 
 # Validate migrations
 make db-migrate-validate
@@ -467,7 +466,7 @@ make db-reset
 
 1. **Create Migration**:
    ```bash
-   make db-migration-create NAME=add_user_profiles
+   make db-migrate-create NAME=add_user_profiles
    # Creates: services/user-service/migrations/000002_add_user_profiles.up.sql
    ```
 

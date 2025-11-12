@@ -2,30 +2,46 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+	"github.com/v-egorov/service-boilerplate/common/logging"
+	"github.com/v-egorov/service-boilerplate/common/middleware"
+	"go.opentelemetry.io/otel/trace"
 	// ENTITY_IMPORT_MODELS
 	// ENTITY_IMPORT_SERVICES
 )
 
 type EntityHandler struct {
-	service Service
-	logger  *logrus.Logger
+	service        Service
+	logger         *logrus.Logger
+	standardLogger *logging.StandardLogger
+	auditLogger    *logging.AuditLogger
 }
 
-func NewEntityHandler(service Service, logger *logrus.Logger) *EntityHandler {
+func NewEntityHandler(service Service, logger *logrus.Logger, standardLogger *logging.StandardLogger) *EntityHandler {
 	return &EntityHandler{
-		service: service,
-		logger:  logger,
+		service:        service,
+		logger:         logger,
+		standardLogger: standardLogger,
+		auditLogger:    logging.NewAuditLogger(logger, "SERVICE_NAME"),
 	}
 }
 
 // handleServiceError handles different types of service errors and returns appropriate HTTP responses
 func (h *EntityHandler) handleServiceError(c *gin.Context, err error, operation string) {
-	h.logger.WithError(err).Error(operation)
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"error":      err.Error(),
+	}).Error(operation)
 
 	// Handle specific error types
 	switch e := err.(type) {
@@ -76,9 +92,24 @@ func (h *EntityHandler) handleServiceError(c *gin.Context, err error, operation 
 }
 
 func (h *EntityHandler) CreateEntity(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
 	var req services.CreateEntityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.WithError(err).Error("Invalid request body")
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"error":      err.Error(),
+		}).Error("Invalid request body")
+		actorUserID := middleware.GetAuthenticatedUserID(c)
+		h.auditLogger.LogEntityCreation(actorUserID, requestID, "", c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, "Invalid request format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
 			"details": err.Error(),
@@ -90,10 +121,20 @@ func (h *EntityHandler) CreateEntity(c *gin.Context) {
 	entity, err := h.service.Create(c.Request.Context(), req)
 	if err != nil {
 		h.handleServiceError(c, err, "Failed to create entity")
+		actorUserID := middleware.GetAuthenticatedUserID(c)
+		h.auditLogger.LogEntityCreation(actorUserID, requestID, "", c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, err.Error())
 		return
 	}
 
-	h.logger.WithField("id", entity.ID).Info("Entity created")
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"id":         entity.ID,
+	}).Info("Entity created")
+
+	actorUserID := middleware.GetAuthenticatedUserID(c)
+	h.standardLogger.EntityOperation(requestID, actorUserID, fmt.Sprintf("%d", entity.ID), "create", true, nil)
+	h.auditLogger.LogEntityCreation(actorUserID, requestID, fmt.Sprintf("%d", entity.ID), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, true, "")
+
 	c.JSON(http.StatusCreated, gin.H{
 		"data":    entity,
 		"message": "Entity created successfully",
@@ -101,10 +142,18 @@ func (h *EntityHandler) CreateEntity(c *gin.Context) {
 }
 
 func (h *EntityHandler) GetEntity(c *gin.Context) {
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		h.logger.WithError(err).Error("Invalid entity ID format")
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"error":      err.Error(),
+		}).Error("Invalid entity ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid entity ID format",
 			"details": "Entity ID must be a valid integer",
@@ -120,16 +169,36 @@ func (h *EntityHandler) GetEntity(c *gin.Context) {
 		return
 	}
 
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"id":         entity.ID,
+	}).Info("Entity retrieved")
+
+	h.standardLogger.EntityOperation(requestID, "", fmt.Sprintf("%d", entity.ID), "get", true, nil)
+
 	c.JSON(http.StatusOK, gin.H{
 		"data": entity,
 	})
 }
 
 func (h *EntityHandler) ReplaceEntity(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		h.logger.WithError(err).Error("Invalid entity ID format")
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"error":      err.Error(),
+		}).Error("Invalid entity ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid entity ID format",
 			"details": "Entity ID must be a valid integer",
@@ -141,7 +210,11 @@ func (h *EntityHandler) ReplaceEntity(c *gin.Context) {
 
 	var req services.ReplaceEntityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.WithError(err).Error("Invalid request body")
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"error":      err.Error(),
+		}).Error("Invalid request body")
+		h.auditLogger.LogEntityUpdate("", requestID, fmt.Sprintf("%d", id), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, "Invalid request format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
 			"details": err.Error(),
@@ -153,10 +226,18 @@ func (h *EntityHandler) ReplaceEntity(c *gin.Context) {
 	entity, err := h.service.Replace(c.Request.Context(), int64(id), req)
 	if err != nil {
 		h.handleServiceError(c, err, "Failed to replace entity")
+		h.auditLogger.LogEntityUpdate("", requestID, fmt.Sprintf("%d", id), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, err.Error())
 		return
 	}
 
-	h.logger.WithField("id", entity.ID).Info("Entity replaced successfully")
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"id":         entity.ID,
+	}).Info("Entity replaced successfully")
+
+	h.standardLogger.EntityOperation(requestID, "", fmt.Sprintf("%d", entity.ID), "replace", true, nil)
+	h.auditLogger.LogEntityUpdate("", requestID, fmt.Sprintf("%d", entity.ID), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, true, "")
+
 	c.JSON(http.StatusOK, gin.H{
 		"data":    entity,
 		"message": "Entity replaced successfully",
@@ -164,10 +245,23 @@ func (h *EntityHandler) ReplaceEntity(c *gin.Context) {
 }
 
 func (h *EntityHandler) UpdateEntity(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
 	idStr := c.Param("id")
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
-		h.logger.WithError(err).Error("Invalid entity ID format")
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"error":      err.Error(),
+		}).Error("Invalid entity ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid entity ID format",
 			"details": "Entity ID must be a valid integer",
@@ -179,7 +273,11 @@ func (h *EntityHandler) UpdateEntity(c *gin.Context) {
 
 	var req services.UpdateEntityRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		h.logger.WithError(err).Error("Invalid request body")
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"error":      err.Error(),
+		}).Error("Invalid request body")
+		h.auditLogger.LogEntityUpdate("", requestID, fmt.Sprintf("%d", id), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, "Invalid request format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
 			"details": err.Error(),
@@ -191,10 +289,18 @@ func (h *EntityHandler) UpdateEntity(c *gin.Context) {
 	entity, err := h.service.Update(c.Request.Context(), int64(id), req)
 	if err != nil {
 		h.handleServiceError(c, err, "Failed to update entity")
+		h.auditLogger.LogEntityUpdate("", requestID, fmt.Sprintf("%d", id), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, err.Error())
 		return
 	}
 
-	h.logger.WithField("id", entity.ID).Info("Entity updated successfully")
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"id":         entity.ID,
+	}).Info("Entity updated successfully")
+
+	h.standardLogger.EntityOperation(requestID, "", fmt.Sprintf("%d", entity.ID), "update", true, nil)
+	h.auditLogger.LogEntityUpdate("", requestID, fmt.Sprintf("%d", entity.ID), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, true, "")
+
 	c.JSON(http.StatusOK, gin.H{
 		"data":    entity,
 		"message": "Entity updated successfully",
@@ -202,24 +308,50 @@ func (h *EntityHandler) UpdateEntity(c *gin.Context) {
 }
 
 func (h *EntityHandler) DeleteEntity(c *gin.Context) {
+	// Extract trace information
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		h.logger.WithError(err).Error("Invalid entity ID")
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"error":      err.Error(),
+		}).Error("Invalid entity ID")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid entity ID"})
 		return
 	}
 
 	if err := h.service.Delete(c.Request.Context(), id); err != nil {
 		h.logger.WithError(err).Error("Failed to delete entity")
+		h.auditLogger.LogEntityDeletion("", requestID, fmt.Sprintf("%d", id), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete entity"})
 		return
 	}
 
-	h.logger.WithField("id", id).Info("Entity deleted")
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"id":         id,
+	}).Info("Entity deleted")
+
+	h.standardLogger.EntityOperation(requestID, "", fmt.Sprintf("%d", id), "delete", true, nil)
+	h.auditLogger.LogEntityDeletion("", requestID, fmt.Sprintf("%d", id), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, true, "")
+
 	c.JSON(http.StatusNoContent, nil)
 }
 
 func (h *EntityHandler) ListEntities(c *gin.Context) {
+	requestID := c.GetHeader("X-Request-ID")
+	if requestID == "" {
+		requestID = "unknown"
+	}
+
 	// Parse query parameters
 	limitStr := c.DefaultQuery("limit", "10")
 	offsetStr := c.DefaultQuery("offset", "0")
@@ -236,10 +368,20 @@ func (h *EntityHandler) ListEntities(c *gin.Context) {
 
 	entities, err := h.service.List(c.Request.Context(), limit, offset)
 	if err != nil {
-		h.logger.WithError(err).Error("Failed to list entities")
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"error":      err.Error(),
+		}).Error("Failed to list entities")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list entities"})
 		return
 	}
+
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"count":      len(entities),
+		"limit":      limit,
+		"offset":     offset,
+	}).Info("Entities listed")
 
 	c.JSON(http.StatusOK, gin.H{
 		"entities": entities,

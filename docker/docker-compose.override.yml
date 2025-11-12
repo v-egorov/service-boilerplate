@@ -6,9 +6,14 @@ services:
     environment:
       - APP_ENV=development
       - LOGGING_LEVEL=debug
+      - LOGGING_FORMAT=json
+      - LOGGING_OUTPUT=file
+      - LOGGING_DUAL_OUTPUT=true
     volumes:
       - ../api-gateway:/app/api-gateway
+      - ../common:/app/common
       - api_gateway_tmp:/app/api-gateway/tmp
+      - api_gateway_logs:/app/logs
     ports:
       - "${API_GATEWAY_PORT}:${API_GATEWAY_PORT}"
     working_dir: /app/api-gateway
@@ -26,9 +31,14 @@ services:
     environment:
       - APP_ENV=development
       - LOGGING_LEVEL=debug
+      - LOGGING_FORMAT=json
+      - LOGGING_OUTPUT=file
+      - LOGGING_DUAL_OUTPUT=true
     volumes:
       - ../services/user-service:/app/services/user-service
+      - ../common:/app/common
       - user_service_tmp:/app/services/user-service/tmp
+      - user_service_logs:/app/logs
     ports:
       - "${USER_SERVICE_PORT}:${USER_SERVICE_PORT}"
     working_dir: /app/services/user-service
@@ -54,3 +64,27 @@ services:
           - db
           - database
 
+  auth-service:
+    build:
+      context: ..
+      dockerfile: services/auth-service/Dockerfile.dev
+    environment:
+      - APP_ENV=development
+      - LOGGING_LEVEL=debug
+      - LOGGING_FORMAT=json
+      - LOGGING_OUTPUT=file
+      - LOGGING_DUAL_OUTPUT=true
+    volumes:
+      - ../services/auth-service:/app/services/auth-service
+      - ../common:/app/common
+      - auth-service_service_tmp:/app/services/auth-service/tmp
+      - auth_service_logs:/app/logs
+    ports:
+      - "${AUTH_SERVICE_SERVICE_PORT}:${AUTH_SERVICE_SERVICE_PORT}"
+    working_dir: /app/services/auth-service
+    networks:
+      service-network:
+        aliases:
+          - auth-service
+          - auth-service-service
+          - auth-service-svc

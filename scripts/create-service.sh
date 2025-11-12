@@ -174,7 +174,7 @@ replace_vars() {
 }
 
 # Find and replace in all files
-find "$SERVICE_DIR" -type f \( -name "*.go" -o -name "*.yaml" -o -name "*.md" -o -name "*.sql" -o -name "*.toml" -o -name "Dockerfile*" \) | while read -r file; do
+find "$SERVICE_DIR" -type f \( -name "*.go" -o -name "*.yaml" -o -name "*.md" -o -name "*.sql" -o -name "*.toml" -o -name "*.json" -o -name "Dockerfile*" \) | while read -r file; do
     replace_vars "$file"
 done
 
@@ -208,9 +208,14 @@ cat >"$SERVICE_DEF_FILE" <<EOF
       - DATABASE_SSL_MODE=disable
       - LOGGING_LEVEL=\${LOGGING_LEVEL:-info}
       - LOGGING_FORMAT=\${LOGGING_FORMAT:-json}
+      - LOGGING_OUTPUT=file
+      - LOGGING_DUAL_OUTPUT=\${LOGGING_DUAL_OUTPUT:-true}
+      - LOGGING_STRIP_ANSI_FROM_FILES=\${LOGGING_STRIP_ANSI_FROM_FILES:-true}
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - ${SERVICE_NAME}_logs:/app/logs
     networks:
       service-network:
         aliases:
@@ -236,6 +241,14 @@ cat >"$VOLUME_DEF_FILE" <<EOF
       type: none
       o: bind
       device: \${PWD}/docker/volumes/${SERVICE_NAME}/tmp
+
+  ${SERVICE_NAME}_logs:
+    name: \${${SERVICE_NAME_UPPER}_LOGS_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: \${PWD}/docker/volumes/${SERVICE_NAME}/logs
 EOF
 
 # Insert service definition before volumes section
@@ -265,6 +278,23 @@ BEGIN { found=0 }
 # Clean up temporary files
 rm -f "$SERVICE_DEF_FILE" "$VOLUME_DEF_FILE"
 
+# Update Promtail volume mounts in docker-compose.yml
+echo "Updating Promtail volume mounts..."
+PROMTAIL_VOLUME_LINE="      - ./volumes/${SERVICE_NAME}/logs:/var/log/${SERVICE_NAME}:ro"
+
+# Find the promtail service and add the volume mount after the last volume line
+awk '
+BEGIN { in_promtail=0; in_volumes=0 }
+/^  promtail:/ { in_promtail=1 }
+/^    volumes:/ && in_promtail { in_volumes=1 }
+/^    [a-zA-Z]/ && in_promtail && in_volumes && !/^    volumes:/ && !/^      - / {
+    # Insert the new volume mount before the next service property
+    print "'"$PROMTAIL_VOLUME_LINE"'"
+    in_volumes=0
+}
+{ print }
+' docker/docker-compose.yml >docker-compose.tmp && mv docker-compose.tmp docker/docker-compose.yml
+
 # Update docker-compose.override.yml
 echo "Updating docker-compose.override.yml..."
 cat >>docker/docker-compose.override.yml <<EOF
@@ -276,9 +306,15 @@ cat >>docker/docker-compose.override.yml <<EOF
     environment:
       - APP_ENV=development
       - LOGGING_LEVEL=debug
+      - LOGGING_FORMAT=json
+      - LOGGING_OUTPUT=file
+      - LOGGING_DUAL_OUTPUT=${LOGGING_DUAL_OUTPUT:-true}
+      - LOGGING_STRIP_ANSI_FROM_FILES=${LOGGING_STRIP_ANSI_FROM_FILES:-true}
     volumes:
       - ../services/$SERVICE_NAME:/app/services/$SERVICE_NAME
+      - ../common:/app/common
       - ${SERVICE_NAME}_service_tmp:/app/services/$SERVICE_NAME/tmp
+      - ${SERVICE_NAME}_logs:/app/logs
     ports:
       - "\${${SERVICE_NAME_UPPER}_SERVICE_PORT}:\${${SERVICE_NAME_UPPER}_SERVICE_PORT}"
     working_dir: /app/services/$SERVICE_NAME
@@ -290,70 +326,17 @@ cat >>docker/docker-compose.override.yml <<EOF
           - ${SERVICE_NAME}-svc
 EOF
 
-# Update .env file
-echo "Updating .env file..."
-if [ ! -f ".env" ]; then
-    echo "Creating .env file..."
-    cat >.env <<EOF
-# Database Configuration
-DATABASE_NAME=service_db
-DATABASE_USER=postgres
-DATABASE_PASSWORD=postgres
-DATABASE_PORT=5432
-DATABASE_SSL_MODE=disable
-
-# API Gateway Configuration
-API_GATEWAY_NAME=api-gateway
-API_GATEWAY_PORT=8080
-API_GATEWAY_IMAGE=docker-api-gateway
-API_GATEWAY_CONTAINER=service-boilerplate-api-gateway
-API_GATEWAY_TMP_VOLUME=service-boilerplate-api-gateway-tmp
-
-# User Service Configuration
-USER_SERVICE_NAME=user-service
-USER_SERVICE_PORT=8081
-USER_SERVICE_IMAGE=docker-user-service
-USER_SERVICE_CONTAINER=service-boilerplate-user-service
-USER_SERVICE_TMP_VOLUME=service-boilerplate-user-service-tmp
-
-# $SERVICE_NAME Service Configuration
-${SERVICE_NAME_UPPER}_SERVICE_NAME=$SERVICE_NAME
-${SERVICE_NAME_UPPER}_SERVICE_PORT=$PORT
-${SERVICE_NAME_UPPER}_SERVICE_IMAGE=docker-$SERVICE_NAME
-${SERVICE_NAME_UPPER}_SERVICE_CONTAINER=service-boilerplate-$SERVICE_NAME
-${SERVICE_NAME_UPPER}_SERVICE_TMP_VOLUME=service-boilerplate-${SERVICE_NAME}-tmp
-
-# PostgreSQL Configuration
-POSTGRES_NAME=postgres
-POSTGRES_CONTAINER=service-boilerplate-postgres
-POSTGRES_VOLUME=service-boilerplate-postgres-data
-POSTGRES_IMAGE=postgres:15-alpine
-
-# Network Configuration
-NETWORK_NAME=service-boilerplate-network
-NETWORK_DRIVER=bridge
-
-# Migration Configuration
-MIGRATION_IMAGE=migrate/migrate:latest
-MIGRATION_CONTAINER_NAME=service-boilerplate-migration
-MIGRATION_TMP_VOLUME=service-boilerplate-migration-tmp
-
-# Application Configuration
-APP_ENV=development
-LOGGING_LEVEL=debug
-LOGGING_FORMAT=json
-DOCKER_ENV=false
-EOF
-else
-    # Add service configuration to existing .env file
-    echo "" >>.env
-    echo "# $SERVICE_NAME Service Configuration" >>.env
-    echo "${SERVICE_NAME_UPPER}_SERVICE_NAME=$SERVICE_NAME" >>.env
-    echo "${SERVICE_NAME_UPPER}_SERVICE_PORT=$PORT" >>.env
-    echo "${SERVICE_NAME_UPPER}_SERVICE_IMAGE=docker-$SERVICE_NAME" >>.env
-    echo "${SERVICE_NAME_UPPER}_SERVICE_CONTAINER=service-boilerplate-$SERVICE_NAME" >>.env
-    echo "${SERVICE_NAME_UPPER}_SERVICE_TMP_VOLUME=service-boilerplate-${SERVICE_NAME}-tmp" >>.env
-fi
+# Update .env.development file
+echo "Updating .env.development file..."
+# Add service configuration to .env.development file
+echo "" >>.env.development
+echo "# $SERVICE_NAME Service Configuration" >>.env.development
+echo "${SERVICE_NAME_UPPER}_SERVICE_NAME=$SERVICE_NAME" >>.env.development
+echo "${SERVICE_NAME_UPPER}_SERVICE_PORT=$PORT" >>.env.development
+echo "${SERVICE_NAME_UPPER}_SERVICE_IMAGE=docker-$SERVICE_NAME" >>.env.development
+echo "${SERVICE_NAME_UPPER}_SERVICE_CONTAINER=service-boilerplate-$SERVICE_NAME" >>.env.development
+echo "${SERVICE_NAME_UPPER}_SERVICE_TMP_VOLUME=service-boilerplate-${SERVICE_NAME}-tmp" >>.env.development
+echo "${SERVICE_NAME_UPPER}_LOGS_VOLUME=service-boilerplate-${SERVICE_NAME}-logs" >>.env.development
 
 # Update Makefile
 echo "Updating Makefile..."
@@ -399,28 +382,83 @@ fi
 # Create volume directories
 echo "Creating volume directories..."
 mkdir -p "docker/volumes/$SERVICE_NAME/tmp"
+mkdir -p "docker/volumes/$SERVICE_NAME/logs"
 
 # Database schema creation (optional)
 if [ "$CREATE_DB_SCHEMA" = true ]; then
     echo "Creating database schema for $SERVICE_NAME..."
 
-    # Add schema to .env
+    # Add schema to .env.development
     SCHEMA_VAR="${SERVICE_NAME_UPPER}_SCHEMA"
     SCHEMA_VALUE=$(echo "$SERVICE_NAME" | sed 's/-/_/g')
 
-    if ! grep -q "^${SCHEMA_VAR}=" .env; then
-        echo "${SCHEMA_VAR}=${SCHEMA_VALUE}" >> .env
-        echo "Added ${SCHEMA_VAR}=${SCHEMA_VALUE} to .env"
+    if ! grep -q "^${SCHEMA_VAR}=" .env.development; then
+        echo "${SCHEMA_VAR}=${SCHEMA_VALUE}" >>.env.development
+        echo "Added ${SCHEMA_VAR}=${SCHEMA_VALUE} to .env.development"
     fi
 
     # Actually create the schema in database
     echo "Creating schema $SCHEMA_VALUE in database..."
-    docker-compose exec postgres psql -U postgres -d service_db -c "CREATE SCHEMA IF NOT EXISTS $SCHEMA_VALUE;" 2>/dev/null || \
-    echo "Note: Database may not be running yet. Schema will be created when migrations run."
+    docker-compose exec postgres psql -U postgres -d service_db -c "CREATE SCHEMA IF NOT EXISTS $SCHEMA_VALUE;" 2>/dev/null ||
+        echo "Note: Database may not be running yet. Schema will be created when migrations run."
 
     if [ -f "services/$SERVICE_NAME/migrations/000001_initial.up.sql" ]; then
-        echo "Database schema created. Run migrations with: make db-migrate-up SERVICE_NAME=$SERVICE_NAME"
+        echo "Database schema created. Run migrations with:"
+        echo "  make db-migrate-init SERVICE_NAME=$SERVICE_NAME"
+        echo "  make db-migrate-up SERVICE_NAME=$SERVICE_NAME"
+        echo "   - db-migrate-init creates the migration tracking table"
+        echo "   - db-migrate-up runs the actual migrations"
     fi
+fi
+
+# Update Promtail configuration
+echo "Updating Promtail configuration..."
+if [ -f "docker/promtail-config.yml" ]; then
+    # Create temporary file for new job configuration
+    JOB_CONFIG_FILE=$(mktemp)
+
+    # Create Promtail job for the new service
+    cat >"$JOB_CONFIG_FILE" <<EOF
+
+  # $SERVICE_NAME logs
+  - job_name: $SERVICE_NAME
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: $SERVICE_NAME
+          service: $SERVICE_NAME
+          __path__: /var/log/$SERVICE_NAME/*.log
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            timestamp: timestamp
+            service: service
+            request_id: request_id
+            method: method
+            path: path
+            status: status
+            duration_ms: duration_ms
+      - labels:
+          level:
+          service:
+          request_id:
+          method:
+          path:
+          status:
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+EOF
+
+    # Append the job configuration to the end of scrape_configs
+    cat "$JOB_CONFIG_FILE" >> docker/promtail-config.yml
+
+    # Clean up temporary file
+    rm -f "$JOB_CONFIG_FILE"
+
+    echo "Added $SERVICE_NAME to Promtail configuration"
 fi
 
 # Update documentation
@@ -440,6 +478,7 @@ echo "1. Review and customize the generated code in services/$SERVICE_NAME/"
 echo "2. Update API gateway routes in api-gateway/cmd/main.go for $SERVICE_NAME"
 if [ "$CREATE_DB_SCHEMA" = true ]; then
     echo "3. Run database migrations: make db-migrate-up SERVICE_NAME=$SERVICE_NAME"
+    echo "   - This will create the migration tracking table and enable enhanced migration features"
 fi
 echo "4. Build the service: make build-$SERVICE_NAME"
 echo "5. Start the service: make run-$SERVICE_NAME"

@@ -6,9 +6,11 @@ import (
 	"net/mail"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/v-egorov/service-boilerplate/services/user-service/internal/models"
 	"github.com/v-egorov/service-boilerplate/services/user-service/internal/repository"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type UserService struct {
@@ -49,10 +51,18 @@ func (s *UserService) CreateUser(ctx context.Context, req *models.CreateUserRequ
 		return nil, models.NewConflictError("User", "email", req.Email)
 	}
 
+	// Hash the password
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to hash password")
+		return nil, models.NewInternalError("hashing password", err)
+	}
+
 	user := &models.User{
-		Email:     req.Email,
-		FirstName: req.FirstName,
-		LastName:  req.LastName,
+		Email:        req.Email,
+		PasswordHash: string(passwordHash),
+		FirstName:    req.FirstName,
+		LastName:     req.LastName,
 	}
 
 	created, err := s.repo.Create(ctx, user)
@@ -70,6 +80,51 @@ func (s *UserService) CreateUser(ctx context.Context, req *models.CreateUserRequ
 	}
 
 	return s.toResponse(created), nil
+}
+
+func (s *UserService) GetUserByEmail(ctx context.Context, email string) (*models.UserResponse, error) {
+	if email == "" {
+		return nil, models.NewValidationError("email", "email is required")
+	}
+
+	user, err := s.repo.GetByEmail(ctx, email)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get user by email in service")
+
+		// Check for different types of "not found" errors
+		errMsg := strings.ToLower(err.Error())
+		if strings.Contains(errMsg, "no rows") || strings.Contains(errMsg, "not found") {
+			return nil, models.NewNotFoundError("User", "email", email)
+		}
+
+		return nil, models.NewInternalError("getting user by email", err)
+	}
+
+	return s.toResponse(user), nil
+}
+
+func (s *UserService) GetUserWithPasswordByEmail(ctx context.Context, email string) (*models.UserLoginResponse, error) {
+	if email == "" {
+		return nil, models.NewValidationError("email", "email is required")
+	}
+
+	user, err := s.repo.GetByEmail(ctx, email)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get user by email in service")
+
+		// Check for different types of "not found" errors
+		errMsg := strings.ToLower(err.Error())
+		if strings.Contains(errMsg, "no rows") || strings.Contains(errMsg, "not found") {
+			return nil, models.NewNotFoundError("User", "email", email)
+		}
+
+		return nil, models.NewInternalError("getting user by email", err)
+	}
+
+	return &models.UserLoginResponse{
+		User:         s.toResponse(user),
+		PasswordHash: user.PasswordHash,
+	}, nil
 }
 
 // validateCreateUserRequest validates the user creation request
@@ -109,12 +164,25 @@ func (s *UserService) validateCreateUserRequest(req *models.CreateUserRequest) e
 		return models.NewValidationError("last_name", "last name must be less than 100 characters")
 	}
 
+	// Validate password
+	if req.Password == "" {
+		return models.NewValidationError("password", "password is required")
+	}
+
+	if len(req.Password) < 6 {
+		return models.NewValidationError("password", "password must be at least 6 characters")
+	}
+
+	if len(req.Password) > 128 {
+		return models.NewValidationError("password", "password must be less than 128 characters")
+	}
+
 	return nil
 }
 
-func (s *UserService) GetUser(ctx context.Context, id int) (*models.UserResponse, error) {
-	if id <= 0 {
-		return nil, models.NewValidationError("id", "user ID must be positive")
+func (s *UserService) GetUser(ctx context.Context, id uuid.UUID) (*models.UserResponse, error) {
+	if id == uuid.Nil {
+		return nil, models.NewValidationError("id", "user ID is required")
 	}
 
 	user, err := s.repo.GetByID(ctx, id)
@@ -133,9 +201,9 @@ func (s *UserService) GetUser(ctx context.Context, id int) (*models.UserResponse
 	return s.toResponse(user), nil
 }
 
-func (s *UserService) ReplaceUser(ctx context.Context, id int, req *models.ReplaceUserRequest) (*models.UserResponse, error) {
-	if id <= 0 {
-		return nil, models.NewValidationError("id", "user ID must be positive")
+func (s *UserService) ReplaceUser(ctx context.Context, id uuid.UUID, req *models.ReplaceUserRequest) (*models.UserResponse, error) {
+	if id == uuid.Nil {
+		return nil, models.NewValidationError("id", "user ID is required")
 	}
 
 	// Validate replace request (all fields required)
@@ -180,9 +248,9 @@ func (s *UserService) ReplaceUser(ctx context.Context, id int, req *models.Repla
 	return s.toResponse(updated), nil
 }
 
-func (s *UserService) UpdateUser(ctx context.Context, id int, req *models.UpdateUserRequest) (*models.UserResponse, error) {
-	if id <= 0 {
-		return nil, models.NewValidationError("id", "user ID must be positive")
+func (s *UserService) UpdateUser(ctx context.Context, id uuid.UUID, req *models.UpdateUserRequest) (*models.UserResponse, error) {
+	if id == uuid.Nil {
+		return nil, models.NewValidationError("id", "user ID is required")
 	}
 
 	// Validate update request
@@ -292,9 +360,9 @@ func (s *UserService) validateUpdateUserRequest(req *models.UpdateUserRequest) e
 	return nil
 }
 
-func (s *UserService) DeleteUser(ctx context.Context, id int) error {
-	if id <= 0 {
-		return models.NewValidationError("id", "user ID must be positive")
+func (s *UserService) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	if id == uuid.Nil {
+		return models.NewValidationError("id", "user ID is required")
 	}
 
 	err := s.repo.Delete(ctx, id)

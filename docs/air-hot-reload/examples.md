@@ -320,7 +320,7 @@ make clean-test       # Remove test artifacts
 
 ```bash
 # Build production images
-make docker-build
+make build-prod
 
 # Deploy to production
 APP_ENV=production make up
@@ -397,7 +397,7 @@ docker-compose logs -f user-service --tail=100
 docker stats
 
 # Check build times
-time make dev-build
+time make build-dev
 
 # Profile application
 go tool pprof http://localhost:8080/debug/pprof/profile
@@ -445,7 +445,7 @@ jobs:
         run: make test
 
       - name: Build development images
-        run: make dev-build
+        run: make build-dev
 ```
 
 ### Docker Compose for CI

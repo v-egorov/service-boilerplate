@@ -17,7 +17,7 @@ Before you begin, ensure you have:
 Let's create a migration to add user preferences:
 
 ```bash
-make db-migration-generate NAME=add_user_preferences TYPE=table
+make db-migrate-generate NAME=add_user_preferences TYPE=table
 ```
 
 This creates:
@@ -175,7 +175,7 @@ SELECT * FROM users;
 
 ```bash
 # Generate development-specific migration
-make db-migration-generate NAME=add_dev_test_data TYPE=data
+make db-migrate-generate NAME=add_dev_test_data TYPE=data
 
 # This creates files in development/ subdirectory
 # Only runs in development environment
@@ -194,7 +194,7 @@ For production migrations:
 
 ```bash
 # Migration lifecycle
-make db-migration-generate NAME=feature TYPE=table  # Create
+make db-migrate-generate NAME=feature TYPE=table  # Create
 make db-validate                                   # Validate
 make db-migrate-up                                 # Apply
 make db-migrate-status                             # Check status
@@ -239,7 +239,7 @@ make logs
 
 ```bash
 # Force rollback to specific version
-make db-migrate-goto VERSION=000004
+
 
 # Check current migration state
 make db-migrate-status

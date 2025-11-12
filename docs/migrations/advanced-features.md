@@ -262,34 +262,10 @@ else
 fi
 
 # Run post-migration tests
-npm test -- --grep "migration"
+make test-all
 ```
 
-### Automated Rollback Procedures
 
-```bash
-# emergency_rollback.sh
-#!/bin/bash
-echo "🚨 Emergency rollback initiated"
-
-# Get current migration version
-CURRENT_VERSION=$(make db-migrate-status | grep "dirty" | cut -d' ' -f1)
-
-if [ -n "$CURRENT_VERSION" ]; then
-  echo "📋 Rolling back from dirty state: $CURRENT_VERSION"
-
-  # Force rollback
-  make db-migrate-goto VERSION=$((CURRENT_VERSION - 1))
-
-  # Verify rollback
-  if make db-migrate-status | grep -q "dirty"; then
-    echo "❌ Rollback failed, database still in dirty state"
-    exit 1
-  fi
-fi
-
-echo "✅ Emergency rollback completed"
-```
 
 ## Performance Monitoring
 
@@ -439,10 +415,10 @@ echo "✅ All services deployed successfully"
 
 ```bash
 # Rollback to specific migration
-make db-migrate-goto VERSION=000003
+
 
 # Rollback multiple migrations
-make db-migrate-goto VERSION=000001
+
 
 # Safe rollback with validation
 make db-rollback-safe MIGRATION=000004

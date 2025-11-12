@@ -12,6 +12,9 @@ type Config struct {
 	Logging    LoggingConfig    `mapstructure:"logging"`
 	Server     ServerConfig     `mapstructure:"server"`
 	Monitoring MonitoringConfig `mapstructure:"monitoring"`
+	Alerting   AlertingConfig   `mapstructure:"alerting"`
+	Tracing    TracingConfig    `mapstructure:"tracing"`
+	JWT        JWTConfig        `mapstructure:"jwt"`
 }
 
 type AppConfig struct {
@@ -34,9 +37,11 @@ type DatabaseConfig struct {
 }
 
 type LoggingConfig struct {
-	Level  string `mapstructure:"level"`
-	Format string `mapstructure:"format"`
-	Output string `mapstructure:"output"`
+	Level              string `mapstructure:"level"`
+	Format             string `mapstructure:"format"`
+	Output             string `mapstructure:"output"`
+	DualOutput         bool   `mapstructure:"dual_output"`
+	StripANSIFromFiles bool   `mapstructure:"strip_ansi_from_files"`
 }
 
 type ServerConfig struct {
@@ -48,6 +53,24 @@ type MonitoringConfig struct {
 	HealthCheckTimeout    int  `mapstructure:"health_check_timeout"`
 	StatusCacheDuration   int  `mapstructure:"status_cache_duration"`
 	EnableDetailedMetrics bool `mapstructure:"enable_detailed_metrics"`
+}
+
+type AlertingConfig struct {
+	Enabled               bool    `mapstructure:"enabled"`
+	ErrorRateThreshold    float64 `mapstructure:"error_rate_threshold"`
+	ResponseTimeThreshold int     `mapstructure:"response_time_threshold_ms"`
+	AlertIntervalMinutes  int     `mapstructure:"alert_interval_minutes"`
+}
+
+type TracingConfig struct {
+	Enabled      bool    `mapstructure:"enabled"`
+	ServiceName  string  `mapstructure:"service_name"`
+	CollectorURL string  `mapstructure:"collector_url"`
+	SamplingRate float64 `mapstructure:"sampling_rate"`
+}
+
+type JWTConfig struct {
+	PublicKey string `mapstructure:"public_key"`
 }
 
 func Load(configPath string) (*Config, error) {
@@ -72,8 +95,16 @@ func Load(configPath string) (*Config, error) {
 	viper.BindEnv("database.ssl_mode", "DATABASE_SSL_MODE")
 	viper.BindEnv("logging.level", "LOGGING_LEVEL")
 	viper.BindEnv("logging.format", "LOGGING_FORMAT")
+	viper.BindEnv("logging.output", "LOGGING_OUTPUT")
+	viper.BindEnv("logging.dual_output", "LOGGING_DUAL_OUTPUT")
+	viper.BindEnv("logging.strip_ansi_from_files", "LOGGING_STRIP_ANSI_FROM_FILES")
 	viper.BindEnv("server.port", "SERVER_PORT")
 	viper.BindEnv("app.environment", "APP_ENV")
+	viper.BindEnv("tracing.enabled", "TRACING_ENABLED")
+	viper.BindEnv("tracing.service_name", "TRACING_SERVICE_NAME")
+	viper.BindEnv("tracing.collector_url", "TRACING_COLLECTOR_URL")
+	viper.BindEnv("tracing.sampling_rate", "TRACING_SAMPLING_RATE")
+	viper.BindEnv("jwt.public_key", "JWT_PUBLIC_KEY")
 
 	// Set environment variable defaults for Docker
 	if os.Getenv("DOCKER_ENV") == "true" {
@@ -120,6 +151,8 @@ func setDefaults() {
 	viper.SetDefault("logging.level", "info")
 	viper.SetDefault("logging.format", "json")
 	viper.SetDefault("logging.output", "stdout")
+	viper.SetDefault("logging.dual_output", true)
+	viper.SetDefault("logging.strip_ansi_from_files", true)
 
 	// Server defaults
 	viper.SetDefault("server.host", "0.0.0.0")
@@ -129,4 +162,16 @@ func setDefaults() {
 	viper.SetDefault("monitoring.health_check_timeout", 5)
 	viper.SetDefault("monitoring.status_cache_duration", 30)
 	viper.SetDefault("monitoring.enable_detailed_metrics", true)
+
+	// Alerting defaults
+	viper.SetDefault("alerting.enabled", false)
+	viper.SetDefault("alerting.error_rate_threshold", 0.1)        // 10% error rate
+	viper.SetDefault("alerting.response_time_threshold_ms", 5000) // 5 seconds
+	viper.SetDefault("alerting.alert_interval_minutes", 5)        // Alert every 5 minutes max
+
+	// Tracing defaults
+	viper.SetDefault("tracing.enabled", false)
+	viper.SetDefault("tracing.service_name", "service-boilerplate")
+	viper.SetDefault("tracing.collector_url", "http://jaeger:4318/v1/traces")
+	viper.SetDefault("tracing.sampling_rate", 1.0)
 }

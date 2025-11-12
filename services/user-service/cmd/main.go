@@ -10,9 +10,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/v-egorov/service-boilerplate/common/alerting"
 	"github.com/v-egorov/service-boilerplate/common/config"
 	"github.com/v-egorov/service-boilerplate/common/database"
 	"github.com/v-egorov/service-boilerplate/common/logging"
+	"github.com/v-egorov/service-boilerplate/common/middleware"
+	"github.com/v-egorov/service-boilerplate/common/tracing"
 	"github.com/v-egorov/service-boilerplate/services/user-service/internal/handlers"
 	"github.com/v-egorov/service-boilerplate/services/user-service/internal/repository"
 	"github.com/v-egorov/service-boilerplate/services/user-service/internal/services"
@@ -28,11 +31,25 @@ func main() {
 
 	// Initialize logger
 	logger := logging.NewLogger(logging.Config{
-		Level:       cfg.Logging.Level,
-		Format:      cfg.Logging.Format,
-		Output:      cfg.Logging.Output,
-		ServiceName: cfg.App.Name,
+		Level:              cfg.Logging.Level,
+		Format:             cfg.Logging.Format,
+		Output:             cfg.Logging.Output,
+		DualOutput:         cfg.Logging.DualOutput,
+		ServiceName:        cfg.App.Name,
+		StripANSIFromFiles: cfg.Logging.StripANSIFromFiles,
 	})
+
+	// Initialize tracing
+	tracerProvider, err := tracing.InitTracer(cfg.Tracing)
+	if err != nil {
+		logger.Warn("Failed to initialize tracing", err)
+	} else if tracerProvider != nil {
+		defer func() {
+			if err := tracing.ShutdownTracer(tracerProvider); err != nil {
+				logger.Error("Failed to shutdown tracer", err)
+			}
+		}()
+	}
 
 	// Initialize database
 	dbConfig := database.Config{
@@ -76,6 +93,23 @@ func main() {
 		userHandler = nil // User operations won't work without database
 	}
 
+	// Initialize service request logger
+	serviceLogger := logging.NewServiceRequestLogger(logger.Logger, "user-service")
+
+	// Initialize alert manager
+	alertManager := alerting.NewAlertManager(logger.Logger, "user-service", &cfg.Alerting, serviceLogger.GetMetricsCollector())
+
+	// Start alert checking goroutine
+	if cfg.Alerting.Enabled {
+		go func() {
+			ticker := time.NewTicker(1 * time.Minute)
+			defer ticker.Stop()
+			for range ticker.C {
+				alertManager.CheckMetrics()
+			}
+		}()
+	}
+
 	// Setup Gin router
 	if cfg.App.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -84,9 +118,22 @@ func main() {
 	router := gin.New()
 
 	// Middleware
-	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 	router.Use(corsMiddleware())
+	if cfg.Tracing.Enabled {
+		router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
+	}
+	// JWT middleware for optional authentication
+	// SECURITY NOTE: This service uses nil for TokenRevocationChecker because:
+	// 1. It's an internal service accessed through API Gateway
+	// 2. API Gateway enforces token validation and revocation checking
+	// 3. Direct access to this service should NOT be allowed in production
+	// 4. Internal services trust the gateway's security validation
+	//
+	// For services that may be directly exposed, implement TokenRevocationChecker
+	// See: docs/security-architecture.md for detailed guidelines
+	router.Use(middleware.JWTMiddleware(nil, logger.Logger, nil))
+	router.Use(serviceLogger.RequestResponseLogger())
 
 	// Health check endpoints (public, no auth required)
 	router.GET("/health", healthHandler.LivenessHandler)
@@ -102,12 +149,26 @@ func main() {
 		v1.GET("/status", healthHandler.StatusHandler)
 		v1.GET("/ping", healthHandler.PingHandler)
 
+		// Metrics endpoint
+		v1.GET("/metrics", func(c *gin.Context) {
+			metrics := serviceLogger.GetMetricsCollector().GetMetrics()
+			c.JSON(http.StatusOK, metrics)
+		})
+
+		// Alerts endpoint
+		v1.GET("/alerts", func(c *gin.Context) {
+			alerts := alertManager.GetActiveAlerts()
+			c.JSON(http.StatusOK, gin.H{"alerts": alerts})
+		})
+
 		// User endpoints (only if database is available)
 		if userHandler != nil {
 			users := v1.Group("/users")
 			{
 				users.POST("", userHandler.CreateUser)
 				users.GET("/:id", userHandler.GetUser)
+				users.GET("/by-email/:email", userHandler.GetUserByEmail)
+				users.GET("/by-email/:email/with-password", userHandler.GetUserWithPasswordByEmail)
 				users.PUT("/:id", userHandler.ReplaceUser)  // Full resource replacement
 				users.PATCH("/:id", userHandler.UpdateUser) // Partial resource update
 				users.DELETE("/:id", userHandler.DeleteUser)

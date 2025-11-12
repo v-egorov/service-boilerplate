@@ -7,6 +7,7 @@ logging:
   level: "debug"
   format: "json"
   output: "stdout"
+  strip_ansi_from_files: true
 
 server:
   host: "0.0.0.0"
@@ -16,3 +17,18 @@ monitoring:
   health_check_timeout: 5
   status_cache_duration: 30
   enable_detailed_metrics: true
+
+alerting:
+  enabled: false
+  error_rate_threshold: 0.1  # 10% error rate
+  response_time_threshold_ms: 5000  # 5 seconds
+  alert_interval_minutes: 5  # Alert every 5 minutes max
+
+tracing:
+  enabled: true
+  service_name: "api-gateway"
+  collector_url: "http://jaeger:4318/v1/traces"
+  sampling_rate: 1.0
+
+jwt:
+  public_key: ""  # Set via JWT_PUBLIC_KEY environment variable

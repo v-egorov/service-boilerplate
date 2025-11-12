@@ -78,11 +78,14 @@ ehthumbs.db
 Thumbs.db
 
 # Environment files
+#                       !!! THIS IS A BOILERPLATE REPO !!!
+#                      DON'T FORGET TO UNCOMMENT .env* BELOW
+# to prevent serets leackage via git repo
 # .env
 # .env.local
 # .env.development
 # .env.test
-.env.production
+# .env.production
 
 # Database files
 *.db
@@ -189,3 +192,6 @@ tmp/
 
 backup_*.sql
 cli/boilerplate-cli
+
+# Agents prompts work-in-progress
+prompt*.md

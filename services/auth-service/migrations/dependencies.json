@@ -1,0 +1,63 @@
+{
+  "migrations": {
+    "000001": {
+      "description": "Create SCHEMA_NAME schema and entities table",
+      "depends_on": [],
+      "affects_tables": [
+        "SCHEMA_NAME.entities"
+      ],
+      "estimated_duration": "30s",
+      "risk_level": "low",
+      "rollback_safe": true
+    },
+    "000002": {
+      "description": "Create JWT keys table for persistent RSA key storage",
+      "depends_on": [
+        "000001"
+      ],
+      "affects_tables": [
+        "auth_service.jwt_keys"
+      ],
+      "estimated_duration": "15s",
+      "risk_level": "low",
+      "rollback_safe": true
+    },
+    "000003": {
+      "description": "Add key rotation enhancements to JWT keys table",
+      "depends_on": [
+        "000002"
+      ],
+      "affects_tables": [
+        "auth_service.jwt_keys",
+        "auth_service.key_rotation_config"
+      ],
+      "estimated_duration": "20s",
+      "risk_level": "low",
+      "rollback_safe": true
+    },
+     "000004": {
+       "description": "Setup development admin accounts with RBAC roles",
+       "depends_on": [
+         "000001",
+         "000002",
+         "000003"
+       ],
+       "cross_service_depends_on": {
+         "user-service": ["000001", "000002", "000003"]
+       },
+       "affects_tables": [
+         "auth_service.user_roles"
+       ],
+       "estimated_duration": "10s",
+       "risk_level": "low",
+       "rollback_safe": true,
+       "environment": "development"
+     }
+  },
+  "global_config": {
+    "max_parallel_migrations": 1,
+    "require_approval_for_high_risk": true,
+    "auto_backup_before_destructive": true,
+    "validate_after_migration": true
+  }
+}
