@@ -1,4 +1,5 @@
 # Service Boilerplate Makefile
+MAKEFLAGS += --no-print-directory
 
 # Project variables
 PROJECT_NAME := service-boilerplate
@@ -54,18 +55,41 @@ MIGRATION_IMAGE := migrate/migrate:latest
 # Docker cleanup configuration
 DOCKER_CLEANUP_MODE ?= smart
 
-# Dynamic service variable loading from .env file
+# Environment-specific configuration
+APP_ENV ?= development
+ENV_FILE := .env
+ifneq ("$(wildcard .env.$(APP_ENV))","")
+    ENV_FILE := .env.$(APP_ENV)
+endif
+
+# Dynamic service variable loading from environment-specific .env file
 # Extract all service containers, images, and volumes from .env
-SERVICE_CONTAINERS := $(shell grep "_CONTAINER=" .env | grep -v "POSTGRES_CONTAINER" | cut -d'=' -f2)
-SERVICE_IMAGES := $(shell grep "_IMAGE=" .env | grep -v "POSTGRES_IMAGE\|MIGRATION_IMAGE" | cut -d'=' -f2)
-SERVICE_VOLUMES := $(shell grep "_VOLUME=" .env | grep -v "POSTGRES_VOLUME\|MIGRATION_TMP_VOLUME" | cut -d'=' -f2)
+SERVICE_CONTAINERS := $(shell grep "_CONTAINER=" $(ENV_FILE) | grep -v "POSTGRES_CONTAINER" | grep -v -E "(LOKI|PROMTAIL|GRAFANA)_CONTAINER" | cut -d'=' -f2)
+SERVICE_IMAGES := $(shell grep "_IMAGE=" $(ENV_FILE) | grep -v "POSTGRES_IMAGE\|MIGRATION_IMAGE" | grep -v -E "(LOKI|PROMTAIL|GRAFANA)_IMAGE" | cut -d'=' -f2)
+SERVICE_VOLUMES := $(shell grep "_VOLUME=" $(ENV_FILE) | grep -v "POSTGRES_VOLUME\|MIGRATION_TMP_VOLUME" | grep -v -E "(LOKI_DATA|PROMTAIL_POSITIONS|GRAFANA_DATA)_VOLUME" | cut -d'=' -f2)
+
+# Extract monitoring containers, images, and volumes from .env
+MONITORING_CONTAINERS := $(shell grep "_CONTAINER=" $(ENV_FILE) | grep -E "(LOKI|PROMTAIL|GRAFANA)_CONTAINER" | cut -d'=' -f2)
+MONITORING_IMAGES := $(shell grep "_IMAGE=" $(ENV_FILE) | grep -E "(LOKI|PROMTAIL|GRAFANA)_IMAGE" | cut -d'=' -f2)
+MONITORING_VOLUMES := $(shell grep "_VOLUME=" $(ENV_FILE) | grep -E "(LOKI_DATA|PROMTAIL_POSITIONS|GRAFANA_DATA)_VOLUME" | cut -d'=' -f2)
+MONITORING_VOLUME_DIRS := $(shell grep "_VOLUME=" $(ENV_FILE) | grep -E "(LOKI_DATA|PROMTAIL_POSITIONS|GRAFANA_DATA)_VOLUME" | cut -d'=' -f2 | sed 's/$(DOCKER_VOLUME_PREFIX)-//' | sed 's/-data$$//' | sed 's/-positions$$//')
 
 .PHONY: help
 help: ## Show this help message
 	@echo 'Usage: make [target]'
 	@echo ''
-	@echo 'Targets:'
+	@echo '🚀 QUICK START:'
+	@echo '  make dev     - 🛠️  Start DEVELOPMENT environment (hot reload, debug logs)'
+	@echo '  make prod    - 🚀 Start PRODUCTION environment (pre-built images)'
+
+	@echo ''
+	@echo '📋 Available Targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ''
+	@echo '💡 DEVELOPMENT vs PRODUCTION:'
+	@echo '  • make dev  : Hot reload, volume mounts, debug logging, development tools'
+	@echo '  • make prod : Pre-built optimized images, production settings'
+
 	@echo ''
 	@echo 'CLI Commands:'
 	@echo '  build-cli          - Build CLI utility'
@@ -90,14 +114,22 @@ help: ## Show this help message
 	@echo '  db-create          - Create database if it does not exist'
 	@echo '  db-drop            - Drop database (with confirmation)'
 	@echo '  db-recreate        - Recreate database from scratch'
-	@echo '  db-migrate-up      - Run migrations up'
-	@echo '  db-migrate-down    - Run migrations down'
-	@echo '  db-migrate-status  - Show migration status'
-	@echo '  db-migrate-goto VERSION= - Go to specific version'
-	@echo '  db-migrate-validate - Validate migration files'
-	@echo '  db-migration-create NAME= - Create migration file'
-	@echo '  db-migration-list  - List migration files'
+	@echo ''
+	@echo 'Migration Management (Orchestrator):'
+	@echo '  db-migrate-init    - Initialize migration tracking for service'
+	@echo '  db-migrate         - Run migrations for all services (or specific with SERVICE_NAME=)'
+	@echo '  db-migrate-up      - Run migrations up for specific service'
+	@echo '  db-migrate-down    - Run migrations down for specific service'
+	@echo '  db-migrate-status  - Show migration status for specific service'
+	@echo '  db-migrate-list    - List migration executions for specific service'
+	@echo '  db-migrate-validate - Validate migrations for specific service'
+	@echo '  db-migrate-create NAME= - Create migration file'
+	@echo '  db-migrate-generate NAME= TYPE= - Generate migration with templates'
+	@echo '  db-migrate-file-list  - List migration files'
+	@echo ''
+	@echo 'Data Management:'
 	@echo '  db-seed            - Seed database with test data'
+	@echo '  db-seed-enhanced ENV= - Environment-specific seeding'
 	@echo '  db-dump            - Create database dump'
 	@echo '  db-restore FILE=   - Restore database from dump'
 	@echo '  db-clean           - Clean all data from tables'
@@ -140,7 +172,7 @@ setup: ## Initialize project (download deps, setup tools)
 	@$(GOMOD) tidy
 
 .PHONY: build
-build: build-gateway build-user-service ## Build all services
+build: build-gateway build-user-service build-auth-service ## Build all services
 
 .PHONY: build-gateway
 build-gateway: ## Build API Gateway
@@ -165,33 +197,79 @@ build-cli: ## Build CLI utility
 build-all: build build-cli ## Build all services and CLI
 	@echo "✅ All components built successfully"
 
-.PHONY: up
-up: ## Start all services with Docker (PRIMARY)
-	@echo "Starting services with Docker..."
-	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) up -d
-	@echo "Services started! Use 'make logs' to view logs."
+.PHONY: check-prod-safety
+check-prod-safety:
+	@if [ -f ".git" ] && [ -d "api-gateway" ] && [ "$(APP_ENV)" != "production" ] && [ "$(FORCE_PROD)" != "true" ]; then \
+		echo "⚠️  WARNING: You appear to be in a DEVELOPMENT environment."; \
+		echo "   Production mode uses pre-built images without hot reload."; \
+		echo "   For development with hot reload, use: make dev"; \
+		echo ""; \
+		read -p "Continue with production mode? (y/N): " confirm; \
+		if [ "$$confirm" != "y" ] && [ "$$confirm" != "Y" ]; then \
+			echo "❌ Production start cancelled. Use 'make dev' for development."; \
+			exit 1; \
+		fi; \
+	fi
+
+.PHONY: prod
+prod: check-prod-safety ## 🚀 Start services in PRODUCTION mode (pre-built images, no hot reload)
+	@echo "🏭 Starting PRODUCTION environment..."
+	@echo "⚠️  WARNING: This uses pre-built production images without hot reload!"
+	@echo "   For development/debugging with hot reload, use: make dev"
+	@echo ""
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) up -d
+	@echo "✅ Production services started! Use 'make logs' to view logs."
+
+
+
+.PHONY: smart-start
+smart-start: ## 🧠 Smart start - automatically detects environment and uses appropriate mode
+	@if [ "$(APP_ENV)" = "production" ] || [ "$(FORCE_PROD)" = "true" ]; then \
+		echo "🏭 Detected PRODUCTION environment - starting with optimized images..."; \
+		$(MAKE) prod; \
+	else \
+		echo "🛠️  Detected DEVELOPMENT environment - starting with hot reload..."; \
+		$(MAKE) dev; \
+	fi
+
+.PHONY: start
+start: build-prod prod ## ⚠️  DEPRECATED: Use 'make smart-start' or specify 'make prod'/'make dev'
+	@echo "✅ Services built and started successfully"
 
 .PHONY: down
 down: ## Stop all services
 	@echo "Stopping services..."
-	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) down
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) down
 	@echo "Services stopped."
 
 .PHONY: dev
 dev: create-volumes-dirs  ## Start services in development mode with hot reload
 	@echo "Starting development environment with hot reload..."
-	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) up
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) up
 
-.PHONY: dev-build
-dev-build: ## Build development images with Air
+.PHONY: build-dev
+build-dev: ## Build development images with Air
 	@echo "Building development images..."
-	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) build
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) build
 
 
+
+.PHONY: status
+status: ## Show current environment status and running services
+	@echo "📊 Environment Status:"
+	@echo "  APP_ENV: $(APP_ENV)"
+	@echo "  Services running:"
+	@docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep service-boilerplate || echo "    No service-boilerplate containers running"
+	@echo ""
+	@echo "💡 Quick Commands:"
+	@echo "  make dev    - Start development environment (hot reload)"
+	@echo "  make prod   - Start production environment (pre-built)"
+	@echo "  make down   - Stop all services"
+	@echo "  make logs   - View service logs"
 
 .PHONY: logs
 logs: ## Show service logs
-	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) logs -f
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) logs -f
 
 
 
@@ -266,9 +344,9 @@ lint: ## Run golangci-lint
 .PHONY: check
 check: fmt vet lint ## Run fmt, vet, and lint
 
-.PHONY: docker-build
-docker-build: ## Build all Docker images
-	@echo "Building Docker images..."
+.PHONY: build-prod
+build-prod: ## Build production Docker images
+	@echo "Building production Docker images..."
 	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) build
 
 .PHONY: docker-logs
@@ -292,9 +370,10 @@ DATABASE_NAME ?= service_db
 DATABASE_SSL_MODE ?= disable
 # SERVICE_NAME defaults to empty (run all services) or can be set to specific service
 MIGRATION_IMAGE ?= migrate/migrate:latest
+ORCHESTRATOR_IMAGE ?= migration-orchestrator:latest
 
-# Auto-detect services with migrations
-SERVICES_WITH_MIGRATIONS := $(shell find services -name "migrations" -type d 2>/dev/null | sed 's|/migrations||' | sed 's|services/||' | sort)
+# Auto-detect services with migrations (exclude empty directories)
+SERVICES_WITH_MIGRATIONS := $(shell find services -name "migrations" -type d -exec test -f {}/dependencies.json \; -print 2>/dev/null | sed 's|/migrations||' | sed 's|services/||' | sort)
 POSTGRES_NAME ?= postgres
 
 # Database URL construction for targets
@@ -304,18 +383,18 @@ DATABASE_URL := postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST
 .PHONY: db-connect
 db-connect: ## Connect to database shell
 	@echo "🔌 Connecting to database..."
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME)
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME)
 
 .PHONY: db-status
 db-status: ## Show database status and connections
 	@echo "📊 Database Status:"
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT version();" 2>/dev/null || echo "❌ Database not accessible"
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT count(*) as active_connections FROM pg_stat_activity;" 2>/dev/null || echo "❌ Cannot query connections"
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT version();" 2>/dev/null || echo "❌ Database not accessible"
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT count(*) as active_connections FROM pg_stat_activity;" 2>/dev/null || echo "❌ Cannot query connections"
 
 .PHONY: db-health
 db-health: ## Check database health and connectivity
 	@echo "🏥 Database Health Check:"
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres pg_isready -U $(DATABASE_USER) -d $(DATABASE_NAME) -h $(DATABASE_HOST) -p $(DATABASE_PORT)
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres pg_isready -U $(DATABASE_USER) -d $(DATABASE_NAME) -h $(DATABASE_HOST) -p $(DATABASE_PORT)
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database is healthy and accepting connections"; \
 	else \
@@ -347,52 +426,125 @@ db-recreate: db-drop db-create ## Recreate database from scratch
 
 ## Migration Management (Docker-Based)
 # Service-specific migration table name (e.g., user_service_schema_migrations)
-MIGRATION_TABLE = $(shell echo $(SERVICE_NAME) | sed 's/-/_/g')_schema_migrations
-
-.PHONY: db-migrate-prepare
-db-migrate-prepare: ## Prepare migration environment (create required directories)
-	@echo "📁 Preparing migration environment..."
-	@mkdir -p tmp/migrations
-	@if [ ! -d "tmp/migrations" ]; then \
-		echo "❌ Failed to create tmp/migrations directory"; \
+.PHONY: db-migrate-init
+db-migrate-init: ## Initialize migration tracking for service using orchestrator
+	@echo "🔧 Initializing migration tracking for $(SERVICE_NAME) with orchestrator..."
+	@if [ -z "$(SERVICE_NAME)" ]; then \
+		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-init SERVICE_NAME=user-service)"; \
 		exit 1; \
 	fi
-	@echo "✅ Migration environment ready"
+	@docker run --rm --network service-boilerplate-network \
+		--env-file $(ENV_FILE) \
+		-e DB_HOST=$(POSTGRES_NAME) \
+		-e DB_PORT=$(DATABASE_PORT) \
+		-e DB_USER=$(DATABASE_USER) \
+		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
+		-e DB_NAME=$(DATABASE_NAME) \
+		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
+		-v $(PWD)/services:/services \
+		migration-orchestrator:latest \
+		init $(SERVICE_NAME)
 
 .PHONY: db-migrate-up
-db-migrate-up: db-migrate-prepare ## Run migrations up using migration container
-	@echo "📈 Running migrations up for $(SERVICE_NAME) (table: $(MIGRATION_TABLE))..."
+db-migrate-up: ## Run migrations up using orchestrator
+	@echo "📈 Running migrations up for $(SERVICE_NAME) with orchestrator..."
+	@if [ -z "$(SERVICE_NAME)" ]; then \
+		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-up SERVICE_NAME=user-service)"; \
+		exit 1; \
+	fi
 	@docker run --rm --network service-boilerplate-network \
-		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
-		$(MIGRATION_IMAGE) \
-		-path /migrations \
-		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)&x-migrations-table=$(MIGRATION_TABLE)" \
-		up
+		--env-file $(ENV_FILE) \
+		-e DB_HOST=$(POSTGRES_NAME) \
+		-e DB_PORT=$(DATABASE_PORT) \
+		-e DB_USER=$(DATABASE_USER) \
+		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
+		-e DB_NAME=$(DATABASE_NAME) \
+		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
+		-v $(PWD)/services:/services \
+		migration-orchestrator:latest \
+		up $(SERVICE_NAME) --env $(APP_ENV)
 
 .PHONY: db-migrate-down
-db-migrate-down: db-migrate-prepare ## Run migrations down using migration container
-	@echo "⏪ Running migrations down for $(SERVICE_NAME) (table: $(MIGRATION_TABLE))..."
+db-migrate-down: ## Run migrations down using orchestrator
+	@echo "⏪ Running migrations down for $(SERVICE_NAME) with orchestrator..."
+	@if [ -z "$(SERVICE_NAME)" ]; then \
+		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-down SERVICE_NAME=user-service)"; \
+		exit 1; \
+	fi
 	@docker run --rm --network service-boilerplate-network \
-		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
-		$(MIGRATION_IMAGE) \
-		-path /migrations \
-		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)&x-migrations-table=$(MIGRATION_TABLE)" \
-		down 1
+		--env-file $(ENV_FILE) \
+		-e DB_HOST=$(POSTGRES_NAME) \
+		-e DB_PORT=$(DATABASE_PORT) \
+		-e DB_USER=$(DATABASE_USER) \
+		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
+		-e DB_NAME=$(DATABASE_NAME) \
+		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
+		-v $(PWD)/services:/services \
+		migration-orchestrator:latest \
+		down $(SERVICE_NAME) 1 --env $(APP_ENV)
 
 .PHONY: db-migrate-status
-db-migrate-status: db-migrate-prepare ## Show migration status using migration container
-	@echo "📋 Migration status for $(SERVICE_NAME) (table: $(MIGRATION_TABLE)):"
+db-migrate-status: ## Show migration status using orchestrator
+	@echo "📊 Migration status for $(SERVICE_NAME) with orchestrator..."
+	@if [ -z "$(SERVICE_NAME)" ]; then \
+		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-status SERVICE_NAME=user-service)"; \
+		exit 1; \
+	fi
 	@docker run --rm --network service-boilerplate-network \
-		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
-		$(MIGRATION_IMAGE) \
-		-path /migrations \
-		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)&x-migrations-table=$(MIGRATION_TABLE)" \
-		version
+		--env-file $(ENV_FILE) \
+		-e DB_HOST=$(POSTGRES_NAME) \
+		-e DB_PORT=$(DATABASE_PORT) \
+		-e DB_USER=$(DATABASE_USER) \
+		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
+		-e DB_NAME=$(DATABASE_NAME) \
+		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
+		-v $(PWD)/services:/services \
+		migration-orchestrator:latest \
+		status $(SERVICE_NAME) --env $(APP_ENV)
+
+.PHONY: db-migrate-list
+db-migrate-list: ## List all migrations using orchestrator
+	@echo "📋 Migration list for $(SERVICE_NAME) with orchestrator..."
+	@if [ -z "$(SERVICE_NAME)" ]; then \
+		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-list SERVICE_NAME=user-service)"; \
+		exit 1; \
+	fi
+	@docker run --rm --network service-boilerplate-network \
+		--env-file $(ENV_FILE) \
+		-e DB_HOST=$(POSTGRES_NAME) \
+		-e DB_PORT=$(DATABASE_PORT) \
+		-e DB_USER=$(DATABASE_USER) \
+		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
+		-e DB_NAME=$(DATABASE_NAME) \
+		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
+		-v $(PWD)/services:/services \
+		migration-orchestrator:latest \
+		list $(SERVICE_NAME) --env $(APP_ENV)
+
+.PHONY: db-migrate-validate
+db-migrate-validate: ## Validate migrations using orchestrator
+	@echo "✅ Validating migrations for $(SERVICE_NAME) with orchestrator..."
+	@if [ -z "$(SERVICE_NAME)" ]; then \
+		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-validate SERVICE_NAME=user-service)"; \
+		exit 1; \
+	fi
+	@docker run --rm --network service-boilerplate-network \
+		--env-file $(ENV_FILE) \
+		-e DB_HOST=$(POSTGRES_NAME) \
+		-e DB_PORT=$(DATABASE_PORT) \
+		-e DB_USER=$(DATABASE_USER) \
+		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
+		-e DB_NAME=$(DATABASE_NAME) \
+		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
+		-v $(PWD)/services:/services \
+		migration-orchestrator:latest \
+		validate $(SERVICE_NAME) --env $(APP_ENV)
 
 .PHONY: db-migrate
-db-migrate: ## Run migrations for all services (or specific service if SERVICE_NAME is set)
+db-migrate: ## Run migrations for all services (or specific service if SERVICE_NAME is set) using orchestrator
 	@if [ -n "$(SERVICE_NAME)" ]; then \
 		echo "📈 Running migrations for service: $(SERVICE_NAME)"; \
+		$(MAKE) db-migrate-init SERVICE_NAME=$(SERVICE_NAME); \
 		$(MAKE) db-migrate-up SERVICE_NAME=$(SERVICE_NAME); \
 	else \
 		echo "📈 Running migrations for all services: $(SERVICES_WITH_MIGRATIONS)"; \
@@ -400,45 +552,47 @@ db-migrate: ## Run migrations for all services (or specific service if SERVICE_N
 	fi
 
 .PHONY: db-migrate-all
-db-migrate-all: ## Run migrations for all services with migrations
-	@for service in $(SERVICES_WITH_MIGRATIONS); do \
-		echo "📈 Running migrations for $$service..."; \
-		$(MAKE) db-migrate-up SERVICE_NAME=$$service || { echo "❌ Failed to migrate $$service"; exit 1; }; \
-	done; \
-	echo "✅ All service migrations completed successfully"
+db-migrate-all: build-migration-orchestrator ## Run migrations for all services with migrations using orchestrator (dependency-ordered)
+	@echo "🔗 Resolving service dependencies..."
+	@SERVICES_ORDER=$$(docker run --rm \
+		--network service-boilerplate-network \
+		--env-file $(ENV_FILE) \
+		-e DB_HOST=$(POSTGRES_NAME) \
+		-e DB_PORT=$(DATABASE_PORT) \
+		-e DB_USER=$(DATABASE_USER) \
+		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
+		-e DB_NAME=$(DATABASE_NAME) \
+		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
+		-v $(PWD):/workspace \
+		-w /workspace \
+		$(ORCHESTRATOR_IMAGE) \
+		resolve-dependencies $(SERVICES_WITH_MIGRATIONS) 2>/dev/null | grep "SERVICES_ORDER:" | cut -d: -f2); \
+		if [ $$? -eq 0 ] && [ -n "$$SERVICES_ORDER" ]; then \
+			echo "📈 Running migrations in dependency order: $$SERVICES_ORDER"; \
+			for service in $$SERVICES_ORDER; do \
+				echo "📈 Running migrations for $$service..."; \
+				$(MAKE) db-migrate-init SERVICE_NAME=$$service; \
+				$(MAKE) db-migrate-up SERVICE_NAME=$$service || { echo "❌ Failed to migrate $$service"; exit 1; }; \
+			done; \
+			echo "✅ All service migrations completed successfully"; \
+		else \
+			echo "⚠️  Dependency resolution failed, falling back to alphabetical order: $(SERVICES_WITH_MIGRATIONS)"; \
+			for service in $(SERVICES_WITH_MIGRATIONS); do \
+				echo "📈 Running migrations for $$service..."; \
+				$(MAKE) db-migrate-init SERVICE_NAME=$$service; \
+				$(MAKE) db-migrate-up SERVICE_NAME=$$service || { echo "❌ Failed to migrate $$service"; exit 1; }; \
+			done; \
+			echo "✅ All service migrations completed successfully"; \
+		fi
 
 .PHONY: db-rollback
 db-rollback: db-migrate-down ## Rollback last migration (alias for db-migrate-down)
 
-.PHONY: db-migrate-goto
-db-migrate-goto: db-migrate-prepare ## Go to specific migration version (VERSION=001)
-	@echo "🎯 Going to migration version $(VERSION) for $(SERVICE_NAME) (table: $(MIGRATION_TABLE))..."
-	@if [ -z "$(VERSION)" ]; then \
-		echo "❌ Error: Please specify VERSION (e.g., make db-migrate-goto VERSION=001)"; \
-		exit 1; \
-	fi
-	@docker run --rm --network service-boilerplate-network \
-		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
-		$(MIGRATION_IMAGE) \
-		-path /migrations \
-		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)&x-migrations-table=$(MIGRATION_TABLE)" \
-		goto $(VERSION)
-
-.PHONY: db-migrate-validate
-db-migrate-validate: db-migrate-prepare ## Validate migration files
-	@echo "✅ Validating migration files for $(SERVICE_NAME) (table: $(MIGRATION_TABLE))..."
-	@docker run --rm --network service-boilerplate-network \
-		-v $(PWD)/services/$(SERVICE_NAME)/migrations:/migrations \
-		$(MIGRATION_IMAGE) \
-		-path /migrations \
-		-database "postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(POSTGRES_NAME):$(DATABASE_PORT)/$(DATABASE_NAME)?sslmode=$(DATABASE_SSL_MODE)&x-migrations-table=$(MIGRATION_TABLE)" \
-		up --dry-run
-
-.PHONY: db-migration-create
-db-migration-create: db-migrate-prepare ## Create new migration file (NAME=add_users_table)
+.PHONY: db-migrate-create
+db-migrate-create: ## Create new migration file (NAME=add_users_table)
 	@echo "📝 Creating migration: $(NAME)"
 	@if [ -z "$(NAME)" ]; then \
-		echo "❌ Error: Please specify NAME (e.g., make db-migration-create NAME=add_users_table)"; \
+		echo "❌ Error: Please specify NAME (e.g., make db-migrate-create NAME=add_users_table)"; \
 		exit 1; \
 	fi
 	@docker run --rm \
@@ -446,16 +600,25 @@ db-migration-create: db-migrate-prepare ## Create new migration file (NAME=add_u
 		$(MIGRATION_IMAGE) \
 		create -ext sql -dir /migrations -seq $(NAME)
 
-.PHONY: db-migration-list
-db-migration-list: ## List available migration files
+.PHONY: db-migrate-file-list
+db-migrate-file-list: ## List available migration files
 	@echo "📁 Migration files in services/$(SERVICE_NAME)/migrations:"
 	@ls -la services/$(SERVICE_NAME)/migrations/ 2>/dev/null || echo "No migration files found"
+
+## Migration Orchestrator Targets (Enhanced Migration System)
+# Build orchestrator image
+.PHONY: build-migration-orchestrator
+build-migration-orchestrator: ## Build migration orchestrator Docker image
+	@echo "🏗️  Building migration orchestrator..."
+	@docker build -t $(ORCHESTRATOR_IMAGE) -f migration-orchestrator/Dockerfile ./migration-orchestrator
+
+
 
 ## Data Management
 .PHONY: db-seed
 db-seed: ## Seed database with test data
 	@echo "🌱 Seeding database with test data..."
-	@cat scripts/seed.sql | docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null
+	@cat scripts/seed.sql | docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database seeded with 5 test users"; \
 	else \
@@ -467,8 +630,8 @@ db-seed-enhanced: ## Environment-specific seeding (ENV=development)
 	@echo "🌱 Enhanced database seeding for environment: $(ENV)"
 	@./scripts/enhanced_seed.sh $(ENV) user-service
 
-.PHONY: db-migration-generate
-db-migration-generate: ## Generate new migration with templates (NAME=add_feature TYPE=table)
+.PHONY: db-migrate-generate
+db-migrate-generate: ## Generate new migration with templates (NAME=add_feature TYPE=table)
 	@echo "🚀 Generating migration: $(NAME) (type: $(TYPE))"
 	@./scripts/generate_migration.sh $(SERVICE_NAME) "$(NAME)" "$(TYPE)"
 
@@ -490,7 +653,7 @@ db-migration-deps: ## Show migration dependency graph
 db-backup: ## Create timestamped database backup
 	@echo "💾 Creating database backup..."
 	@BACKUP_FILE="backup_$(shell date +%Y%m%d_%H%M%S).sql"; \
-	docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres pg_dump -U $(DATABASE_USER) -d $(DATABASE_NAME) --no-owner --no-privileges > "$$BACKUP_FILE" 2>/dev/null; \
+	docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres pg_dump -U $(DATABASE_USER) -d $(DATABASE_NAME) --no-owner --no-privileges > "$$BACKUP_FILE" 2>/dev/null; \
 	if [ $$? -eq 0 ]; then \
 		echo "✅ Database backup created: $$BACKUP_FILE"; \
 		echo "   Size: $$(du -h "$$BACKUP_FILE" | cut -f1)"; \
@@ -501,7 +664,7 @@ db-backup: ## Create timestamped database backup
 .PHONY: db-dump
 db-dump: ## Create database dump
 	@echo "💾 Creating database dump..."
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres pg_dump -U $(DATABASE_USER) -d $(DATABASE_NAME) --no-owner --no-privileges > db_dump_$(shell date +%Y%m%d_%H%M%S).sql 2>/dev/null
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres pg_dump -U $(DATABASE_USER) -d $(DATABASE_NAME) --no-owner --no-privileges > db_dump_$(shell date +%Y%m%d_%H%M%S).sql 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database dump created: db_dump_$(shell date +%Y%m%d_%H%M%S).sql"; \
 	else \
@@ -520,7 +683,7 @@ db-restore: ## Restore database from dump (usage: make db-restore FILE=dump.sql)
 		echo "❌ Error: File $(FILE) not found"; \
 		exit 1; \
 	fi
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) < $(FILE) 2>/dev/null
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) < $(FILE) 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database restored from $(FILE)"; \
 	else \
@@ -530,7 +693,7 @@ db-restore: ## Restore database from dump (usage: make db-restore FILE=dump.sql)
 .PHONY: db-clean
 db-clean: ## Clean all data from tables (keep schema)
 	@echo "🧹 Cleaning database data..."
-	@cat scripts/clean.sql | docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null
+	@cat scripts/clean.sql | docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database data cleaned (schema preserved)"; \
 	else \
@@ -541,15 +704,15 @@ db-clean: ## Clean all data from tables (keep schema)
 .PHONY: db-schema
 db-schema: ## Show database schema and tables
 	@echo "📋 Database Schema:"
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\dt" 2>/dev/null || echo "❌ Cannot access database schema"
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\dt" 2>/dev/null || echo "❌ Cannot access database schema"
 	@echo ""
 	@echo "📊 Indexes:"
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\di" 2>/dev/null || echo "❌ Cannot access indexes"
+	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\di" 2>/dev/null || echo "❌ Cannot access indexes"
 
 .PHONY: db-tables
 db-tables: ## List all tables and their structure
 	@echo "📊 Table Structures:"
-	@cat scripts/list_tables.sql | docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null || echo "❌ Cannot list tables"
+	@cat scripts/list_tables.sql | docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null || echo "❌ Cannot list tables"
 	@echo ""
 	@if docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\d user_service.users" 2>/dev/null; then \
 		echo "✅ Users table structure displayed above"; \
@@ -560,16 +723,17 @@ db-tables: ## List all tables and their structure
 .PHONY: db-counts
 db-counts: ## Show row counts and sizes for all tables
 	@echo "🔢 Table Statistics:"
-	@cat scripts/table_stats.sql | docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null || echo "❌ Cannot query table statistics"
+	@cat scripts/table_stats.sql | docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null || echo "❌ Cannot query table statistics"
 
 ## Development Workflow Targets
 .PHONY: db-setup
-db-setup: db-create db-migrate db-seed ## Complete database setup for development
+db-setup: db-create db-migrate db-seed ## Complete database setup for development using orchestrator
 	@echo "🎉 Database setup complete!"
 	@echo "   Database: $(DATABASE_NAME)"
 	@echo "   Tables: users"
 	@echo "   Test data: 5 users created"
 	@echo "   Status: Ready for development"
+	@echo "   Migration System: Enhanced Orchestrator"
 
 .PHONY: db-reset-dev
 db-reset-dev: db-drop db-setup ## Reset database for fresh development start
@@ -671,6 +835,13 @@ clean-docker-smart: ## Smart Docker cleanup with safety checks
 			docker rm $$container 2>/dev/null || true; \
 		fi; \
 	done
+	@echo "🗂️  Removing monitoring containers..."
+	@for container in $(MONITORING_CONTAINERS); do \
+		if [ -n "$$container" ]; then \
+			echo "  Removing container: $$container"; \
+			docker rm $$container 2>/dev/null || true; \
+		fi; \
+	done
 	@echo "🖼️  Removing custom project images..."
 	@for image in $(SERVICE_IMAGES); do \
 		if [ -n "$$image" ]; then \
@@ -683,6 +854,13 @@ clean-docker-smart: ## Smart Docker cleanup with safety checks
 	@$(MAKE) safe-remove-image IMAGE=$(POSTGRES_IMAGE)
 	@$(MAKE) safe-remove-image IMAGE=$(GOLANG_BUILD_IMAGE)
 	@$(MAKE) safe-remove-image IMAGE=$(ALPINE_RUNTIME_IMAGE)
+	@echo "📊 Removing monitoring images..."
+	@for image in $(MONITORING_IMAGES); do \
+		if [ -n "$$image" ]; then \
+			echo "  Removing image: $$image"; \
+			docker rmi $$image 2>/dev/null || true; \
+		fi; \
+	done
 	@echo "💾 Removing service volumes..."
 	@for volume in $(SERVICE_VOLUMES) $(POSTGRES_VOLUME); do \
 		if [ -n "$$volume" ]; then \
@@ -690,15 +868,27 @@ clean-docker-smart: ## Smart Docker cleanup with safety checks
 			docker volume rm $$volume 2>/dev/null || true; \
 		fi; \
 	done
+	@echo "💾 Removing monitoring volumes..."
+	@for volume in service-boilerplate-loki-data service-boilerplate-promtail-positions service-boilerplate-grafana-data; do \
+		echo "  Removing volume: $$volume"; \
+		docker volume rm $$volume 2>/dev/null || true; \
+	done
 	@docker network rm $(NETWORK_NAME) 2>/dev/null || true
 	@echo "✅ Smart Docker cleanup completed"
 
 .PHONY: clean-docker-conservative
 clean-docker-conservative: ## Conservative Docker cleanup (keeps base images)
 	@echo "🐳 Conservative cleaning of project Docker artifacts..."
-	@docker-compose --env-file .env down --volumes --remove-orphans 2>/dev/null || true
+	@docker-compose --env-file $(ENV_FILE) down --volumes --remove-orphans 2>/dev/null || true
 	@echo "🗂️  Removing service containers..."
 	@for container in $(SERVICE_CONTAINERS) $(POSTGRES_CONTAINER); do \
+		if [ -n "$$container" ]; then \
+			echo "  Removing container: $$container"; \
+			docker rm $$container 2>/dev/null || true; \
+		fi; \
+	done
+	@echo "🗂️  Removing monitoring containers..."
+	@for container in $(MONITORING_CONTAINERS); do \
 		if [ -n "$$container" ]; then \
 			echo "  Removing container: $$container"; \
 			docker rm $$container 2>/dev/null || true; \
@@ -712,8 +902,22 @@ clean-docker-conservative: ## Conservative Docker cleanup (keeps base images)
 		fi; \
 	done
 	@docker rmi $(MIGRATION_IMAGE) 2>/dev/null || true
+	@echo "📊 Removing monitoring images..."
+	@for image in $(MONITORING_IMAGES); do \
+		if [ -n "$$image" ]; then \
+			echo "  Removing image: $$image"; \
+			docker rmi $$image 2>/dev/null || true; \
+		fi; \
+	done
 	@echo "💾 Removing service volumes..."
 	@for volume in $(SERVICE_VOLUMES) $(POSTGRES_VOLUME); do \
+		if [ -n "$$volume" ]; then \
+			echo "  Removing volume: $$volume"; \
+			docker volume rm $$volume 2>/dev/null || true; \
+		fi; \
+	done
+	@echo "💾 Removing monitoring volumes..."
+	@for volume in $(MONITORING_VOLUMES); do \
 		if [ -n "$$volume" ]; then \
 			echo "  Removing volume: $$volume"; \
 			docker volume rm $$volume 2>/dev/null || true; \
@@ -733,6 +937,13 @@ clean-docker-aggressive: ## Aggressive Docker cleanup (removes all project image
 			docker rm $$container 2>/dev/null || true; \
 		fi; \
 	done
+	@echo "🗂️  Removing monitoring containers..."
+	@for container in $(MONITORING_CONTAINERS); do \
+		if [ -n "$$container" ]; then \
+			echo "  Removing container: $$container"; \
+			docker rm $$container 2>/dev/null || true; \
+		fi; \
+	done
 	@echo "🖼️  Removing all project images..."
 	@for image in $(SERVICE_IMAGES); do \
 		if [ -n "$$image" ]; then \
@@ -744,8 +955,22 @@ clean-docker-aggressive: ## Aggressive Docker cleanup (removes all project image
 	@docker rmi $(POSTGRES_IMAGE) 2>/dev/null || true
 	@docker rmi $(GOLANG_BUILD_IMAGE) 2>/dev/null || true
 	@docker rmi $(ALPINE_RUNTIME_IMAGE) 2>/dev/null || true
+	@echo "📊 Removing monitoring images..."
+	@for image in $(MONITORING_IMAGES); do \
+		if [ -n "$$image" ]; then \
+			echo "  Removing image: $$image"; \
+			docker rmi $$image 2>/dev/null || true; \
+		fi; \
+	done
 	@echo "💾 Removing service volumes..."
 	@for volume in $(SERVICE_VOLUMES) $(POSTGRES_VOLUME); do \
+		if [ -n "$$volume" ]; then \
+			echo "  Removing volume: $$volume"; \
+			docker volume rm $$volume 2>/dev/null || true; \
+		fi; \
+	done
+	@echo "💾 Removing monitoring volumes..."
+	@for volume in $(MONITORING_VOLUMES); do \
 		if [ -n "$$volume" ]; then \
 			echo "  Removing volume: $$volume"; \
 			docker volume rm $$volume 2>/dev/null || true; \
@@ -768,21 +993,31 @@ clean-docker: ## Clean project Docker artifacts (mode: $(DOCKER_CLEANUP_MODE))
 .PHONY: clean-volumes
 clean-volumes: ## Clean Docker volumes and persistent data
 	@echo "💾 Cleaning Docker volumes..."
-	@docker-compose --env-file .env down -v 2>/dev/null || true
-	@echo "🗂️  Removing service volumes..."
-	@for volume in $(SERVICE_VOLUMES) $(POSTGRES_VOLUME); do \
-		if [ -n "$$volume" ]; then \
-			echo "  Removing volume: $$volume"; \
-			docker volume rm $$volume 2>/dev/null || true; \
-		fi; \
-	done
+	@docker-compose --env-file $(ENV_FILE) --file $(DOCKER_COMPOSE_FILE) --file $(DOCKER_COMPOSE_OVERRIDE_FILE) down --volumes
 	@echo "🔧 Cleaning volume data using Docker containers..."
+	@echo "📁 Removing postgres volume..."
+	@docker run --rm -v $(PWD)/docker/volumes:/data alpine sh -c "rm -rf /data/postgres_data";
+	@echo "📁 Removing monitoring volumes..."
+	@for dir in $(MONITORING_VOLUME_DIRS); do \
+		echo "  Cleaning $$dir volume data..."; \
+		docker run --rm -v $(PWD)/docker/volumes/$$dir:/data alpine sh -c "rm -rf /data/*" 2>/dev/null || true; \
+	done
 	@if [ -d "docker/volumes" ]; then \
 		for dir in docker/volumes/*/; do \
 			if [ -d "$$dir" ]; then \
 				service_name=$$(basename "$$dir"); \
-				echo "  Cleaning $$service_name volumes..."; \
-				docker run --rm -v $(PWD)/$$dir:/data alpine sh -c "rm -rf /data/* 2>/dev/null || true" 2>/dev/null || true; \
+				# Skip monitoring volumes as they're handled above \
+				skip_monitoring=false; \
+				for monitor_dir in $(MONITORING_VOLUME_DIRS); do \
+					if [ "$$service_name" = "$$monitor_dir" ]; then \
+						skip_monitoring=true; \
+						break; \
+					fi; \
+				done; \
+				if [ "$$skip_monitoring" = "false" ]; then \
+					echo " 📁 Cleaning $$service_name volumes..."; \
+					docker run --rm -v $(PWD)/$$dir:/data alpine sh -c "rm -rf /data/*"; \
+				fi; \
 			fi; \
 		done; \
 	fi
@@ -794,7 +1029,7 @@ clean-volumes: ## Clean Docker volumes and persistent data
 	@find docker/volumes -type d -empty -delete 2>/dev/null || true
 	@rmdir docker/volumes 2>/dev/null || true
 	@rmdir tmp 2>/dev/null || true
-	@echo "✅ Docker volumes cleaned (no sudo required!)"
+	@echo "✅ Docker volumes cleaned"
 
 .PHONY: clean-logs
 clean-logs: ## Clean log files
@@ -802,6 +1037,15 @@ clean-logs: ## Clean log files
 	@find . -name "*.log" -type f -delete 2>/dev/null || true
 	@find . -name "build-errors.log" -type f -delete 2>/dev/null || true
 	@rm -rf logs/ 2>/dev/null || true
+	@if [ -d "docker/volumes" ]; then \
+		for service_dir in docker/volumes/*/; do \
+			if [ -d "$$service_dir/logs" ]; then \
+				echo "  Cleaning logs in $$service_dir"; \
+				rm -rf $$service_dir/logs/*.log 2>/dev/null || true; \
+				rm -rf $$service_dir/logs/*.gz 2>/dev/null || true; \
+			fi; \
+		done; \
+	fi
 	@echo "✅ Log files cleaned"
 
 .PHONY: clean-cache
@@ -949,6 +1193,22 @@ create-volumes-dirs: ## (Re)create volumes directories
 	@for service in $$(grep "_TMP_VOLUME=" .env | cut -d'=' -f2 | sed 's/service-boilerplate-//' | sed 's/-tmp$$//'); do \
 		echo "   Creating directory for $$service..."; \
 		mkdir -p docker/volumes/$$service/tmp; \
+	done
+	@for service in $$(grep "_LOGS_VOLUME=" .env | cut -d'=' -f2 | sed 's/service-boilerplate-//' | sed 's/-logs$$//'); do \
+		echo "   Creating logs directory for $$service..."; \
+		mkdir -p docker/volumes/$$service/logs; \
+	done
+	@echo "   Creating monitoring volume directories..."
+	@for volume_var in $$(grep "_VOLUME=" $(ENV_FILE) | grep -E "(LOKI_DATA|PROMTAIL_POSITIONS|GRAFANA_DATA)_VOLUME"); do \
+		volume_name=$$(echo $$volume_var | cut -d'=' -f2); \
+		dir_name=$$(echo $$volume_name | sed 's/$(DOCKER_VOLUME_PREFIX)-//' | sed 's/-data$$//' | sed 's/-positions$$//'); \
+		if echo "$$volume_var" | grep -q "PROMTAIL_POSITIONS"; then \
+			echo "   Creating directory for $$dir_name..."; \
+			mkdir -p docker/volumes/$$dir_name/positions; \
+		else \
+			echo "   Creating directory for $$dir_name..."; \
+			mkdir -p docker/volumes/$$dir_name/data; \
+		fi; \
 	done
 
 .PHONY: docker-recreate
@@ -1192,6 +1452,67 @@ help-health: ## Show health and monitoring commands
 	@echo "  • Color-coded results (✅ ❌ ⚠️ ℹ️)"
 	@echo "  • CI/CD pipeline friendly"
 
+.PHONY: logs-grafana
+logs-grafana: ## Open Grafana UI for centralized logging (http://localhost:3000)
+	@echo "🌐 Opening Grafana for centralized logging..."
+	@echo "   URL: http://localhost:3000"
+	@echo "   Username: admin"
+	@echo "   Password: admin"
+	@echo ""
+	@echo "📊 Pre-configured dashboards:"
+	@echo "   • Service Boilerplate - Logs"
+	@echo ""
+	@echo "🔍 Useful LogQL queries:"
+	@echo "   • All service logs: {job=~\".*\"}"
+	@echo "   • API Gateway logs: {service=\"api-gateway\"}"
+	@echo "   • Error logs only: {level=\"error\"}"
+	@echo "   • Request logs: {method=~\"GET|POST\"}"
+
+.PHONY: logs-loki
+logs-loki: ## View Loki service logs
+	@echo "📊 Loki Service Logs:"
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) logs -f loki
+
+.PHONY: logs-promtail
+logs-promtail: ## View Promtail log shipping logs
+	@echo "📤 Promtail Log Shipping Logs:"
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) logs -f promtail
+
+.PHONY: loki-status
+loki-status: ## Check Loki stack health and status
+	@echo "📊 Loki Stack Status:"
+	@echo ""
+	@echo "🐳 Container Status:"
+	@docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "(loki|promtail|grafana)" || echo "   No Loki stack containers running"
+	@echo ""
+	@echo "🌐 Service Endpoints:"
+	@echo "   • Grafana UI: http://localhost:3000"
+	@echo "   • Loki API: http://localhost:3100"
+	@echo "   • Jaeger UI: http://localhost:16686"
+	@echo ""
+	@echo "💾 Data Volumes:"
+	@docker volume ls --format "table {{.Name}}" | grep -E "(loki|grafana)" || echo "   No Loki volumes found"
+
+.PHONY: help-loki
+help-loki: ## Show Loki logging stack commands
+	@echo "📊 Loki Logging Stack Commands:"
+	@echo "  logs-grafana       - View centralized logs in Grafana UI"
+	@echo "  logs-loki          - View Loki service logs"
+	@echo "  logs-promtail      - View Promtail log shipping logs"
+	@echo "  loki-status        - Check Loki stack health"
+	@echo ""
+	@echo "🌐 Service URLs:"
+	@echo "  • Grafana: http://localhost:3000 (admin/admin)"
+	@echo "  • Loki: http://localhost:3100"
+	@echo "  • Jaeger: http://localhost:16686"
+	@echo ""
+	@echo "📋 Log Queries (Grafana/Loki):"
+	@echo "  • All logs: {job=~\".*\"}"
+	@echo "  • API Gateway: {service=\"api-gateway\"}"
+	@echo "  • User Service: {service=\"user-service\"}"
+	@echo "  • Auth Service: {service=\"auth-service\"}"
+	@echo "  • Errors only: {level=\"error\"}"
+
 .PHONY: help-db
 help-db: ## Show database commands
 	@echo "🗄️  Database Commands:"
@@ -1206,16 +1527,17 @@ help-db: ## Show database commands
 	@echo "  db-drop            - Drop database (with confirmation)"
 	@echo "  db-recreate        - Recreate database from scratch"
 	@echo ""
-	@echo "Migration Management:"
+	@echo "Migration Management (Orchestrator):"
+	@echo "  db-migrate-init    - Initialize migration tracking for service"
 	@echo "  db-migrate         - Run migrations for all services (or specific with SERVICE_NAME=)"
 	@echo "  db-migrate-up      - Run migrations up for specific service"
 	@echo "  db-migrate-down    - Run migrations down for specific service"
 	@echo "  db-migrate-status  - Show migration status for specific service"
-	@echo "  db-migrate-goto VERSION= - Go to specific version"
-	@echo "  db-migrate-validate - Validate migration files"
-	@echo "  db-migration-create NAME= - Create migration file"
-	@echo "  db-migration-generate NAME= TYPE= - Generate migration with templates"
-	@echo "  db-migration-list  - List migration files"
+	@echo "  db-migrate-list    - List migration executions for specific service"
+	@echo "  db-migrate-validate - Validate migrations for specific service"
+	@echo "  db-migrate-create NAME= - Create migration file"
+	@echo "  db-migrate-generate NAME= TYPE= - Generate migration with templates"
+	@echo "  db-migrate-file-list  - List migration files"
 	@echo ""
 	@echo "Data Management:"
 	@echo "  db-seed            - Seed database with test data"
@@ -1242,11 +1564,11 @@ help-db: ## Show database commands
 	@echo "Examples:"
 	@echo "  make db-setup                    # Setup database for development"
 	@echo "  make db-connect                  # Open database shell"
-	@echo "  make db-migrate-up               # Run migrations"
-	@echo "  make db-migration-generate NAME=add_user_preferences TYPE=table"
+	@echo "  make db-migrate-init SERVICE_NAME=user-service  # Initialize migrations"
+	@echo "  make db-migrate-up SERVICE_NAME=user-service    # Run migrations"
+	@echo "  make db-migrate-generate NAME=add_user_preferences TYPE=table"
 	@echo "  make db-seed-enhanced ENV=development"
 	@echo "  make db-validate                 # Validate all migrations"
-	@echo "  make db-migrate-goto VERSION=001 # Go to specific version"
 	@echo "  make db-backup                   # Create backup before changes"
 
 .PHONY: build-auth-service
