@@ -1005,8 +1005,9 @@ clean-volumes: ## Clean Docker volumes and persistent data
 	@echo "💾 Cleaning Docker volumes..."
 	@docker-compose --env-file $(ENV_FILE) --file $(DOCKER_COMPOSE_FILE) --file $(DOCKER_COMPOSE_OVERRIDE_FILE) down --volumes
 	@echo "🔧 Cleaning volume data using Docker containers..."
+	@mkdir -p docker/volumes  # Ensure parent directory exists with correct ownership
 	@echo "📁 Removing postgres volume..."
-	@docker run --rm -v $(PWD)/docker/volumes:/data alpine sh -c "rm -rf /data/postgres_data";
+	@docker run --rm -v $(PWD)/docker/volumes/postgres_data:/data alpine sh -c "rm -rf /data/*";
 	@echo "📁 Removing monitoring volumes..."
 	@for dir in $(MONITORING_VOLUME_DIRS); do \
 		echo "  Cleaning $$dir volume data..."; \
@@ -1196,6 +1197,12 @@ docker-reset-confirm: ## Reset project Docker environment with confirmation
 .PHONY: create-volumes-dirs
 create-volumes-dirs: ## (Re)create volumes directories
 	@echo "🔄 Recreating volumes directories..."
+
+	# Check for root ownership (informational only - manual fix required)
+	@if [ -d "docker/volumes" ] && [ "$$(stat -c %U docker/volumes 2>/dev/null)" = "root" ]; then \
+		echo "⚠️  WARNING: docker/volumes is owned by root. This may cause permission issues."; \
+		echo "   To fix: sudo chown -R $$(id -u):$$(id -g) docker/volumes"; \
+	fi
 
 	# Create volume directories
 	@echo "   Creating volume directories..."
