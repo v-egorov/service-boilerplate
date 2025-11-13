@@ -134,37 +134,44 @@ External Client → API Gateway (Port 8080) → Auth Service (Port 8083)
 
 1. **Quick start (Development with hot reload):**
 
-   ```bash
-   # 🛠️  Start DEVELOPMENT environment with hot reload and debug logging
-   make dev
+    ```bash
+    # 🛠️  Bootstrap DEVELOPMENT environment with automatic database setup
+    make dev-bootstrap
 
-   # In another terminal, run database migrations to set up the database:
-   make db-migrate
+    # This automatically creates:
+    # - Database tables and schemas for all services
+    # - Dev admin account: dev.admin@example.com / devadmin123 (full admin access)
+    # - Test users for development and testing
+    # - Starts all services with hot reload and debug logging
 
-   # This automatically creates:
-   # - Database tables and schemas for all services
-   # - Dev admin account: dev.admin@example.com / devadmin123 (full admin access)
-   # - Test users for development and testing
+    # Test basic authentication flow
+    ./scripts/test-auth-flow.sh
 
-   # Test basic authentication flow
-   ./scripts/test-auth-flow.sh
+    # Test RBAC (Role-Based Access Control) endpoints with dev admin account
+    ./scripts/test-rbac-endpoints.sh
 
-   # Test RBAC (Role-Based Access Control) endpoints with dev admin account
-   ./scripts/test-rbac-endpoints.sh
+    # View distributed traces in Jaeger UI:
+    # http://localhost:16686
+    ```
 
-   # View distributed traces in Jaeger UI:
-   # http://localhost:16686
-   ```
+    **Alternative:** If you prefer manual control:
+    ```bash
+    # Start services only (requires separate database setup)
+    make dev
+
+    # In another terminal, setup database:
+    make db-migrate
+    ```
 
 2. **Production deployment:**
 
-   ```bash
-   # 🚀 Start PRODUCTION environment with pre-built optimized images
-   make prod
+    ```bash
+    # 🚀 Start PRODUCTION environment with pre-built optimized images
+    make prod
 
-   # Run database migrations
-   make db-migrate
-   ```
+    # Run database migrations (required for production)
+    make db-migrate
+    ```
 
 3. **Environment commands:**
 

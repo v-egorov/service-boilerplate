@@ -79,8 +79,9 @@ help: ## Show this help message
 	@echo 'Usage: make [target]'
 	@echo ''
 	@echo '🚀 QUICK START:'
-	@echo '  make dev     - 🛠️  Start DEVELOPMENT environment (hot reload, debug logs)'
-	@echo '  make prod    - 🚀 Start PRODUCTION environment (pre-built images)'
+	@echo '  make dev-bootstrap - 🛠️  Bootstrap DEVELOPMENT environment (auto DB setup, hot reload)'
+	@echo '  make dev           - 🛠️  Start DEVELOPMENT environment (hot reload, debug logs)'
+	@echo '  make prod          - 🚀 Start PRODUCTION environment (pre-built images)'
 
 	@echo ''
 	@echo '📋 Available Targets:'
@@ -242,6 +243,17 @@ down: ## Stop all services
 	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) down
 	@echo "Services stopped."
 
+.PHONY: dev-bootstrap
+dev-bootstrap: create-volumes-dirs  ## Bootstrap development environment with database setup
+	@echo "🚀 Bootstrapping development environment..."
+	@echo "📁 Creating volume directories..."
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) up postgres -d
+	@echo "⏳ Waiting for postgres to be ready..."
+	@sleep 5
+	$(MAKE) db-setup
+	@echo "✅ Database ready, starting all services..."
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) up
+
 .PHONY: dev
 dev: create-volumes-dirs  ## Start services in development mode with hot reload
 	@echo "Starting development environment with hot reload..."
@@ -251,8 +263,6 @@ dev: create-volumes-dirs  ## Start services in development mode with hot reload
 build-dev: ## Build development images with Air
 	@echo "Building development images..."
 	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) build
-
-
 
 .PHONY: status
 status: ## Show current environment status and running services

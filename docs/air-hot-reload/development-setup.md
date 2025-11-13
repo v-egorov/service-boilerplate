@@ -18,18 +18,25 @@ Before setting up Air hot reload, ensure you have:
 git clone <repository-url>
 cd service-boilerplate
 
-# Start all services with hot reload
-make dev
+# Bootstrap all services with automatic database setup and hot reload
+make dev-bootstrap
 ```
+
+**What `make dev-bootstrap` does:**
+- Creates volume directories
+- Starts PostgreSQL database
+- Runs all database migrations and seeding
+- Starts all services with hot reload enabled
 
 ### Option 2: Individual Services
 
 ```bash
-# Start API Gateway only
-make air-gateway
+# For individual service development, first bootstrap the database:
+make db-setup
 
-# Start User Service only
-make air-user-service
+# Then start individual services:
+make air-gateway      # Start API Gateway only
+make air-user-service # Start User Service only
 ```
 
 ### Option 3: Local Development (without Docker)
