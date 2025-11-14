@@ -351,6 +351,14 @@ func (h *AuthHandler) CreateRole(c *gin.Context) {
 	role, err := h.authService.CreateRole(c.Request.Context(), req.Name, req.Description)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to create role")
+
+		// Check if this is a unique constraint violation (duplicate role name)
+		if strings.Contains(err.Error(), "duplicate key value") || strings.Contains(err.Error(), "23505") {
+			h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_role", traceID, spanID, false, "Role with this name already exists")
+			c.JSON(http.StatusConflict, gin.H{"error": "Role with this name already exists"})
+			return
+		}
+
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_role", traceID, spanID, false, err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create role"})
 		return
@@ -486,6 +494,14 @@ func (h *AuthHandler) CreatePermission(c *gin.Context) {
 	permission, err := h.authService.CreatePermission(c.Request.Context(), req.Name, req.Resource, req.Action)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to create permission")
+
+		// Check if this is a unique constraint violation (duplicate permission name)
+		if strings.Contains(err.Error(), "duplicate key value") || strings.Contains(err.Error(), "23505") {
+			h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_permission", traceID, spanID, false, "Permission with this name already exists")
+			c.JSON(http.StatusConflict, gin.H{"error": "Permission with this name already exists"})
+			return
+		}
+
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_permission", traceID, spanID, false, err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create permission"})
 		return
