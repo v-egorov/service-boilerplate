@@ -24,6 +24,7 @@ echo "======================================================"
 ADMIN_TOKEN=""
 TEST_ROLE_ID=""
 TEST_PERMISSION_ID=""
+TIMESTAMP=$(date +%s)
 
 # Function to login as admin and get token
 login_admin() {
@@ -87,7 +88,7 @@ test_role_management() {
     create_response=$(curl -s -X POST "$API_GATEWAY_URL/api/v1/auth/roles" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $ADMIN_TOKEN" \
-        -d '{"name": "test_manager", "description": "Test manager role for RBAC testing"}')
+        -d "{\"name\": \"test_manager_$TIMESTAMP\", \"description\": \"Test manager role for RBAC testing\"}")
 
     if echo "$create_response" | jq -e '.id' >/dev/null 2>&1; then
         TEST_ROLE_ID=$(echo "$create_response" | jq -r '.id')
@@ -110,7 +111,7 @@ test_role_management() {
 
         # Update role
         make_request "PUT" "$API_GATEWAY_URL/api/v1/auth/roles/$TEST_ROLE_ID" \
-            '{"name": "test_manager", "description": "Updated test manager role"}' \
+            "{\"name\": \"test_manager_$TIMESTAMP\", \"description\": \"Updated test manager role\"}" \
             "200" "Update test role"
     fi
 }
@@ -137,7 +138,7 @@ test_permission_management() {
     create_perm_response=$(curl -s -X POST "$API_GATEWAY_URL/api/v1/auth/permissions" \
         -H "Content-Type: application/json" \
         -H "Authorization: Bearer $ADMIN_TOKEN" \
-        -d '{"name": "test:access", "resource": "test", "action": "access"}')
+        -d "{\"name\": \"test:access_$TIMESTAMP\", \"resource\": \"test\", \"action\": \"access\"}")
 
     if echo "$create_perm_response" | jq -e '.id' >/dev/null 2>&1; then
         TEST_PERMISSION_ID=$(echo "$create_perm_response" | jq -r '.id')
@@ -155,7 +156,7 @@ test_permission_management() {
 
     # Update permission
     make_request "PUT" "$API_GATEWAY_URL/api/v1/auth/permissions/$TEST_PERMISSION_ID" \
-        '{"name": "test:access", "resource": "test", "action": "read"}' \
+        "{\"name\": \"test:access_$TIMESTAMP\", \"resource\": \"test\", \"action\": \"read\"}" \
         "200" "Update test permission"
 }
 
@@ -213,7 +214,7 @@ test_user_role_management() {
 
         # Bulk update user roles (restore original roles)
         make_request "PUT" "$API_GATEWAY_URL/api/v1/auth/users/$TEST_USER_ID/roles" \
-            "{\"role_ids\": [\"d149a841-62fc-4256-83f6-819d08fa75cc\", \"c8e8af3b-612e-4c2f-b8a2-1c62950e7558\"]}" \
+            "{\"role_ids\": [\"ff492741-8a57-40a2-8d9e-ec89abeeb2eb\", \"33a5a6b3-6980-40a3-b80c-e52d97e7c414\"]}" \
             "200" "Bulk update user roles"
     fi
 }
