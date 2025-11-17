@@ -45,8 +45,10 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 **Possible Causes:**
 - JWT public key not configured
 - Token expired or malformed
+- Token has been revoked
 - Wrong signing algorithm
 - Clock skew between services
+- Revocation checker service unavailable
 
 **Solutions:**
 
@@ -74,8 +76,21 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
        if err != nil {
            log.Fatal("Invalid JWT public key")
        }
-       router.Use(middleware.JWTMiddleware(decodedKey, logger.Logger))
+       // With revocation checking (recommended)
+       router.Use(middleware.JWTMiddleware(decodedKey, logger.Logger, revocationChecker))
+
+       // Legacy configuration (without revocation)
+       // router.Use(middleware.JWTMiddleware(decodedKey, logger.Logger))
    }
+   ```
+
+4. **Check Token Revocation:**
+   ```bash
+   # Verify revocation checker is available
+   docker logs service-boilerplate-auth-service | grep "revocation"
+
+   # Check if token is in revocation list
+   # (Implementation depends on your revocation storage)
    ```
 
 ### 2. User Context Not Populated
@@ -101,7 +116,7 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
    if cfg.Tracing.Enabled {
        router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
    }
-   router.Use(middleware.JWTMiddleware(jwtPublicKey, logger.Logger))  // Before logging middleware
+   router.Use(middleware.JWTMiddleware(jwtPublicKey, logger.Logger, revocationChecker))  // Before logging middleware
    router.Use(serviceLogger.RequestResponseLogger())
    ```
 

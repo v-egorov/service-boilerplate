@@ -14,13 +14,13 @@ The service boilerplate implements a comprehensive logging system designed for m
 
 ### Key Features
 
-- **Structured JSON Logging**: Consistent log format across all services
+- **Structured JSON Logging**: Consistent log format across all services with prioritized field ordering
 - **Colorful Text Logging**: Enhanced visual formatting with color-coded HTTP methods and status codes
 - **Multiple Output Modes**: File-only, stdout-only, or dual output
 - **Automatic Rotation**: Size-based rotation with configurable limits
 - **Docker Integration**: Compatible with Docker logging drivers
 - **Service Context**: Automatic service identification in logs
-- **Request Tracking**: Middleware for HTTP request/response logging
+- **Request Tracking**: Middleware for HTTP request/response logging with trace correlation
 
 ## Configuration
 
@@ -45,6 +45,44 @@ type LoggingConfig struct {
     StripANSIFromFiles bool   `mapstructure:"strip_ansi_from_files"` // Strip ANSI codes from file logs
 }
 ```
+
+## JSON Field Ordering
+
+### Prioritized Field Ordering
+
+The logging system uses a `PrioritizedJSONFormatter` that ensures consistent field ordering in JSON logs for better readability and analysis. Fields are ordered with priority fields first, followed by remaining fields in alphabetical order.
+
+**Priority Field Order:**
+1. `timestamp` - ISO 8601 timestamp
+2. `level` - Log level (debug, info, warn, error, etc.)
+3. `message` - Log message
+4. `service` - Service name
+5. `request_id` - Request correlation ID
+6. `user_id` - Authenticated user ID
+7. `event_type` - Audit event type
+8. `operation` - Operation type
+
+**Remaining fields** are added in alphabetical order after the priority fields.
+
+**Example Ordered JSON Log:**
+```json
+{
+  "timestamp": "2025-11-17T19:19:40Z",
+  "level": "info",
+  "message": "User created successfully",
+  "service": "user-service",
+  "request_id": "abc-123-def",
+  "user_id": "user-456",
+  "event_type": "user_creation",
+  "operation": "create",
+  "entity_id": "user-789",
+  "ip_address": "192.168.1.100",
+  "trace_id": "span-123",
+  "span_id": "span-456"
+}
+```
+
+This consistent ordering improves log analysis tools and makes manual inspection more predictable.
 
 ## Colorful Formatting
 
@@ -273,6 +311,8 @@ router.Use(serviceLogger.RequestResponseLogger())
 - `service`: Service name
 - `status`: HTTP status code
 - `timestamp`: ISO 8601 timestamp
+- `trace_id`: Distributed tracing trace ID
+- `span_id`: Distributed tracing span ID
 - `user_agent`: Client user agent
 - `user_id`: Authenticated user ID (if available)
 
@@ -573,21 +613,35 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 
 Services automatically populate `actorUserID` through the JWT middleware:
 
-1. **JWT Middleware** (`common/middleware.JWTMiddleware`) validates JWT tokens and extracts user information
-2. **Context Population** sets `user_id`, `user_email`, `user_roles` in Gin context
-3. **Helper Functions** provide easy access:
+1. **JWT Middleware** (`common/middleware.JWTMiddleware`) validates JWT tokens, checks for revocation, and extracts user information
+2. **Token Revocation Checking** validates tokens against a revocation list to prevent use of compromised tokens
+3. **Context Population** sets `user_id`, `user_email`, `user_roles` in Gin context
+4. **Helper Functions** provide easy access:
    - `middleware.GetAuthenticatedUserID(c)` - Gets the user ID
    - `middleware.GetAuthenticatedUserEmail(c)` - Gets the user email
    - `middleware.GetAuthenticatedUserRoles(c)` - Gets the user roles
 
 **Service Configuration:**
 ```go
-// In service main.go
-router.Use(middleware.JWTMiddleware(jwtPublicKey, logger))
+// In service main.go - with revocation checking
+revocationChecker := authService // Implements TokenRevocationChecker interface
+router.Use(middleware.JWTMiddleware(jwtPublicKey, logger, revocationChecker))
 
 // For services without JWT validation (optional)
-router.Use(middleware.JWTMiddleware(nil, logger)) // Skips authentication
+router.Use(middleware.JWTMiddleware(nil, logger, nil)) // Skips authentication
+
+// Legacy configuration (without revocation)
+router.Use(middleware.JWTMiddleware(jwtPublicKey, logger))
 ```
+
+**Token Revocation Interface:**
+```go
+type TokenRevocationChecker interface {
+    IsTokenRevoked(tokenString string) bool
+}
+```
+
+The middleware logs detailed information about authentication attempts, token validation failures, and revocation checks for security monitoring.
 
 **Audit Trail Examples:**
 ```json
@@ -1206,6 +1260,32 @@ make create-volumes-dirs
 ```
 
 This logging system provides robust, scalable logging infrastructure suitable for production microservices deployments.
+
+## Recent Changes
+
+### v1.x.x (November 2025)
+
+#### JSON Log Field Ordering
+- **Added `PrioritizedJSONFormatter`** for consistent JSON log field ordering
+- **Priority field order**: timestamp, level, message, service, request_id, user_id, event_type, operation
+- **Remaining fields** sorted alphabetically for predictable log structure
+- **Improved log analysis** with consistent field positioning
+
+#### Audit Logging Enhancements
+- **Trace correlation**: Added `trace_id` and `span_id` to all audit log events
+- **Actor/Entity separation**: Distinguished between `user_id` (actor) and `entity_id` (target) in audit events
+- **JWT integration**: Automatic user context population from JWT middleware
+- **Enhanced audit methods**: Updated signatures to include trace information and proper actor identification
+
+#### JWT Middleware Improvements
+- **Token revocation checking**: Added support for checking revoked tokens during authentication
+- **Enhanced logging**: Detailed authentication attempt logging with request correlation
+- **Security monitoring**: Improved audit trails for authentication failures and suspicious activities
+
+#### Request Logging Updates
+- **Trace integration**: Request/response logs now include `trace_id` and `span_id`
+- **Consistent field ordering**: Applied prioritized ordering to all log types
+- **Enhanced correlation**: Better integration with distributed tracing systems
 
 ## Known Issues
 
