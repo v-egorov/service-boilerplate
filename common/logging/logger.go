@@ -5,7 +5,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/natefinch/lumberjack"
 	"github.com/sirupsen/logrus"
@@ -58,14 +57,7 @@ func NewLogger(config Config) *Logger {
 	// Set formatter
 	switch strings.ToLower(config.Format) {
 	case "json":
-		logger.SetFormatter(&logrus.JSONFormatter{
-			TimestampFormat: time.RFC3339,
-			FieldMap: logrus.FieldMap{
-				logrus.FieldKeyTime:  "timestamp",
-				logrus.FieldKeyLevel: "level",
-				logrus.FieldKeyMsg:   "message",
-			},
-		})
+		logger.SetFormatter(NewPrioritizedJSONFormatter())
 	default:
 		logger.SetFormatter(NewColoredFormatter())
 	}

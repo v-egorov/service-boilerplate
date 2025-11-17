@@ -94,7 +94,6 @@ func (srl *ServiceRequestLogger) RequestResponseLogger() gin.HandlerFunc {
 
 		// Create log entry with standardized fields
 		logEntry := srl.logger.WithFields(logrus.Fields{
-			"timestamp":     start.UTC().Format(time.RFC3339),
 			"service":       srl.serviceName,
 			"request_id":    requestID,
 			"trace_id":      traceID,

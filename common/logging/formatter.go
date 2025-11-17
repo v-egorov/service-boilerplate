@@ -1,7 +1,12 @@
 package logging
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -219,6 +224,108 @@ func (f *ColoredFormatter) highlightRequestIDs(line string) string {
 	}
 
 	return line
+}
+
+// PrioritizedJSONFormatter provides JSON formatting with consistent field ordering
+// Updated to ensure consistent log field ordering for better visual analysis
+type PrioritizedJSONFormatter struct {
+	TimestampFormat string
+}
+
+// Format renders a single log entry with prioritized field ordering
+func (f *PrioritizedJSONFormatter) Format(entry *logrus.Entry) ([]byte, error) {
+	// Create a map to hold all fields
+	data := make(map[string]interface{})
+
+	// Add timestamp
+	timestampFormat := f.TimestampFormat
+	if timestampFormat == "" {
+		timestampFormat = time.RFC3339
+	}
+	data["timestamp"] = entry.Time.Format(timestampFormat)
+
+	// Add level
+	data["level"] = entry.Level.String()
+
+	// Add message
+	data["message"] = entry.Message
+
+	// Add all other fields from entry.Data
+	for k, v := range entry.Data {
+		data[k] = v
+	}
+
+	// Define priority order for fields
+	priorityOrder := []string{
+		"timestamp",
+		"level",
+		"message",
+		"service",
+		"request_id",
+		"user_id",
+		"event_type",
+		"operation",
+	}
+
+	// Create ordered keys: priority fields first, then alphabetical
+	var orderedKeys []string
+
+	// Add priority fields in order (if they exist)
+	for _, key := range priorityOrder {
+		if _, exists := data[key]; exists {
+			orderedKeys = append(orderedKeys, key)
+		}
+	}
+
+	// Add remaining fields in alphabetical order
+	var remainingKeys []string
+	for key := range data {
+		isPriority := false
+		for _, pKey := range priorityOrder {
+			if key == pKey {
+				isPriority = true
+				break
+			}
+		}
+		if !isPriority {
+			remainingKeys = append(remainingKeys, key)
+		}
+	}
+	sort.Strings(remainingKeys)
+	orderedKeys = append(orderedKeys, remainingKeys...)
+
+	// Manually construct JSON to ensure field order
+	var buf bytes.Buffer
+	buf.WriteString("{")
+	for i, key := range orderedKeys {
+		if i > 0 {
+			buf.WriteString(",")
+		}
+		buf.WriteString(`"`)
+		buf.WriteString(key)
+		buf.WriteString(`":`)
+
+		// Marshal the value
+		valueBytes, err := json.Marshal(data[key])
+		if err != nil {
+			// Fallback to string representation if marshaling fails
+			buf.WriteString(`"`)
+			buf.WriteString(strings.ReplaceAll(fmt.Sprintf("%v", data[key]), `"`, `\"`))
+			buf.WriteString(`"`)
+		} else {
+			buf.Write(valueBytes)
+		}
+	}
+	buf.WriteString("}\n")
+
+	return buf.Bytes(), nil
+}
+
+// NewPrioritizedJSONFormatter creates a new prioritized JSON formatter
+func NewPrioritizedJSONFormatter() *PrioritizedJSONFormatter {
+	return &PrioritizedJSONFormatter{
+		TimestampFormat: time.RFC3339,
+	}
 }
 
 // NewColoredFormatter creates a new colored formatter
