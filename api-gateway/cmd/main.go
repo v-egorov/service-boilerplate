@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -23,6 +24,20 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/logging"
 	commonMiddleware "github.com/v-egorov/service-boilerplate/common/middleware"
 	"github.com/v-egorov/service-boilerplate/common/tracing"
+)
+
+// jwtKeyCache holds the cached JWT public key with TTL
+type jwtKeyCache struct {
+	key       interface{}
+	fetchedAt time.Time
+	ttl       time.Duration
+	mutex     sync.RWMutex
+}
+
+var (
+	globalKeyCache = &jwtKeyCache{
+		ttl: 1 * time.Hour, // Refresh key every hour
+	}
 )
 
 func main() {
@@ -88,6 +103,9 @@ func main() {
 		}()
 	}
 
+	// Start JWT key refresh routine
+	startKeyRefreshRoutine(logger.Logger)
+
 	// Setup Gin router
 	if cfg.App.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -105,13 +123,45 @@ func main() {
 		// For now, no revocation checker when using configured key
 		revocationChecker = nil
 	} else {
-		// Try to fetch public key from auth-service
+		// Try to fetch public key from auth-service (with caching)
 		logger.Info("JWT public key not configured, attempting to fetch from auth-service")
-		publicKey, err := fetchPublicKeyFromAuthService(logger.Logger)
+		publicKey, err := getCachedKey(logger.Logger)
 		if err != nil {
-			logger.Warn("Failed to fetch public key from auth-service, JWT validation disabled", err)
-			jwtPublicKey = nil
-			revocationChecker = nil
+			logger.Warn("Failed to fetch public key from auth-service, attempting JWT_PUBLIC_KEY environment fallback", err)
+
+			// Try JWT_PUBLIC_KEY environment variable as fallback
+			if envKey := os.Getenv("JWT_PUBLIC_KEY"); envKey != "" {
+				logger.Info("Using JWT_PUBLIC_KEY environment variable as fallback")
+				// Parse the PEM-encoded public key from environment
+				block, _ := pem.Decode([]byte(envKey))
+				if block == nil {
+					logger.Warn("Failed to decode PEM block from JWT_PUBLIC_KEY environment variable")
+					jwtPublicKey = nil
+					revocationChecker = nil
+				} else {
+					envPublicKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+					if err != nil {
+						logger.WithError(err).Warn("Failed to parse public key from JWT_PUBLIC_KEY environment variable")
+						jwtPublicKey = nil
+						revocationChecker = nil
+					} else {
+						if rsaKey, ok := envPublicKey.(*rsa.PublicKey); ok {
+							jwtPublicKey = rsaKey
+							logger.Info("Successfully loaded JWT public key from JWT_PUBLIC_KEY environment variable")
+							// Note: No revocation checker for env-based keys
+							revocationChecker = nil
+						} else {
+							logger.Warn("JWT_PUBLIC_KEY environment variable contains non-RSA key")
+							jwtPublicKey = nil
+							revocationChecker = nil
+						}
+					}
+				}
+			} else {
+				logger.Warn("JWT_PUBLIC_KEY environment variable not set, JWT validation disabled")
+				jwtPublicKey = nil
+				revocationChecker = nil
+			}
 		} else {
 			jwtPublicKey = publicKey
 			logger.Info("Successfully fetched JWT public key from auth-service")
@@ -276,46 +326,202 @@ func (c *httpTokenRevocationChecker) IsTokenRevoked(tokenString string) bool {
 	return resp.StatusCode != http.StatusOK
 }
 
-func fetchPublicKeyFromAuthService(logger *logrus.Logger) (interface{}, error) {
-	// Fetch the public key from auth-service
-	resp, err := http.Get("http://auth-service:8083/public-key")
+// checkAuthServiceHealth checks if auth-service is healthy before attempting key fetch
+func checkAuthServiceHealth(logger *logrus.Logger) error {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get("http://auth-service:8083/health")
 	if err != nil {
-		logger.WithError(err).Warn("Failed to fetch public key from auth-service")
-		return nil, err
+		logger.WithError(err).Warn("Auth-service health check failed - service may not be ready")
+		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		logger.Warn("Auth-service returned non-200 status for public key", "status", resp.StatusCode)
-		return nil, fmt.Errorf("auth-service returned status %d", resp.StatusCode)
+		logger.WithField("status", resp.StatusCode).Warn("Auth-service health check returned non-200 status")
+		return fmt.Errorf("auth-service health check returned status %d", resp.StatusCode)
 	}
 
-	// Read the PEM-encoded public key
-	pemData, err := io.ReadAll(resp.Body)
+	logger.Debug("Auth-service health check passed")
+	return nil
+}
+
+func fetchPublicKeyFromAuthService(logger *logrus.Logger) (interface{}, error) {
+	const maxRetries = 10
+	const initialDelay = time.Second
+	const maxDelay = 30 * time.Second
+
+	logger.Info("Starting JWT public key fetch from auth-service with retry logic")
+
+	// First, check if auth-service is healthy
+	if err := checkAuthServiceHealth(logger); err != nil {
+		logger.WithError(err).Warn("Skipping JWT public key fetch due to auth-service health check failure")
+		return nil, fmt.Errorf("auth-service health check failed: %w", err)
+	}
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		startTime := time.Now()
+
+		// Calculate delay for exponential backoff (except first attempt)
+		if attempt > 0 {
+			delay := time.Duration(1<<uint(attempt-1)) * initialDelay // 2^(attempt-1) * initialDelay
+			if delay > maxDelay {
+				delay = maxDelay
+			}
+			logger.WithFields(logrus.Fields{
+				"attempt":     attempt + 1,
+				"max_retries": maxRetries,
+				"delay":       delay.String(),
+			}).Warn("Retrying JWT public key fetch after delay")
+			time.Sleep(delay)
+		}
+
+		logger.WithFields(logrus.Fields{
+			"attempt":     attempt + 1,
+			"max_retries": maxRetries,
+		}).Debug("Attempting to fetch JWT public key from auth-service")
+
+		// Fetch the public key from auth-service
+		resp, err := http.Get("http://auth-service:8083/public-key")
+		if err != nil {
+			duration := time.Since(startTime)
+			logger.WithError(err).WithFields(logrus.Fields{
+				"attempt":  attempt + 1,
+				"duration": duration.String(),
+			}).Warn("Failed to fetch public key from auth-service")
+			if attempt == maxRetries-1 {
+				return nil, fmt.Errorf("failed to fetch public key after %d attempts: %w", maxRetries, err)
+			}
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			duration := time.Since(startTime)
+			logger.WithFields(logrus.Fields{
+				"attempt":  attempt + 1,
+				"status":   resp.StatusCode,
+				"duration": duration.String(),
+			}).Warn("Auth-service returned non-200 status for public key")
+			if attempt == maxRetries-1 {
+				return nil, fmt.Errorf("auth-service returned status %d after %d attempts", resp.StatusCode, maxRetries)
+			}
+			continue
+		}
+
+		// Read the PEM-encoded public key
+		pemData, err := io.ReadAll(resp.Body)
+		if err != nil {
+			duration := time.Since(startTime)
+			logger.WithError(err).WithFields(logrus.Fields{
+				"attempt":  attempt + 1,
+				"duration": duration.String(),
+			}).Warn("Failed to read public key response")
+			if attempt == maxRetries-1 {
+				return nil, fmt.Errorf("failed to read public key response after %d attempts: %w", maxRetries, err)
+			}
+			continue
+		}
+
+		// Parse the PEM-encoded public key
+		block, _ := pem.Decode(pemData)
+		if block == nil {
+			duration := time.Since(startTime)
+			logger.WithFields(logrus.Fields{
+				"attempt":  attempt + 1,
+				"duration": duration.String(),
+			}).Warn("Failed to decode PEM block")
+			if attempt == maxRetries-1 {
+				return nil, fmt.Errorf("invalid PEM data after %d attempts", maxRetries)
+			}
+			continue
+		}
+
+		publicKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+		if err != nil {
+			duration := time.Since(startTime)
+			logger.WithError(err).WithFields(logrus.Fields{
+				"attempt":  attempt + 1,
+				"duration": duration.String(),
+			}).Warn("Failed to parse public key")
+			if attempt == maxRetries-1 {
+				return nil, fmt.Errorf("failed to parse public key after %d attempts: %w", maxRetries, err)
+			}
+			continue
+		}
+
+		rsaPublicKey, ok := publicKey.(*rsa.PublicKey)
+		if !ok {
+			duration := time.Since(startTime)
+			logger.WithFields(logrus.Fields{
+				"attempt":  attempt + 1,
+				"duration": duration.String(),
+			}).Warn("Public key is not RSA")
+			if attempt == maxRetries-1 {
+				return nil, fmt.Errorf("public key is not RSA after %d attempts", maxRetries)
+			}
+			continue
+		}
+
+		duration := time.Since(startTime)
+		logger.WithFields(logrus.Fields{
+			"attempt":  attempt + 1,
+			"duration": duration.String(),
+		}).Info("Successfully fetched and parsed JWT public key from auth-service")
+		return rsaPublicKey, nil
+	}
+
+	// This should never be reached, but just in case
+	return nil, fmt.Errorf("unexpected error: exceeded max retries without proper error handling")
+}
+
+// getCachedKey returns the cached key if it's still valid, otherwise refreshes it
+func getCachedKey(logger *logrus.Logger) (interface{}, error) {
+	globalKeyCache.mutex.RLock()
+	if globalKeyCache.key != nil && time.Since(globalKeyCache.fetchedAt) < globalKeyCache.ttl {
+		key := globalKeyCache.key
+		globalKeyCache.mutex.RUnlock()
+		return key, nil
+	}
+	globalKeyCache.mutex.RUnlock()
+
+	// Key is expired or missing, refresh it
+	globalKeyCache.mutex.Lock()
+	defer globalKeyCache.mutex.Unlock()
+
+	// Double-check after acquiring write lock
+	if globalKeyCache.key != nil && time.Since(globalKeyCache.fetchedAt) < globalKeyCache.ttl {
+		return globalKeyCache.key, nil
+	}
+
+	logger.Info("Refreshing JWT public key cache")
+	key, err := fetchPublicKeyFromAuthService(logger)
 	if err != nil {
-		logger.WithError(err).Warn("Failed to read public key response")
+		// If fetch fails, try to use existing key if available (better than nothing)
+		if globalKeyCache.key != nil {
+			logger.WithError(err).Warn("Failed to refresh JWT key, using expired cached key")
+			return globalKeyCache.key, nil
+		}
 		return nil, err
 	}
 
-	// Parse the PEM-encoded public key
-	block, _ := pem.Decode(pemData)
-	if block == nil {
-		logger.Warn("Failed to decode PEM block")
-		return nil, fmt.Errorf("invalid PEM data")
-	}
+	globalKeyCache.key = key
+	globalKeyCache.fetchedAt = time.Now()
+	logger.Info("Successfully refreshed JWT public key cache")
+	return key, nil
+}
 
-	publicKey, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		logger.WithError(err).Warn("Failed to parse public key")
-		return nil, err
-	}
+// startKeyRefreshRoutine starts a background goroutine to periodically refresh the key
+func startKeyRefreshRoutine(logger *logrus.Logger) {
+	go func() {
+		ticker := time.NewTicker(30 * time.Minute) // Check every 30 minutes
+		defer ticker.Stop()
 
-	rsaPublicKey, ok := publicKey.(*rsa.PublicKey)
-	if !ok {
-		logger.Warn("Public key is not RSA")
-		return nil, fmt.Errorf("public key is not RSA")
-	}
-
-	logger.Info("Successfully fetched and parsed JWT public key from auth-service")
-	return rsaPublicKey, nil
+		for range ticker.C {
+			logger.Debug("Periodic JWT key refresh check")
+			_, err := getCachedKey(logger)
+			if err != nil {
+				logger.WithError(err).Warn("Periodic JWT key refresh failed")
+			}
+		}
+	}()
 }
