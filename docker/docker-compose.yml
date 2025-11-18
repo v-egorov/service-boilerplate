@@ -39,7 +39,7 @@ services:
       - LOGGING_OUTPUT=file
       - DOCKER_ENV=true
     depends_on:
-      user-service:
+      auth-service:
         condition: service_healthy
     volumes:
       - api_gateway_logs:/app/logs
