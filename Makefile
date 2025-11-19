@@ -46,6 +46,11 @@ POSTGRES_VOLUME := $(DOCKER_VOLUME_PREFIX)-postgres-data
 API_GATEWAY_TMP_VOLUME := $(DOCKER_VOLUME_PREFIX)-api-gateway-tmp
 USER_SERVICE_TMP_VOLUME := $(DOCKER_VOLUME_PREFIX)-user-service-tmp
 
+# Service URL variables (can be overridden via environment)
+AUTH_SERVICE_URL ?= http://auth-service:8083
+USER_SERVICE_URL ?= http://user-service:8081
+API_GATEWAY_URL ?= http://localhost:8080
+
 # Base image variables for smart cleanup
 POSTGRES_IMAGE := postgres:15-alpine
 GOLANG_BUILD_IMAGE := golang:1.23-alpine

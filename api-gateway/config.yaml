@@ -32,3 +32,7 @@ tracing:
 
 jwt:
   public_key: ""  # Set via JWT_PUBLIC_KEY environment variable
+
+services:
+  auth_service_url: "http://auth-service:8083"
+  user_service_url: "http://user-service:8081"

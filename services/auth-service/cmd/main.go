@@ -114,9 +114,11 @@ func main() {
 		// Initialize repository
 		authRepo := repository.NewAuthRepository(db.GetPool())
 
-		// Initialize user service client
-		// Always use Docker service name since we're running in containers
-		userServiceURL := "http://user-service:8081/api/v1"
+		// Initialize user service client with configurable URL
+		userServiceURL := os.Getenv("USER_SERVICE_URL")
+		if userServiceURL == "" {
+			userServiceURL = "http://user-service:8081/api/v1"
+		}
 		userClient := client.NewUserClient(userServiceURL, logger.Logger)
 
 		// Initialize service

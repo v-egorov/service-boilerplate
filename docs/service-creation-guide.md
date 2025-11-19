@@ -424,12 +424,18 @@ product-service:
 
 ## API Gateway Integration
 
-The script automatically registers your service with the API gateway:
+The script automatically registers your service with the API gateway using configurable URLs:
 
 ```go
-// In api-gateway/cmd/main.go
-serviceRegistry.RegisterService("product-service", "http://product-service:8082")
+// In api-gateway/cmd/main.go - Configurable service registration
+productServiceURL := cfg.GetServiceURL("product", "http://product-service:8082")
+serviceRegistry.RegisterService("product-service", productServiceURL)
 ```
+
+**Configuration Options:**
+- **YAML config**: Add to `api-gateway/config.yaml` under `services` section
+- **Environment variables**: Set `PRODUCT_SERVICE_URL` environment variable
+- **Defaults**: Falls back to hard-coded URL if not configured
 
 ### Adding Routes
 

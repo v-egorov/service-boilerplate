@@ -30,8 +30,8 @@ The service-boilerplate architecture uses a centralized authentication service w
 │   Clients       │    │   (JWT Validation│    │   (Token Mgmt)  │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
        │                        │                        │
-       └────────────────────────┴────────────────────────┴─────────┐
-                                                                 │
+       └────────────────────────┴────────────────────────┴────┐
+                                                              │
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │  Service A      │────│  Service B       │────│  Service C      │
 │  (Internal)     │    │  (Internal)      │    │  (Internal)     │
@@ -224,10 +224,10 @@ func (s *AuthService) GenerateServiceToken(serviceName string) (string, error) {
 #### Service Authentication Headers
 
 ```go
-// Service-to-service call with authentication
-func callUserService(ctx context.Context, userID string, serviceToken string) (*User, error) {
+// Service-to-service call with authentication (configurable URLs)
+func callUserService(ctx context.Context, userID string, serviceToken string, userServiceURL string) (*User, error) {
     req, err := http.NewRequestWithContext(ctx, "GET",
-        "http://user-service:8081/api/v1/internal/users/"+userID, nil)
+        userServiceURL+"/api/v1/internal/users/"+userID, nil)
     if err != nil {
         return nil, err
     }

@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -15,6 +16,7 @@ type Config struct {
 	Alerting   AlertingConfig   `mapstructure:"alerting"`
 	Tracing    TracingConfig    `mapstructure:"tracing"`
 	JWT        JWTConfig        `mapstructure:"jwt"`
+	Services   ServicesConfig   `mapstructure:"services"`
 }
 
 type AppConfig struct {
@@ -71,6 +73,11 @@ type TracingConfig struct {
 
 type JWTConfig struct {
 	PublicKey string `mapstructure:"public_key"`
+}
+
+type ServicesConfig struct {
+	AuthServiceURL string `mapstructure:"auth_service_url"`
+	UserServiceURL string `mapstructure:"user_service_url"`
 }
 
 func Load(configPath string) (*Config, error) {
@@ -174,4 +181,34 @@ func setDefaults() {
 	viper.SetDefault("tracing.service_name", "service-boilerplate")
 	viper.SetDefault("tracing.collector_url", "http://jaeger:4318/v1/traces")
 	viper.SetDefault("tracing.sampling_rate", 1.0)
+
+	// Services defaults
+	viper.SetDefault("services.auth_service_url", "http://auth-service:8083")
+	viper.SetDefault("services.user_service_url", "http://user-service:8081")
+}
+
+// GetServiceURL returns the service URL with environment variable override support
+func (c *Config) GetServiceURL(serviceName, defaultURL string) string {
+	// Create environment variable name (e.g., AUTH_SERVICE_URL for auth service)
+	envVar := strings.ToUpper(serviceName) + "_SERVICE_URL"
+
+	// Check environment variable first (highest priority)
+	if url := os.Getenv(envVar); url != "" {
+		return url
+	}
+
+	// Check config value
+	switch serviceName {
+	case "auth":
+		if c.Services.AuthServiceURL != "" {
+			return c.Services.AuthServiceURL
+		}
+	case "user":
+		if c.Services.UserServiceURL != "" {
+			return c.Services.UserServiceURL
+		}
+	}
+
+	// Return default (lowest priority)
+	return defaultURL
 }

@@ -3,7 +3,7 @@
 # Comprehensive User Service API Testing Script
 # Tests all CRUD operations and error handling scenarios
 
-BASE_URL="http://localhost:8081/api/v1"
+BASE_URL="${USER_SERVICE_URL:-http://localhost:8081}/api/v1"
 USERS_ENDPOINT="$BASE_URL/users"
 
 echo "=== User Service API Testing ==="

@@ -6,7 +6,7 @@
 set -e
 
 # Configuration
-API_GATEWAY_URL="http://localhost:8080"
+API_GATEWAY_URL="${API_GATEWAY_URL:-http://localhost:8080}"
 ADMIN_EMAIL="dev.admin@example.com" # Admin user we set up
 ADMIN_PASSWORD="devadmin123"        # Password we configured
 

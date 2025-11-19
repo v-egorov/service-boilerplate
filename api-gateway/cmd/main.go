@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -73,15 +74,18 @@ func main() {
 	// Initialize service registry
 	serviceRegistry := services.NewServiceRegistry(logger.Logger)
 
-	// Register services - use service names in Docker, localhost for local development
-	userServiceURL := "http://user-service:8081"
-	if cfg.App.Environment == "development" && os.Getenv("DOCKER_ENV") != "true" {
-		userServiceURL = "http://localhost:8081"
-	}
-	serviceRegistry.RegisterService("user-service", userServiceURL)
+	// Register services with configurable URLs
+	authServiceURL := cfg.GetServiceURL("auth", "http://auth-service:8083")
+	userServiceURL := cfg.GetServiceURL("user", "http://user-service:8081")
 
-	// Register auth-service
-	serviceRegistry.RegisterService("auth-service", "http://auth-service:8083")
+	// Apply development environment overrides for localhost development
+	if cfg.App.Environment == "development" && os.Getenv("DOCKER_ENV") != "true" {
+		authServiceURL = strings.Replace(authServiceURL, "auth-service", "localhost", 1)
+		userServiceURL = strings.Replace(userServiceURL, "user-service", "localhost", 1)
+	}
+
+	serviceRegistry.RegisterService("auth-service", authServiceURL)
+	serviceRegistry.RegisterService("user-service", userServiceURL)
 
 	// Initialize handlers
 	gatewayHandler := handlers.NewGatewayHandler(serviceRegistry, logger.Logger, cfg)
@@ -104,7 +108,7 @@ func main() {
 	}
 
 	// Start JWT key refresh routine
-	startKeyRefreshRoutine(logger.Logger)
+	startKeyRefreshRoutine(authServiceURL, logger.Logger)
 
 	// Setup Gin router
 	if cfg.App.Environment == "production" {
@@ -125,7 +129,7 @@ func main() {
 	} else {
 		// Try to fetch public key from auth-service (with caching)
 		logger.Info("JWT public key not configured, attempting to fetch from auth-service")
-		publicKey, err := getCachedKey(logger.Logger)
+		publicKey, err := getCachedKey(authServiceURL, logger.Logger)
 		if err != nil {
 			logger.Warn("Failed to fetch public key from auth-service, attempting JWT_PUBLIC_KEY environment fallback", err)
 
@@ -168,7 +172,7 @@ func main() {
 
 			// Create HTTP-based revocation checker
 			revocationChecker = &httpTokenRevocationChecker{
-				authServiceURL: "http://auth-service:8083",
+				authServiceURL: authServiceURL,
 				logger:         logger.Logger,
 			}
 		}
@@ -327,9 +331,9 @@ func (c *httpTokenRevocationChecker) IsTokenRevoked(tokenString string) bool {
 }
 
 // checkAuthServiceHealth checks if auth-service is healthy before attempting key fetch
-func checkAuthServiceHealth(logger *logrus.Logger) error {
+func checkAuthServiceHealth(authServiceURL string, logger *logrus.Logger) error {
 	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Get("http://auth-service:8083/health")
+	resp, err := client.Get(authServiceURL + "/health")
 	if err != nil {
 		logger.WithError(err).Warn("Auth-service health check failed - service may not be ready")
 		return err
@@ -345,7 +349,7 @@ func checkAuthServiceHealth(logger *logrus.Logger) error {
 	return nil
 }
 
-func fetchPublicKeyFromAuthService(logger *logrus.Logger) (interface{}, error) {
+func fetchPublicKeyFromAuthService(authServiceURL string, logger *logrus.Logger) (interface{}, error) {
 	const maxRetries = 10
 	const initialDelay = time.Second
 	const maxDelay = 30 * time.Second
@@ -353,7 +357,7 @@ func fetchPublicKeyFromAuthService(logger *logrus.Logger) (interface{}, error) {
 	logger.Info("Starting JWT public key fetch from auth-service with retry logic")
 
 	// First, check if auth-service is healthy
-	if err := checkAuthServiceHealth(logger); err != nil {
+	if err := checkAuthServiceHealth(authServiceURL, logger); err != nil {
 		logger.WithError(err).Warn("Skipping JWT public key fetch due to auth-service health check failure")
 		return nil, fmt.Errorf("auth-service health check failed: %w", err)
 	}
@@ -475,7 +479,7 @@ func fetchPublicKeyFromAuthService(logger *logrus.Logger) (interface{}, error) {
 }
 
 // getCachedKey returns the cached key if it's still valid, otherwise refreshes it
-func getCachedKey(logger *logrus.Logger) (interface{}, error) {
+func getCachedKey(authServiceURL string, logger *logrus.Logger) (interface{}, error) {
 	globalKeyCache.mutex.RLock()
 	if globalKeyCache.key != nil && time.Since(globalKeyCache.fetchedAt) < globalKeyCache.ttl {
 		key := globalKeyCache.key
@@ -494,7 +498,7 @@ func getCachedKey(logger *logrus.Logger) (interface{}, error) {
 	}
 
 	logger.Info("Refreshing JWT public key cache")
-	key, err := fetchPublicKeyFromAuthService(logger)
+	key, err := fetchPublicKeyFromAuthService(authServiceURL, logger)
 	if err != nil {
 		// If fetch fails, try to use existing key if available (better than nothing)
 		if globalKeyCache.key != nil {
@@ -511,14 +515,14 @@ func getCachedKey(logger *logrus.Logger) (interface{}, error) {
 }
 
 // startKeyRefreshRoutine starts a background goroutine to periodically refresh the key
-func startKeyRefreshRoutine(logger *logrus.Logger) {
+func startKeyRefreshRoutine(authServiceURL string, logger *logrus.Logger) {
 	go func() {
 		ticker := time.NewTicker(30 * time.Minute) // Check every 30 minutes
 		defer ticker.Stop()
 
 		for range ticker.C {
 			logger.Debug("Periodic JWT key refresh check")
-			_, err := getCachedKey(logger)
+			_, err := getCachedKey(authServiceURL, logger)
 			if err != nil {
 				logger.WithError(err).Warn("Periodic JWT key refresh failed")
 			}

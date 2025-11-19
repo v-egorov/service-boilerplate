@@ -9,9 +9,12 @@ echo "🔍 Making test API calls to generate database traces..."
 echo "   (Assumes services are already running with 'make dev')"
 echo ""
 
+# Configuration
+API_GATEWAY_URL="${API_GATEWAY_URL:-http://localhost:8080}"
+
 # Register a test user (this will generate INSERT traces in both auth-service and user-service)
 echo "📝 Registering test user via auth service..."
-curl -X POST http://localhost:8080/api/v1/auth/register \
+curl -X POST $API_GATEWAY_URL/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test-tracing@example.com",
@@ -23,7 +26,7 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
 # Login to get auth token (this will generate SELECT trace)
 echo ""
 echo "🔐 Logging in to get auth token..."
-LOGIN_RESPONSE=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+LOGIN_RESPONSE=$(curl -s -X POST $API_GATEWAY_URL/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test-tracing@example.com",
@@ -42,13 +45,13 @@ echo "✅ Got auth token"
 # Get current user info (this will generate SELECT trace)
 echo ""
 echo "👤 Getting current user info..."
-curl -X GET http://localhost:8080/api/v1/auth/me \
+curl -X GET $API_GATEWAY_URL/api/v1/auth/me \
   -H "Authorization: Bearer $TOKEN" || echo "Failed to get user info"
 
 # List users (this will generate SELECT trace with LIMIT/OFFSET)
 echo ""
 echo "📋 Listing users..."
-curl -X GET "http://localhost:8080/api/v1/users?limit=5&offset=0" \
+curl -X GET "$API_GATEWAY_URL/api/v1/users?limit=5&offset=0" \
   -H "Authorization: Bearer $TOKEN" || echo "Failed to list users"
 
 echo ""

@@ -9,6 +9,8 @@ services:
       - LOGGING_FORMAT=json
       - LOGGING_OUTPUT=file
       - LOGGING_DUAL_OUTPUT=true
+      - AUTH_SERVICE_URL=http://auth-service:8083
+      - USER_SERVICE_URL=http://user-service:8081
     volumes:
       - ../api-gateway:/app/api-gateway
       - ../common:/app/common
@@ -74,6 +76,7 @@ services:
       - LOGGING_FORMAT=json
       - LOGGING_OUTPUT=file
       - LOGGING_DUAL_OUTPUT=true
+      - USER_SERVICE_URL=http://user-service:8081
     volumes:
       - ../services/auth-service:/app/services/auth-service
       - ../common:/app/common

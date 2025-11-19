@@ -3,7 +3,7 @@
 # Comprehensive PUT and PATCH API Testing Script
 # Tests both full replacement (PUT) and partial update (PATCH) operations
 
-BASE_URL="http://localhost:8081/api/v1"
+BASE_URL="${USER_SERVICE_URL:-http://localhost:8081}/api/v1"
 USERS_ENDPOINT="$BASE_URL/users"
 
 echo "=== PUT vs PATCH API Testing ==="

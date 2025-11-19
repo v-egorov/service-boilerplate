@@ -753,12 +753,12 @@ func ServiceAuthMiddleware() gin.HandlerFunc {
 ### Error Handling for Service Calls
 
 ```go
-// Service-to-service call with error handling
-func callUserService(ctx context.Context, userID string) (*User, error) {
+// Service-to-service call with error handling (configurable URLs)
+func callUserService(ctx context.Context, userID string, userServiceURL string) (*User, error) {
     client := &http.Client{Timeout: 5 * time.Second}
 
     req, err := http.NewRequestWithContext(ctx, "GET",
-        "http://user-service:8081/api/v1/internal/users/"+userID, nil)
+        userServiceURL+"/api/v1/internal/users/"+userID, nil)
     if err != nil {
         return nil, fmt.Errorf("failed to create request: %w", err)
     }

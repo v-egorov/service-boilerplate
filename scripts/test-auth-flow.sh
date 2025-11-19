@@ -5,10 +5,10 @@
 
 set -e
 
-# Configuration
-API_GATEWAY_URL="http://localhost:8080"
-USER_SERVICE_URL="http://localhost:8081"
-AUTH_SERVICE_URL="http://localhost:8083"
+# Configuration - can be overridden via environment variables
+API_GATEWAY_URL="${API_GATEWAY_URL:-http://localhost:8080}"
+USER_SERVICE_URL="${USER_SERVICE_URL:-http://localhost:8081}"
+AUTH_SERVICE_URL="${AUTH_SERVICE_URL:-http://localhost:8083}"
 
 # Colors for output
 RED='\033[0;31m'
