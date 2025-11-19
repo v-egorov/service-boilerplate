@@ -23,14 +23,28 @@ docker logs service-boilerplate-user-service
 ```
 
 ### Verify JWT Configuration
+
 ```bash
-# Check JWT public key is set
-docker exec service-boilerplate-auth-service env | grep JWT
+# Check JWT configuration (API Gateway)
+docker exec api-gateway env | grep JWT
+
+# Check auth-service JWT configuration
+docker exec auth-service env | grep JWT
+
+# Test public key retrieval
+curl http://localhost:8083/public-key
+
+# Check API Gateway key cache status
+curl http://localhost:8080/status | jq '.jwt_cache'
 
 # Test authentication endpoint
 curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"password"}'
+
+# Test token validation
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  http://localhost:8083/api/v1/auth/validate-token
 ```
 
 ## Common Issues
@@ -43,21 +57,28 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 - Audit logs show empty `user_id`
 
 **Possible Causes:**
-- JWT public key not configured
+- JWT public key not available (cache empty, auth-service unreachable)
 - Token expired or malformed
 - Token has been revoked
 - Wrong signing algorithm
 - Clock skew between services
 - Revocation checker service unavailable
+- Key cache corruption or TTL expiration
 
 **Solutions:**
 
-1. **Verify JWT Public Key:**
+1. **Verify JWT Public Key Availability:**
    ```bash
-   # Check environment variable
+   # For API Gateway (dynamic retrieval)
+   curl http://localhost:8080/status | jq '.jwt_cache'
+
+   # For direct service access (static config)
    docker exec service-boilerplate-user-service env | grep JWT_PUBLIC_KEY
 
-   # Ensure key is base64 encoded
+   # Test auth-service public key endpoint
+   curl http://localhost:8083/public-key
+
+   # Ensure key is base64 encoded (if using env var)
    echo $JWT_PUBLIC_KEY | base64 -d
    ```
 
@@ -69,19 +90,26 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 
 3. **Verify Service Configuration:**
    ```go
-   // In cmd/main.go - ensure JWT middleware is configured
-   jwtPublicKey := os.Getenv("JWT_PUBLIC_KEY")
-   if jwtPublicKey != "" {
-       decodedKey, err := base64.StdEncoding.DecodeString(jwtPublicKey)
-       if err != nil {
-           log.Fatal("Invalid JWT public key")
+   // API Gateway - Dynamic key retrieval (recommended)
+   // Keys fetched automatically from auth-service with caching
+   publicKey, err := getCachedKey(logger)
+   if err != nil {
+       // Fallback to environment variable
+       if envKey := os.Getenv("JWT_PUBLIC_KEY"); envKey != "" {
+           // Parse environment key...
        }
-       // With revocation checking (recommended)
-       router.Use(middleware.JWTMiddleware(decodedKey, logger.Logger, revocationChecker))
-
-       // Legacy configuration (without revocation)
-       // router.Use(middleware.JWTMiddleware(decodedKey, logger.Logger))
    }
+   if publicKey != nil {
+       // HTTP-based revocation checker enabled automatically
+       revocationChecker := &httpTokenRevocationChecker{
+           authServiceURL: "http://auth-service:8083",
+           logger: logger,
+       }
+       router.Use(middleware.JWTMiddleware(publicKey, logger, revocationChecker))
+   }
+
+   // Internal services - Trust gateway validation
+   router.Use(middleware.JWTMiddleware(nil, logger, nil))
    ```
 
 4. **Check Token Revocation:**
@@ -89,8 +117,71 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
    # Verify revocation checker is available
    docker logs service-boilerplate-auth-service | grep "revocation"
 
-   # Check if token is in revocation list
-   # (Implementation depends on your revocation storage)
+    # Check if token is in revocation list
+    # (Implementation depends on your revocation storage)
+    ```
+
+### 1.5 JWT Key Retrieval Issues
+
+**Symptoms:**
+- API Gateway unable to validate JWT tokens
+- "Failed to fetch public key" in gateway logs
+- Authentication works intermittently
+- Fallback to environment variable warnings
+
+**Possible Causes:**
+- Auth-service not running or unreachable
+- Network connectivity issues between gateway and auth-service
+- Auth-service health check failures
+- No active JWT keys in database
+- Key cache corruption or expiration
+
+**Solutions:**
+
+1. **Check Auth-Service Health:**
+   ```bash
+   # Verify auth-service is running
+   curl http://localhost:8083/health
+
+   # Check auth-service logs
+   docker logs auth-service | grep -i "error\|fail"
+   ```
+
+2. **Test Key Retrieval:**
+   ```bash
+   # Test public key endpoint directly
+   curl -v http://localhost:8083/public-key
+
+   # Check API Gateway can reach auth-service
+   docker exec api-gateway curl http://auth-service:8083/health
+   ```
+
+3. **Verify Active Keys:**
+   ```bash
+   # Check for active keys in database
+   docker exec auth-service psql -U postgres -d service_db \
+     -c "SELECT key_id, is_active, created_at FROM auth_service.jwt_keys WHERE is_active = true;"
+
+   # Check key rotation status
+   curl http://localhost:8083/status | jq '.rotation'
+   ```
+
+4. **Check Cache Status:**
+   ```bash
+   # API Gateway status includes cache info
+   curl http://localhost:8080/status
+
+   # Check gateway logs for cache operations
+   docker logs api-gateway | grep -i "key\|cache\|jwt"
+   ```
+
+5. **Network Connectivity:**
+   ```bash
+   # Test Docker network connectivity
+   docker exec api-gateway ping auth-service
+
+   # Check service discovery
+   docker exec api-gateway nslookup auth-service
    ```
 
 ### 2. User Context Not Populated

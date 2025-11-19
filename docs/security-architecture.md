@@ -75,6 +75,31 @@ The service-boilerplate implements a microservice architecture with centralized 
 - **Refresh Tokens**: Stored in database with revocation tracking
 - **Revoked Tokens**: Marked in database, checked on each request
 
+### Dynamic Key Distribution
+
+The system implements dynamic JWT public key distribution for enhanced security and operational flexibility:
+
+- **Key Retrieval**: API Gateway fetches public keys dynamically from auth-service `/public-key` endpoint
+- **Key Caching**: Public keys cached with 1-hour TTL to reduce network overhead
+- **Background Refresh**: Automatic key refresh every 30 minutes to ensure key freshness
+- **Retry Logic**: Exponential backoff retry mechanism (up to 10 attempts) for resilient key fetching
+- **Health Checks**: Auth-service health verification before key retrieval attempts
+- **Fallback Support**: Environment variable fallback (`JWT_PUBLIC_KEY`) when auth-service is unavailable
+
+**Security Benefits:**
+
+- Eliminates static key configuration vulnerabilities
+- Ensures services always use current active keys
+- Provides automatic key distribution during rotation
+- Maintains service availability during key transitions
+
+**Operational Benefits:**
+
+- Zero-downtime key rotation support
+- Automatic key synchronization across services
+- Reduced configuration management overhead
+- Enhanced monitoring and troubleshooting capabilities
+
 ### JWT Key Rotation
 
 The system implements automatic JWT key rotation for enhanced security:
@@ -115,6 +140,10 @@ type TokenRevocationChecker interface {
 
 - Internal microservices accessed only through API Gateway
 - Development-only direct access services
+
+### Automatic Configuration
+
+The API Gateway automatically configures the HTTP-based revocation checker when JWT public key retrieval from auth-service succeeds. This provides seamless integration between dynamic key distribution and token revocation checking.
 
 ### Implementation Examples
 
@@ -344,8 +373,8 @@ router.Use(commonMiddleware.JWTMiddleware(
    - Solution: Ensure production deployment doesn't expose internal ports
 
 3. **Token validation failures**: JWT secret mismatch
-   - Check: Public key configuration in API Gateway
-   - Solution: Verify auth-service public key endpoint accessible
+   - Check: API Gateway key cache status and auth-service connectivity
+   - Solution: Verify auth-service `/public-key` endpoint accessible and key cache is populated
 
 ### Debug Commands
 
@@ -353,6 +382,15 @@ router.Use(commonMiddleware.JWTMiddleware(
 # Check token revocation status
 curl -H "Authorization: Bearer <token>" \
   http://localhost:8083/api/v1/auth/validate-token
+
+# Check JWT public key retrieval
+curl http://localhost:8083/public-key
+
+# Check auth-service health
+curl http://localhost:8083/health
+
+# Check API Gateway status (includes key cache info)
+curl http://localhost:8080/status
 
 # Check service exposure (should fail in production)
 curl http://localhost:8081/health

@@ -79,6 +79,7 @@ The auth-service is the central authentication authority for the microservices e
 - `GET /health` - Basic health check
 - `GET /ping` - Simple ping response
 - `GET /status` - Comprehensive service status
+- `GET /public-key` - Get current JWT public key (PEM format)
 
 ### Admin Endpoints (Require `admin` Role)
 
@@ -115,7 +116,8 @@ curl -X POST http://localhost:8083/api/v1/admin/rotate-keys \
 
 - RSA-2048 key pairs stored in PostgreSQL
 - Private keys encrypted at rest
-- Public keys distributed to services via API
+- Public keys distributed via `/public-key` endpoint (PEM format)
+- API Gateway caches public keys with 1-hour TTL
 - Key metadata tracked (creation, rotation, expiration)
 
 ## Configuration

@@ -51,6 +51,51 @@ JWT key rotation is a critical security practice that ensures cryptographic keys
 6. **Cleanup**: Old keys expired after overlap period (default: 60 minutes)
 7. **Audit**: All operations logged with actor identification
 
+## Key Distribution and Caching
+
+### API Gateway Key Retrieval
+
+The API Gateway implements dynamic JWT public key distribution with intelligent caching:
+
+- **Key Source**: Public keys retrieved from auth-service `/public-key` endpoint
+- **Cache TTL**: Keys cached for 1 hour to minimize network overhead
+- **Background Refresh**: Automatic refresh every 30 minutes to ensure key freshness
+- **Retry Logic**: Exponential backoff with up to 10 retry attempts for resilient fetching
+- **Health Checks**: Auth-service health verification before key retrieval attempts
+- **Fallback Support**: Environment variable `JWT_PUBLIC_KEY` when auth-service unavailable
+
+### Cache Management Flow
+
+1. **Initial Load**: On startup, attempt to fetch key from auth-service
+2. **Cache Hit**: Use cached key if within TTL (1 hour)
+3. **Background Refresh**: Periodic refresh every 30 minutes regardless of TTL
+4. **Failure Handling**: Use expired cached key if refresh fails (better than no key)
+5. **Fallback**: Use environment variable if all retrieval attempts fail
+
+### Cache Configuration
+
+```go
+type jwtKeyCache struct {
+    key       interface{}  // Cached RSA public key
+    fetchedAt time.Time    // Timestamp of last successful fetch
+    ttl       time.Duration // Cache TTL (default: 1 hour)
+}
+```
+
+### Monitoring Cache Status
+
+The API Gateway status endpoint includes key cache information:
+
+```bash
+curl http://localhost:8080/status
+```
+
+**Response includes:**
+- Key cache status (healthy/unhealthy)
+- Last key fetch timestamp
+- Next scheduled refresh time
+- Cache hit/miss statistics
+
 ## Configuration
 
 ### Rotation Configuration
@@ -261,6 +306,9 @@ Key metrics to monitor:
 - **Rotation Status**: Days since last rotation
 - **Next Rotation Due**: When automatic rotation will occur
 - **Key Health**: Current active key ID and accessibility
+- **Key Cache Status**: API Gateway key cache health and refresh status
+- **Key Retrieval Attempts**: Success/failure rates of key fetching from auth-service
+- **Cache TTL Status**: Time until next key refresh
 - **Rotation Failures**: Failed rotation attempts
 - **Audit Events**: Rotation operation logs
 
@@ -469,6 +517,46 @@ docker exec -it auth-service psql -U postgres -d service_db \
 
 # Check gateway logs
 docker logs api-gateway | grep "jwt\|auth"
+```
+
+#### 5. Key Retrieval Failures
+
+**Symptoms:**
+
+- API Gateway unable to fetch JWT public keys from auth-service
+- Authentication failures despite valid tokens
+- Gateway logs show "Failed to fetch public key" errors
+- Fallback to environment variable `JWT_PUBLIC_KEY`
+
+**Causes & Solutions:**
+
+- **Auth-service Unavailable**: Service not running or network issues
+- **Health Check Failures**: Auth-service health endpoint returning errors
+- **Key Generation Issues**: No active keys in auth-service database
+- **Network Connectivity**: Docker network or firewall blocking communication
+- **TLS/SSL Issues**: Certificate validation problems in production
+
+**Debug:**
+
+```bash
+# Check auth-service health
+curl http://localhost:8083/health
+
+# Test public key endpoint directly
+curl http://localhost:8083/public-key
+
+# Check auth-service logs for key retrieval attempts
+docker logs auth-service | grep "public-key\|JWT"
+
+# Verify API Gateway can reach auth-service
+docker exec api-gateway curl -v http://auth-service:8083/health
+
+# Check for active keys in database
+docker exec auth-service psql -U postgres -d service_db \
+  -c "SELECT key_id, is_active, created_at FROM auth_service.jwt_keys WHERE is_active = true;"
+
+# Check API Gateway status for cache information
+curl http://localhost:8080/status
 ```
 
 ### Log Analysis
