@@ -24,6 +24,8 @@ echo "======================================================"
 ADMIN_TOKEN=""
 TEST_ROLE_ID=""
 TEST_PERMISSION_ID=""
+TEST_USER_ID=""
+ORIGINAL_ROLE_IDS=""
 TIMESTAMP=$(date +%s)
 
 # Function to login as admin and get token
@@ -198,7 +200,19 @@ test_user_role_management() {
         return 1
     fi
 
-    # Get user roles
+    # Get user roles and store original state
+    original_roles_response=$(curl -s -X GET "$API_GATEWAY_URL/api/v1/auth/users/$TEST_USER_ID/roles" \
+        -H "Authorization: Bearer $ADMIN_TOKEN")
+
+    if echo "$original_roles_response" | jq -e '.roles' >/dev/null 2>&1; then
+        ORIGINAL_ROLE_IDS=$(echo "$original_roles_response" | jq -r '.roles[].id' | paste -sd "," -)
+        echo -e "${GREEN}✓ Stored original role IDs: $ORIGINAL_ROLE_IDS${NC}"
+    else
+        echo -e "${RED}✗ Failed to get original user roles${NC}"
+        echo "Response: $original_roles_response"
+        return 1
+    fi
+
     make_request "GET" "$API_GATEWAY_URL/api/v1/auth/users/$TEST_USER_ID/roles" \
         "" "200" "Get user roles"
 
@@ -213,9 +227,14 @@ test_user_role_management() {
             "" "200" "Remove role from user"
 
         # Bulk update user roles (restore original roles)
-        make_request "PUT" "$API_GATEWAY_URL/api/v1/auth/users/$TEST_USER_ID/roles" \
-            "{\"role_ids\": [\"ff492741-8a57-40a2-8d9e-ec89abeeb2eb\", \"33a5a6b3-6980-40a3-b80c-e52d97e7c414\"]}" \
-            "200" "Bulk update user roles"
+        if [ -n "$ORIGINAL_ROLE_IDS" ]; then
+            role_ids_json=$(echo "$ORIGINAL_ROLE_IDS" | sed 's/,/","/g' | sed 's/^/["/' | sed 's/$/"]/')
+            make_request "PUT" "$API_GATEWAY_URL/api/v1/auth/users/$TEST_USER_ID/roles" \
+                "{\"role_ids\": $role_ids_json}" \
+                "200" "Bulk update user roles"
+        else
+            echo -e "${YELLOW}⚠ Skipping bulk role update - no original roles stored${NC}"
+        fi
     fi
 }
 
