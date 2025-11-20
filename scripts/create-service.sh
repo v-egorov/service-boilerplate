@@ -211,6 +211,8 @@ cat >"$SERVICE_DEF_FILE" <<EOF
       - LOGGING_OUTPUT=file
       - LOGGING_DUAL_OUTPUT=\${LOGGING_DUAL_OUTPUT:-true}
       - LOGGING_STRIP_ANSI_FROM_FILES=\${LOGGING_STRIP_ANSI_FROM_FILES:-true}
+      - AUTH_SERVICE_URL=\${AUTH_SERVICE_URL:-http://auth-service:8083}
+      - USER_SERVICE_URL=\${USER_SERVICE_URL:-http://user-service:8081}
     depends_on:
       postgres:
         condition: service_healthy

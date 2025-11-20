@@ -117,7 +117,7 @@ func main() {
 		// Initialize user service client with configurable URL
 		userServiceURL := os.Getenv("USER_SERVICE_URL")
 		if userServiceURL == "" {
-			userServiceURL = "http://user-service:8081/api/v1"
+			userServiceURL = "http://user-service:8081" // Docker service discovery default
 		}
 		userClient := client.NewUserClient(userServiceURL, logger.Logger)
 

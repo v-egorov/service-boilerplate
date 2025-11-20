@@ -71,18 +71,25 @@ func main() {
 		}()
 	}
 
-	// Initialize service registry
-	serviceRegistry := services.NewServiceRegistry(logger.Logger)
+	// Get service URLs from environment variables with platform defaults
+	authServiceURL := os.Getenv("AUTH_SERVICE_URL")
+	if authServiceURL == "" {
+		authServiceURL = "http://auth-service:8083" // Docker service discovery default
+	}
 
-	// Register services with configurable URLs
-	authServiceURL := cfg.GetServiceURL("auth", "http://auth-service:8083")
-	userServiceURL := cfg.GetServiceURL("user", "http://user-service:8081")
+	userServiceURL := os.Getenv("USER_SERVICE_URL")
+	if userServiceURL == "" {
+		userServiceURL = "http://user-service:8081" // Docker service discovery default
+	}
 
 	// Apply development environment overrides for localhost development
 	if cfg.App.Environment == "development" && os.Getenv("DOCKER_ENV") != "true" {
 		authServiceURL = strings.Replace(authServiceURL, "auth-service", "localhost", 1)
 		userServiceURL = strings.Replace(userServiceURL, "user-service", "localhost", 1)
 	}
+
+	// Initialize service registry
+	serviceRegistry := services.NewServiceRegistry(logger.Logger)
 
 	serviceRegistry.RegisterService("auth-service", authServiceURL)
 	serviceRegistry.RegisterService("user-service", userServiceURL)
