@@ -385,7 +385,7 @@ func fetchPublicKeyFromAuthService(authServiceURL string, logger *logrus.Logger)
 		}).Debug("Attempting to fetch JWT public key from auth-service")
 
 		// Fetch the public key from auth-service
-		resp, err := http.Get("http://auth-service:8083/public-key")
+		resp, err := http.Get(authServiceURL + "/public-key")
 		if err != nil {
 			duration := time.Since(startTime)
 			logger.WithError(err).WithFields(logrus.Fields{

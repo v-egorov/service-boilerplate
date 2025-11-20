@@ -55,7 +55,7 @@ func NewUserClient(baseURL string, logger *logrus.Logger) *UserClient {
 }
 
 func (c *UserClient) CreateUser(ctx context.Context, req *CreateUserRequest) (*UserData, error) {
-	url := fmt.Sprintf("%s/users", c.baseURL)
+	url := fmt.Sprintf("%s/api/v1/users", c.baseURL)
 
 	jsonData, err := json.Marshal(req)
 	if err != nil {
@@ -105,7 +105,7 @@ func (c *UserClient) CreateUser(ctx context.Context, req *CreateUserRequest) (*U
 }
 
 func (c *UserClient) GetUserByEmail(ctx context.Context, email string) (*UserData, error) {
-	url := fmt.Sprintf("%s/users/by-email/%s", c.baseURL, email)
+	url := fmt.Sprintf("%s/api/v1/users/by-email/%s", c.baseURL, email)
 
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -149,7 +149,7 @@ func (c *UserClient) GetUserByEmail(ctx context.Context, email string) (*UserDat
 }
 
 func (c *UserClient) GetUserWithPasswordByEmail(ctx context.Context, email string) (*UserLoginResponse, error) {
-	url := fmt.Sprintf("%s/users/by-email/%s/with-password", c.baseURL, email)
+	url := fmt.Sprintf("%s/api/v1/users/by-email/%s/with-password", c.baseURL, email)
 
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -189,7 +189,7 @@ func (c *UserClient) GetUserWithPasswordByEmail(ctx context.Context, email strin
 }
 
 func (c *UserClient) GetUserByID(ctx context.Context, id uuid.UUID) (*UserData, error) {
-	url := fmt.Sprintf("%s/users/%s", c.baseURL, id.String())
+	url := fmt.Sprintf("%s/api/v1/users/%s", c.baseURL, id.String())
 
 	httpReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
