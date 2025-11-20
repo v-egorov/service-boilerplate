@@ -424,18 +424,31 @@ product-service:
 
 ## API Gateway Integration
 
-The script automatically registers your service with the API gateway using configurable URLs:
+The script automatically registers your service with the API gateway using environment-based configuration:
 
 ```go
-// In api-gateway/cmd/main.go - Configurable service registration
-productServiceURL := cfg.GetServiceURL("product", "http://product-service:8082")
+// In api-gateway/cmd/main.go - Environment-based service registration
+productServiceURL := os.Getenv("PRODUCT_SERVICE_URL")
+if productServiceURL == "" {
+    productServiceURL = "http://product-service:8082" // Docker service discovery default
+}
 serviceRegistry.RegisterService("product-service", productServiceURL)
 ```
 
 **Configuration Options:**
-- **YAML config**: Add to `api-gateway/config.yaml` under `services` section
-- **Environment variables**: Set `PRODUCT_SERVICE_URL` environment variable
-- **Defaults**: Falls back to hard-coded URL if not configured
+- **Environment variables**: Set `PRODUCT_SERVICE_URL` environment variable in deployment manifests
+- **Platform defaults**: Falls back to Docker service discovery (`http://product-service:8082`)
+- **Development overrides**: Use localhost URLs for local development
+
+**Docker Compose Configuration:**
+```yaml
+services:
+  api-gateway:
+    environment:
+      - PRODUCT_SERVICE_URL=http://product-service:8082
+      - AUTH_SERVICE_URL=http://auth-service:8083
+      - USER_SERVICE_URL=http://user-service:8081
+```
 
 ### Adding Routes
 

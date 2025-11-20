@@ -18,6 +18,7 @@ A comprehensive boilerplate for building scalable Golang-based REST API services
 
 ### Core Features
 
+- **[Service URL Configuration](docs/service-url-configuration.md)**: Environment-based service discovery and communication
 - **[Middleware Architecture](docs/middleware-architecture.md)**: Authentication, logging, tracing, and request processing patterns
 - **[Security Architecture](docs/security-architecture.md)**: Authentication, authorization, and service exposure guidelines
 - **[Logging System](docs/logging-system.md)**: Comprehensive guide to logging configuration, options, and troubleshooting

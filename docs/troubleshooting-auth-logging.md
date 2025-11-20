@@ -90,9 +90,14 @@ curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
 
 3. **Verify Service Configuration:**
    ```go
-   // API Gateway - Dynamic key retrieval (recommended)
-   // Keys fetched automatically from auth-service with caching
-   publicKey, err := getCachedKey(logger)
+   // API Gateway - Environment-based service URLs
+   authServiceURL := os.Getenv("AUTH_SERVICE_URL")
+   if authServiceURL == "" {
+       authServiceURL = "http://auth-service:8083" // Docker default
+   }
+
+   // JWT key retrieval with service URL
+   publicKey, err := getCachedKey(authServiceURL, logger)
    if err != nil {
        // Fallback to environment variable
        if envKey := os.Getenv("JWT_PUBLIC_KEY"); envKey != "" {
@@ -102,7 +107,7 @@ curl -H "Authorization: Bearer YOUR_JWT_TOKEN" \
    if publicKey != nil {
        // HTTP-based revocation checker enabled automatically
        revocationChecker := &httpTokenRevocationChecker{
-           authServiceURL: "http://auth-service:8083",
+           authServiceURL: authServiceURL,
            logger: logger,
        }
        router.Use(middleware.JWTMiddleware(publicKey, logger, revocationChecker))
