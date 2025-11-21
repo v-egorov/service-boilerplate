@@ -9,6 +9,7 @@ services:
       - LOGGING_FORMAT=json
       - LOGGING_OUTPUT=file
       - LOGGING_DUAL_OUTPUT=true
+      - LOG_TIMESTAMP_PRECISION=milliseconds
       - AUTH_SERVICE_URL=http://auth-service:8083
       - USER_SERVICE_URL=http://user-service:8081
     volumes:
@@ -36,6 +37,7 @@ services:
       - LOGGING_FORMAT=json
       - LOGGING_OUTPUT=file
       - LOGGING_DUAL_OUTPUT=true
+      - LOG_TIMESTAMP_PRECISION=milliseconds
     volumes:
       - ../services/user-service:/app/services/user-service
       - ../common:/app/common
@@ -76,6 +78,7 @@ services:
       - LOGGING_FORMAT=json
       - LOGGING_OUTPUT=file
       - LOGGING_DUAL_OUTPUT=true
+      - LOG_TIMESTAMP_PRECISION=milliseconds
       - USER_SERVICE_URL=http://user-service:8081
     volumes:
       - ../services/auth-service:/app/services/auth-service

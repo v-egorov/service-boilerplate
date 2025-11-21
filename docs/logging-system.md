@@ -33,6 +33,7 @@ The service boilerplate implements a comprehensive logging system designed for m
 | `LOGGING_OUTPUT`                | `stdout`       | `file`        | Output destination: `stdout`, `file`                          |
 | `LOGGING_DUAL_OUTPUT`           | `true`         | `true`        | Enable dual output (file + stdout) when `LOGGING_OUTPUT=file` |
 | `LOGGING_STRIP_ANSI_FROM_FILES` | `true`         | `true`        | Strip ANSI codes from file logs (console colors preserved)    |
+| `LOG_TIMESTAMP_PRECISION`       | `milliseconds` | `milliseconds`| Timestamp precision: `seconds`, `milliseconds`, `microseconds`, `nanoseconds` |
 
 ### Configuration Structure
 
@@ -45,6 +46,47 @@ type LoggingConfig struct {
     StripANSIFromFiles bool   `mapstructure:"strip_ansi_from_files"` // Strip ANSI codes from file logs
 }
 ```
+
+## Timestamp Precision
+
+The logging system supports configurable timestamp precision to balance between log correlation accuracy and storage efficiency. This is controlled by the `LOG_TIMESTAMP_PRECISION` environment variable.
+
+### Precision Options
+
+| Precision | Format | Example | Use Case |
+|-----------|--------|---------|----------|
+| `seconds` | RFC3339 | `2025-11-21T16:11:13Z` | Basic logging, minimal storage |
+| `milliseconds` | Custom | `2025-11-21T16:11:13.123Z` | **Default** - Distributed systems, good correlation |
+| `microseconds` | Custom | `2025-11-21T16:11:13.123456Z` | High-precision analysis, performance monitoring |
+| `nanoseconds` | RFC3339Nano | `2025-11-21T16:11:13.123456789Z` | Maximum precision, debugging |
+
+### Configuration Examples
+
+```bash
+# Development - High precision for debugging
+LOG_TIMESTAMP_PRECISION=microseconds
+
+# Production - Balanced precision and performance
+LOG_TIMESTAMP_PRECISION=milliseconds
+
+# Basic monitoring - Minimal precision
+LOG_TIMESTAMP_PRECISION=seconds
+```
+
+### Impact on Log Correlation
+
+**With Millisecond Precision:**
+```json
+{"timestamp":"2025-11-21T16:11:13.123Z", "service":"api-gateway", "message":"Request started"}
+{"timestamp":"2025-11-21T16:11:13.234Z", "service":"auth-service", "message":"Token validation"}
+{"timestamp":"2025-11-21T16:11:13.345Z", "service":"user-service", "message":"User lookup"}
+```
+
+**Benefits:**
+- ✅ Clear event sequencing within the same second
+- ✅ Request tracing across distributed services
+- ✅ Performance bottleneck identification
+- ✅ Race condition debugging
 
 ## JSON Field Ordering
 

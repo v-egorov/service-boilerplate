@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -323,8 +324,27 @@ func (f *PrioritizedJSONFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 
 // NewPrioritizedJSONFormatter creates a new prioritized JSON formatter
 func NewPrioritizedJSONFormatter() *PrioritizedJSONFormatter {
+	precision := os.Getenv("LOG_TIMESTAMP_PRECISION")
+	if precision == "" {
+		precision = "milliseconds" // Default to milliseconds for better log correlation
+	}
+
+	var timestampFormat string
+	switch strings.ToLower(precision) {
+	case "seconds":
+		timestampFormat = time.RFC3339
+	case "milliseconds":
+		timestampFormat = "2006-01-02T15:04:05.000Z07:00"
+	case "microseconds":
+		timestampFormat = "2006-01-02T15:04:05.000000Z07:00"
+	case "nanoseconds":
+		timestampFormat = time.RFC3339Nano
+	default:
+		timestampFormat = "2006-01-02T15:04:05.000Z07:00" // Default to milliseconds
+	}
+
 	return &PrioritizedJSONFormatter{
-		TimestampFormat: time.RFC3339,
+		TimestampFormat: timestampFormat,
 	}
 }
 
