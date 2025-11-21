@@ -1212,6 +1212,7 @@ create-volumes-dirs: ## (Re)create volumes directories
 	# Create volume directories
 	@echo "   Creating volume directories..."
 	@mkdir -p docker/volumes/postgres_data
+	@mkdir -p docker/volumes/loki/data
 	@for service in $$(grep "_TMP_VOLUME=" .env | cut -d'=' -f2 | sed 's/service-boilerplate-//' | sed 's/-tmp$$//'); do \
 		echo "   Creating directory for $$service..."; \
 		mkdir -p docker/volumes/$$service/tmp; \
