@@ -11,7 +11,6 @@ DOCKER_COMPOSE_FILE := docker/docker-compose.yml
 DOCKER_COMPOSE_OVERRIDE_FILE := docker/docker-compose.override.yml
 
 # Network variables (simplified for compatibility)
-NETWORK_NAME := service-boilerplate-network
 NETWORK_DRIVER := bridge
 
 # Go variables
@@ -27,9 +26,21 @@ GOVET := $(GO) vet
 DOCKER := docker
 DOCKER_COMPOSE := docker-compose
 
-# Docker naming variables (loaded from .env)
-DOCKER_PROJECT_PREFIX := service-boilerplate
-DOCKER_IMAGE_PREFIX := docker
+# Environment-specific configuration
+APP_ENV ?= development
+ENV_FILE := .env
+ifneq ("$(wildcard .env.$(APP_ENV))","")
+    ENV_FILE := .env.$(APP_ENV)
+endif
+
+# Load environment variables from .env file
+define load_env
+$(foreach var, $(shell cat $(ENV_FILE) | grep -v '^#' | grep -v '^$$' | cut -d'=' -f1), $(eval $(var) := $(shell grep '^$(var)=' $(ENV_FILE) | cut -d'=' -f2)))
+endef
+$(call load_env)
+# Override MIGRATION_IMAGE to ensure correct value
+MIGRATION_IMAGE := migrate/migrate:latest
+
 DOCKER_CONTAINER_PREFIX := $(DOCKER_PROJECT_PREFIX)
 DOCKER_NETWORK_PREFIX := $(DOCKER_PROJECT_PREFIX)
 DOCKER_VOLUME_PREFIX := $(DOCKER_PROJECT_PREFIX)
@@ -41,7 +52,6 @@ USER_SERVICE_IMAGE := $(DOCKER_IMAGE_PREFIX)-$(USER_SERVICE_NAME)
 API_GATEWAY_CONTAINER := $(DOCKER_CONTAINER_PREFIX)-$(API_GATEWAY_NAME)
 USER_SERVICE_CONTAINER := $(DOCKER_CONTAINER_PREFIX)-$(USER_SERVICE_NAME)
 POSTGRES_CONTAINER := $(DOCKER_CONTAINER_PREFIX)-$(POSTGRES_NAME)
-NETWORK_NAME := $(DOCKER_NETWORK_PREFIX)-network
 POSTGRES_VOLUME := $(DOCKER_VOLUME_PREFIX)-postgres-data
 API_GATEWAY_TMP_VOLUME := $(DOCKER_VOLUME_PREFIX)-api-gateway-tmp
 USER_SERVICE_TMP_VOLUME := $(DOCKER_VOLUME_PREFIX)-user-service-tmp
@@ -59,13 +69,6 @@ MIGRATION_IMAGE := migrate/migrate:latest
 
 # Docker cleanup configuration
 DOCKER_CLEANUP_MODE ?= smart
-
-# Environment-specific configuration
-APP_ENV ?= development
-ENV_FILE := .env
-ifneq ("$(wildcard .env.$(APP_ENV))","")
-    ENV_FILE := .env.$(APP_ENV)
-endif
 
 # Dynamic service variable loading from environment-specific .env file
 # Extract all service containers, images, and volumes from .env
@@ -249,7 +252,7 @@ down: ## Stop all services
 	@echo "Services stopped."
 
 .PHONY: dev-bootstrap
-dev-bootstrap: create-volumes-dirs  ## Bootstrap development environment with database setup
+dev-bootstrap: create-volumes-dirs build-migration-orchestrator  ## Bootstrap development environment with database setup
 	@echo "🚀 Bootstrapping development environment..."
 	@echo "📁 Creating volume directories..."
 	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) up postgres -d
@@ -441,14 +444,26 @@ db-recreate: db-drop db-create ## Recreate database from scratch
 
 ## Migration Management (Docker-Based)
 # Service-specific migration table name (e.g., user_service_schema_migrations)
-.PHONY: db-migrate-init
+db-migrate-init-user-service: ## Initialize migration tracking for user-service using orchestrator
+	$(MAKE) db-migrate-init SERVICE_NAME=user-service
+
+db-migrate-init-auth-service: ## Initialize migration tracking for auth-service using orchestrator
+	$(MAKE) db-migrate-init SERVICE_NAME=auth-service
+
+.PHONY: db-migrate-init-% db-migrate-init
+db-migrate-init-%: ## Initialize migration tracking for service using orchestrator
+	$(MAKE) db-migrate-init SERVICE_NAME=$*
 db-migrate-init: ## Initialize migration tracking for service using orchestrator
 	@echo "🔧 Initializing migration tracking for $(SERVICE_NAME) with orchestrator..."
+	@echo "ORCHESTRATOR_IMAGE = $(ORCHESTRATOR_IMAGE)"
+	@echo "NETWORK_NAME = $(NETWORK_NAME)"
+	@echo "ENV_FILE = $(ENV_FILE)"
 	@if [ -z "$(SERVICE_NAME)" ]; then \
 		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-init SERVICE_NAME=user-service)"; \
 		exit 1; \
 	fi
-	@docker run --rm --network service-boilerplate-network \
+	@echo "Command: docker run --rm --network $(NETWORK_NAME) --env-file $(ENV_FILE) -e DB_HOST=$(POSTGRES_NAME) -e DB_PORT=$(DATABASE_PORT) -e DB_USER=$(DATABASE_USER) -e DB_PASSWORD=$(DATABASE_PASSWORD) -e DB_NAME=$(DATABASE_NAME) -e DB_SSL_MODE=$(DATABASE_SSL_MODE) -v $(PWD)/services:/services $(ORCHESTRATOR_IMAGE) init $(SERVICE_NAME)"
+	@docker run --rm --network $(NETWORK_NAME) \
 		--env-file $(ENV_FILE) \
 		-e DB_HOST=$(POSTGRES_NAME) \
 		-e DB_PORT=$(DATABASE_PORT) \
@@ -457,7 +472,7 @@ db-migrate-init: ## Initialize migration tracking for service using orchestrator
 		-e DB_NAME=$(DATABASE_NAME) \
 		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
 		-v $(PWD)/services:/services \
-		migration-orchestrator:latest \
+		$(ORCHESTRATOR_IMAGE) \
 		init $(SERVICE_NAME)
 
 .PHONY: db-migrate-up
