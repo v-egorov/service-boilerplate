@@ -14,6 +14,54 @@ A comprehensive boilerplate for building scalable Golang-based REST API services
 - **Service Instantiation**: Automated script to create new services
 - **Makefile Workflow**: Complete build, test, and deployment automation
 
+## 🔧 Makefile Refactoring (v1.1.0)
+
+Recent improvements to the Makefile for better maintainability and dynamic service support:
+
+### Centralized Variable Loading
+- Variables are now loaded from `.env` files into Make using a dynamic macro.
+- Eliminates duplication between Makefile and `.env` files.
+- `SERVICE_NAME` is excluded from loading to prevent command-line overrides.
+
+### Dynamic Service Detection
+- `SERVICES`: Auto-detects all services in `services/` directory (must end with `-service`).
+- `SERVICES_WITH_MIGRATIONS`: Detects services with `migrations/` and `dependencies.json`.
+- Supports automatic integration of new services without manual Makefile updates.
+
+### Migration Improvements
+- Restored dependency resolution for proper migration ordering.
+- Fixed service name passing to prevent truncation issues.
+- Enhanced error handling for failed migrations.
+
+### Benefits
+- Easier maintenance and extension.
+- Seamless support for `create-service.sh` generated services.
+- Proper dependency management across services.
+
+## 📋 Service Naming Conventions
+
+To ensure services are automatically detected and integrated:
+
+### Naming Rules
+- **Suffix Required**: All services must end with `-service` (e.g., `user-service`, `auth-service`).
+- **Directory Structure**: Services live in `services/{service-name}/`.
+- **Migration-Enabled**: For migrations, include `migrations/` with `dependencies.json` and `environments.json`.
+
+### Examples
+```
+services/
+├── user-service/          # ✅ Detected
+│   ├── migrations/        # ✅ Migration-enabled
+│   └── ...
+├── auth-service/          # ✅ Detected
+└── payment_svc/           # ❌ Not detected (wrong suffix)
+```
+
+### Why This Matters
+- Enables dynamic Makefile operations without manual edits.
+- Ensures `create-service.sh` creates compatible services.
+- Maintains consistency across the project.
+
 ## 📚 Documentation
 
 ### Core Features
@@ -33,6 +81,7 @@ A comprehensive boilerplate for building scalable Golang-based REST API services
 ### Development & Deployment
 
 - **[Service Creation Guide](docs/service-creation-guide.md)**: How to create new services using the boilerplate
+- **[Service Naming Conventions](docs/service-conventions.md)**: Required naming and structure for automatic integration
 - **[Air Hot Reload](docs/air-hot-reload/)**: Development setup with live reloading
 - **[Migrations](docs/migrations/)**: Database migration management and best practices
 - **[CLI Utilities](docs/cli-utility-comprehensive.md)**: Command-line tools for development and operations
@@ -47,6 +96,10 @@ A comprehensive boilerplate for building scalable Golang-based REST API services
 
 - **[Future Development Plan](docs/future_development_plan.md)**: Roadmap of planned features and enhancements
 - **[CLI Utility Plan](docs/cli-utility-plan.md)**: Planned CLI enhancements and features
+
+### Project Management
+
+- **[Changelog](CHANGELOG.md)**: Version history and change notes
 
 ## Project Structure
 

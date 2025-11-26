@@ -24,7 +24,7 @@ if [[ $# -eq 1 && ($1 == "-h" || $1 == "--help") ]]; then
     echo "Usage: $0 <service-name> <port> [options]"
     echo ""
     echo "Arguments:"
-    echo "  service-name    Name of the service (lowercase, hyphens allowed)"
+    echo "  service-name    Name of the service (must end with '-service', lowercase, hyphens allowed)"
     echo "  port           Port number (1024-65535)"
     echo ""
     echo "Options:"
@@ -33,6 +33,8 @@ if [[ $# -eq 1 && ($1 == "-h" || $1 == "--help") ]]; then
     echo "  -h, --help        Show this help message"
     echo ""
     echo "Example: $0 product-service 8082"
+    echo ""
+    echo "Note: Service names must end with '-service' for automatic Makefile integration."
     echo "Example: $0 user-service 8081 --no-db-schema"
     exit 0
 fi
