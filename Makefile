@@ -35,7 +35,7 @@ endif
 
 # Load environment variables from .env file
 define load_env
-$(foreach var, $(shell cat $(ENV_FILE) | grep -v '^#' | grep -v '^$$' | cut -d'=' -f1), $(eval $(var) := $(shell grep '^$(var)=' $(ENV_FILE) | cut -d'=' -f2)))
+$(foreach var, $(shell cat $(ENV_FILE) | grep -v '^#' | grep -v '^$$' | grep -v '^SERVICE_NAME=' | cut -d'=' -f1), $(eval $(var) := $(shell grep '^$(var)=' $(ENV_FILE) | cut -d'=' -f2)))
 endef
 $(call load_env)
 # Override MIGRATION_IMAGE to ensure correct value
@@ -390,6 +390,9 @@ DATABASE_SSL_MODE ?= disable
 MIGRATION_IMAGE ?= migrate/migrate:latest
 ORCHESTRATOR_IMAGE ?= migration-orchestrator:latest
 
+# Auto-detect all services
+SERVICES := $(shell ls services/ | grep -E '.*-service$$' | sort)
+
 # Auto-detect services with migrations (exclude empty directories)
 SERVICES_WITH_MIGRATIONS := $(shell find services -name "migrations" -type d -exec test -f {}/dependencies.json \; -print 2>/dev/null | sed 's|/migrations||' | sed 's|services/||' | sort)
 POSTGRES_NAME ?= postgres
@@ -444,25 +447,13 @@ db-recreate: db-drop db-create ## Recreate database from scratch
 
 ## Migration Management (Docker-Based)
 # Service-specific migration table name (e.g., user_service_schema_migrations)
-db-migrate-init-user-service: ## Initialize migration tracking for user-service using orchestrator
-	$(MAKE) db-migrate-init SERVICE_NAME=user-service
-
-db-migrate-init-auth-service: ## Initialize migration tracking for auth-service using orchestrator
-	$(MAKE) db-migrate-init SERVICE_NAME=auth-service
-
-.PHONY: db-migrate-init-% db-migrate-init
-db-migrate-init-%: ## Initialize migration tracking for service using orchestrator
-	$(MAKE) db-migrate-init SERVICE_NAME=$*
+.PHONY: db-migrate-init
 db-migrate-init: ## Initialize migration tracking for service using orchestrator
 	@echo "🔧 Initializing migration tracking for $(SERVICE_NAME) with orchestrator..."
-	@echo "ORCHESTRATOR_IMAGE = $(ORCHESTRATOR_IMAGE)"
-	@echo "NETWORK_NAME = $(NETWORK_NAME)"
-	@echo "ENV_FILE = $(ENV_FILE)"
 	@if [ -z "$(SERVICE_NAME)" ]; then \
 		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-init SERVICE_NAME=user-service)"; \
 		exit 1; \
 	fi
-	@echo "Command: docker run --rm --network $(NETWORK_NAME) --env-file $(ENV_FILE) -e DB_HOST=$(POSTGRES_NAME) -e DB_PORT=$(DATABASE_PORT) -e DB_USER=$(DATABASE_USER) -e DB_PASSWORD=$(DATABASE_PASSWORD) -e DB_NAME=$(DATABASE_NAME) -e DB_SSL_MODE=$(DATABASE_SSL_MODE) -v $(PWD)/services:/services $(ORCHESTRATOR_IMAGE) init $(SERVICE_NAME)"
 	@docker run --rm --network $(NETWORK_NAME) \
 		--env-file $(ENV_FILE) \
 		-e DB_HOST=$(POSTGRES_NAME) \
@@ -585,7 +576,7 @@ db-migrate: ## Run migrations for all services (or specific service if SERVICE_N
 db-migrate-all: build-migration-orchestrator ## Run migrations for all services with migrations using orchestrator (dependency-ordered)
 	@echo "🔗 Resolving service dependencies..."
 	@SERVICES_ORDER=$$(docker run --rm \
-		--network service-boilerplate-network \
+		--network $(NETWORK_NAME) \
 		--env-file $(ENV_FILE) \
 		-e DB_HOST=$(POSTGRES_NAME) \
 		-e DB_PORT=$(DATABASE_PORT) \
@@ -602,7 +593,7 @@ db-migrate-all: build-migration-orchestrator ## Run migrations for all services 
 			for service in $$SERVICES_ORDER; do \
 				echo "📈 Running migrations for $$service..."; \
 				$(MAKE) db-migrate-init SERVICE_NAME=$$service; \
-				$(MAKE) db-migrate-up SERVICE_NAME=$$service || { echo "❌ Failed to migrate $$service"; exit 1; }; \
+				$(MAKE) db-migrate-up SERVICE_NAME=$$service || echo "❌ Failed to migrate $$service"; \
 			done; \
 			echo "✅ All service migrations completed successfully"; \
 		else \
@@ -610,7 +601,7 @@ db-migrate-all: build-migration-orchestrator ## Run migrations for all services 
 			for service in $(SERVICES_WITH_MIGRATIONS); do \
 				echo "📈 Running migrations for $$service..."; \
 				$(MAKE) db-migrate-init SERVICE_NAME=$$service; \
-				$(MAKE) db-migrate-up SERVICE_NAME=$$service || { echo "❌ Failed to migrate $$service"; exit 1; }; \
+				$(MAKE) db-migrate-up SERVICE_NAME=$$service || echo "❌ Failed to migrate $$service"; \
 			done; \
 			echo "✅ All service migrations completed successfully"; \
 		fi
