@@ -1219,11 +1219,11 @@ create-volumes-dirs: ## (Re)create volumes directories
 	@echo "   Creating volume directories..."
 	@mkdir -p docker/volumes/postgres_data
 	@mkdir -p docker/volumes/loki/data
-	@for service in $$(grep "_TMP_VOLUME=" .env | cut -d'=' -f2 | sed 's/service-boilerplate-//' | sed 's/-tmp$$//'); do \
+	@for service in $$(grep "_TMP_VOLUME=" $(ENV_FILE) | cut -d'=' -f2 | sed 's/$(DOCKER_PROJECT_PREFIX)-//' | sed 's/-tmp$$//'); do \
 		echo "   Creating directory for $$service..."; \
 		mkdir -p docker/volumes/$$service/tmp; \
 	done
-	@for service in $$(grep "_LOGS_VOLUME=" .env | cut -d'=' -f2 | sed 's/service-boilerplate-//' | sed 's/-logs$$//'); do \
+	@for service in $$(grep "_LOGS_VOLUME=" $(ENV_FILE) | cut -d'=' -f2 | sed 's/$(DOCKER_PROJECT_PREFIX)-//' | sed 's/-logs$$//'); do \
 		echo "   Creating logs directory for $$service..."; \
 		mkdir -p docker/volumes/$$service/logs; \
 	done
