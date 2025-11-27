@@ -38,23 +38,6 @@ define load_env
 $(foreach var, $(shell cat $(ENV_FILE) | grep -v '^#' | grep -v '^$$' | grep -v '^SERVICE_NAME=' | cut -d'=' -f1), $(eval $(var) := $(shell grep '^$(var)=' $(ENV_FILE) | cut -d'=' -f2)))
 endef
 $(call load_env)
-# Override MIGRATION_IMAGE to ensure correct value
-MIGRATION_IMAGE := migrate/migrate:latest
-
-DOCKER_CONTAINER_PREFIX := $(DOCKER_PROJECT_PREFIX)
-DOCKER_NETWORK_PREFIX := $(DOCKER_PROJECT_PREFIX)
-DOCKER_VOLUME_PREFIX := $(DOCKER_PROJECT_PREFIX)
-API_GATEWAY_NAME := api-gateway
-USER_SERVICE_NAME := user-service
-POSTGRES_NAME := postgres
-API_GATEWAY_IMAGE := $(DOCKER_IMAGE_PREFIX)-$(API_GATEWAY_NAME)
-USER_SERVICE_IMAGE := $(DOCKER_IMAGE_PREFIX)-$(USER_SERVICE_NAME)
-API_GATEWAY_CONTAINER := $(DOCKER_CONTAINER_PREFIX)-$(API_GATEWAY_NAME)
-USER_SERVICE_CONTAINER := $(DOCKER_CONTAINER_PREFIX)-$(USER_SERVICE_NAME)
-POSTGRES_CONTAINER := $(DOCKER_CONTAINER_PREFIX)-$(POSTGRES_NAME)
-POSTGRES_VOLUME := $(DOCKER_VOLUME_PREFIX)-postgres-data
-API_GATEWAY_TMP_VOLUME := $(DOCKER_VOLUME_PREFIX)-api-gateway-tmp
-USER_SERVICE_TMP_VOLUME := $(DOCKER_VOLUME_PREFIX)-user-service-tmp
 
 # Service URL variables (can be overridden via environment)
 AUTH_SERVICE_URL ?= http://auth-service:8083
