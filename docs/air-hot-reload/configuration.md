@@ -415,7 +415,6 @@ Docker configuration is fully controlled via `.env` file:
 | `MIGRATION_TMP_VOLUME` | `service-boilerplate-migration-tmp` | Migration temp volume |
 | `MIGRATION_IMAGE` | `migrate/migrate:latest` | Migration tool image |
 | `SERVICE_NAME` | `user-service` | Current service for migrations |
-| `MIGRATION_PATH` | `services/user-service/migrations` | Migration files path |
 
 ### Network Configuration
 Services use named networks with multiple aliases for flexible connectivity:
