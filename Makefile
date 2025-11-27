@@ -80,7 +80,7 @@ SERVICE_VOLUMES := $(shell grep "_VOLUME=" $(ENV_FILE) | grep -v "POSTGRES_VOLUM
 MONITORING_CONTAINERS := $(shell grep "_CONTAINER=" $(ENV_FILE) | grep -E "(LOKI|PROMTAIL|GRAFANA)_CONTAINER" | cut -d'=' -f2)
 MONITORING_IMAGES := $(shell grep "_IMAGE=" $(ENV_FILE) | grep -E "(LOKI|PROMTAIL|GRAFANA)_IMAGE" | cut -d'=' -f2)
 MONITORING_VOLUMES := $(shell grep "_VOLUME=" $(ENV_FILE) | grep -E "(LOKI_DATA|PROMTAIL_POSITIONS|GRAFANA_DATA)_VOLUME" | cut -d'=' -f2)
-MONITORING_VOLUME_DIRS := $(shell grep "_VOLUME=" $(ENV_FILE) | grep -E "(LOKI_DATA|PROMTAIL_POSITIONS|GRAFANA_DATA)_VOLUME" | cut -d'=' -f2 | sed 's/$(DOCKER_VOLUME_PREFIX)-//' | sed 's/-data$$//' | sed 's/-positions$$//')
+MONITORING_VOLUME_DIRS := grafana loki promtail
 
 .PHONY: help
 help: ## Show this help message
@@ -1228,17 +1228,12 @@ create-volumes-dirs: ## (Re)create volumes directories
 		mkdir -p docker/volumes/$$service/logs; \
 	done
 	@echo "   Creating monitoring volume directories..."
-	@for volume_var in $$(grep "_VOLUME=" $(ENV_FILE) | grep -E "(LOKI_DATA|PROMTAIL_POSITIONS|GRAFANA_DATA)_VOLUME"); do \
-		volume_name=$$(echo $$volume_var | cut -d'=' -f2); \
-		dir_name=$$(echo $$volume_name | sed 's/$(DOCKER_VOLUME_PREFIX)-//' | sed 's/-data$$//' | sed 's/-positions$$//'); \
-		if echo "$$volume_var" | grep -q "PROMTAIL_POSITIONS"; then \
-			echo "   Creating directory for $$dir_name..."; \
-			mkdir -p docker/volumes/$$dir_name/positions; \
-		else \
-			echo "   Creating directory for $$dir_name..."; \
-			mkdir -p docker/volumes/$$dir_name/data; \
-		fi; \
-	done
+	@echo "   Creating directory for grafana..."
+	@mkdir -p docker/volumes/grafana/data
+	@echo "   Creating directory for loki..."
+	@mkdir -p docker/volumes/loki/data
+	@echo "   Creating directory for promtail..."
+	@mkdir -p docker/volumes/promtail/positions
 
 .PHONY: docker-recreate
 docker-recreate: create-volumes-dirs ## Recreate project Docker environment from scratch
