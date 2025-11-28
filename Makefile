@@ -2,7 +2,6 @@
 MAKEFLAGS += --no-print-directory
 
 # Project variables
-PROJECT_NAME := service-boilerplate
 API_GATEWAY_DIR := api-gateway
 USER_SERVICE_DIR := services/user-service
 CLI_DIR := cli
@@ -260,7 +259,7 @@ status: ## Show current environment status and running services
 	@echo "📊 Environment Status:"
 	@echo "  APP_ENV: $(APP_ENV)"
 	@echo "  Services running:"
-	@docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep service-boilerplate || echo "    No service-boilerplate containers running"
+	@docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep $(DOCKER_PROJECT_PREFIX) || echo "    No $(DOCKER_PROJECT_PREFIX) containers running"
 	@echo ""
 	@echo "💡 Quick Commands:"
 	@echo "  make dev    - Start development environment (hot reload)"
@@ -456,7 +455,7 @@ db-migrate-up: ## Run migrations up using orchestrator
 		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-up SERVICE_NAME=user-service)"; \
 		exit 1; \
 	fi
-	@docker run --rm --network service-boilerplate-network \
+	@docker run --rm --network $(NETWORK_NAME) \
 		--env-file $(ENV_FILE) \
 		-e DB_HOST=$(POSTGRES_NAME) \
 		-e DB_PORT=$(DATABASE_PORT) \
@@ -465,7 +464,7 @@ db-migrate-up: ## Run migrations up using orchestrator
 		-e DB_NAME=$(DATABASE_NAME) \
 		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
 		-v $(PWD)/services:/services \
-		migration-orchestrator:latest \
+		$(ORCHESTRATOR_IMAGE) \
 		up $(SERVICE_NAME) --env $(APP_ENV)
 
 .PHONY: db-migrate-down
@@ -475,7 +474,7 @@ db-migrate-down: ## Run migrations down using orchestrator
 		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-down SERVICE_NAME=user-service)"; \
 		exit 1; \
 	fi
-	@docker run --rm --network service-boilerplate-network \
+	@docker run --rm --network $(NETWORK_NAME) \
 		--env-file $(ENV_FILE) \
 		-e DB_HOST=$(POSTGRES_NAME) \
 		-e DB_PORT=$(DATABASE_PORT) \
@@ -484,7 +483,7 @@ db-migrate-down: ## Run migrations down using orchestrator
 		-e DB_NAME=$(DATABASE_NAME) \
 		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
 		-v $(PWD)/services:/services \
-		migration-orchestrator:latest \
+		$(ORCHESTRATOR_IMAGE) \
 		down $(SERVICE_NAME) 1 --env $(APP_ENV)
 
 .PHONY: db-migrate-status
@@ -494,7 +493,7 @@ db-migrate-status: ## Show migration status using orchestrator
 		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-status SERVICE_NAME=user-service)"; \
 		exit 1; \
 	fi
-	@docker run --rm --network service-boilerplate-network \
+	@docker run --rm --network $(NETWORK_NAME) \
 		--env-file $(ENV_FILE) \
 		-e DB_HOST=$(POSTGRES_NAME) \
 		-e DB_PORT=$(DATABASE_PORT) \
@@ -503,7 +502,7 @@ db-migrate-status: ## Show migration status using orchestrator
 		-e DB_NAME=$(DATABASE_NAME) \
 		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
 		-v $(PWD)/services:/services \
-		migration-orchestrator:latest \
+		$(ORCHESTRATOR_IMAGE) \
 		status $(SERVICE_NAME) --env $(APP_ENV)
 
 .PHONY: db-migrate-list
@@ -513,7 +512,7 @@ db-migrate-list: ## List all migrations using orchestrator
 		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-list SERVICE_NAME=user-service)"; \
 		exit 1; \
 	fi
-	@docker run --rm --network service-boilerplate-network \
+	@docker run --rm --network $(NETWORK_NAME) \
 		--env-file $(ENV_FILE) \
 		-e DB_HOST=$(POSTGRES_NAME) \
 		-e DB_PORT=$(DATABASE_PORT) \
@@ -522,7 +521,7 @@ db-migrate-list: ## List all migrations using orchestrator
 		-e DB_NAME=$(DATABASE_NAME) \
 		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
 		-v $(PWD)/services:/services \
-		migration-orchestrator:latest \
+		$(ORCHESTRATOR_IMAGE) \
 		list $(SERVICE_NAME) --env $(APP_ENV)
 
 .PHONY: db-migrate-validate
@@ -532,7 +531,7 @@ db-migrate-validate: ## Validate migrations using orchestrator
 		echo "❌ Error: Please specify SERVICE_NAME (e.g., make db-migrate-validate SERVICE_NAME=user-service)"; \
 		exit 1; \
 	fi
-	@docker run --rm --network service-boilerplate-network \
+	@docker run --rm --network $(NETWORK_NAME) \
 		--env-file $(ENV_FILE) \
 		-e DB_HOST=$(POSTGRES_NAME) \
 		-e DB_PORT=$(DATABASE_PORT) \
@@ -541,7 +540,7 @@ db-migrate-validate: ## Validate migrations using orchestrator
 		-e DB_NAME=$(DATABASE_NAME) \
 		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
 		-v $(PWD)/services:/services \
-		migration-orchestrator:latest \
+		$(ORCHESTRATOR_IMAGE) \
 		validate $(SERVICE_NAME) --env $(APP_ENV)
 
 .PHONY: db-migrate
@@ -873,7 +872,7 @@ clean-docker-smart: ## Smart Docker cleanup with safety checks
 		fi; \
 	done
 	@echo "💾 Removing monitoring volumes..."
-	@for volume in service-boilerplate-loki-data service-boilerplate-promtail-positions service-boilerplate-grafana-data; do \
+	@for volume in $(MONITORING_VOLUMES); do \
 		echo "  Removing volume: $$volume"; \
 		docker volume rm $$volume 2>/dev/null || true; \
 	done
@@ -1274,7 +1273,7 @@ health: ## Comprehensive health check of all services
 .PHONY: health-containers
 health-containers: ## Check Docker container status
 	@echo "🐳 Container Status:"
-	@CONTAINERS="$$(docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep service-boilerplate)"; \
+	@CONTAINERS="$$(docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep $(DOCKER_PROJECT_PREFIX))"; \
 	if [ -n "$$CONTAINERS" ]; then \
 		echo "$$CONTAINERS" | while read line; do \
 			if echo "$$line" | grep -q "Up"; then \
@@ -1284,7 +1283,7 @@ health-containers: ## Check Docker container status
 			fi; \
 		done; \
 	else \
-		echo "  ⚠️  No service-boilerplate containers running"; \
+		echo "  ⚠️  No $(DOCKER_PROJECT_PREFIX) containers running"; \
 	fi
 
 .PHONY: health-services
@@ -1334,7 +1333,7 @@ health-network: ## Check Docker network status
 .PHONY: health-volumes
 health-volumes: ## Check volume mount status
 	@echo "💾 Docker Volume Status:"
-	@VOLUMES="$$(docker volume ls --format "table {{.Name}}" | grep service-boilerplate)"; \
+	@VOLUMES="$$(docker volume ls --format "table {{.Name}}" | grep $(DOCKER_PROJECT_PREFIX))"; \
 	if [ -n "$$VOLUMES" ]; then \
 		echo "$$VOLUMES" | while read volume; do \
 			if [ "$$volume" != "NAME" ]; then \
@@ -1347,7 +1346,7 @@ health-volumes: ## Check volume mount status
 			fi; \
 		done; \
 	else \
-		echo "  ⚠️  No service-boilerplate volumes found"; \
+		echo "  ⚠️  No $(DOCKER_PROJECT_PREFIX) volumes found"; \
 	fi
 	@HOST_VOLUMES="docker/volumes/postgres_data docker/volumes/api-gateway docker/volumes/user-service tmp"; \
 	for volume in $$HOST_VOLUMES; do \
@@ -1390,7 +1389,7 @@ clean-docker-report: ## Report on Docker cleanup status
 	@docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}" 2>/dev/null || echo "  No running containers"
 	@echo ""
 	@echo "🖼️  Current project images:"
-	@docker images --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}" | grep -E "(service-boilerplate|migrate|migrate|migrate|postgres|golang|alpine)" 2>/dev/null || echo "  No project images found"
+	@docker images --format "table {{.Repository}}:{{.Tag}}\t{{.Size}}" | grep -E "($(DOCKER_PROJECT_PREFIX)|migrate|postgres|golang|alpine)" 2>/dev/null || echo "  No project images found"
 	@echo ""
 	@echo "💡 To change cleanup mode: make clean-docker DOCKER_CLEANUP_MODE=conservative"
 
