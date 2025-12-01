@@ -1000,7 +1000,7 @@ clean-volumes: ## Clean Docker volumes and persistent data
 	@echo "🔧 Cleaning volume data using Docker containers..."
 	@mkdir -p docker/volumes  # Ensure parent directory exists with correct ownership
 	@echo "📁 Removing postgres volume..."
-	@docker run --rm -v $(PWD)/docker/volumes/postgres_data:/data alpine sh -c "rm -rf /data/*";
+	@docker run --rm -v $(PWD)/docker/volumes:/volumes alpine sh -c "rm -rf /volumes/postgres_data";
 	@echo "📁 Removing monitoring volumes..."
 	@for dir in $(MONITORING_VOLUME_DIRS); do \
 		echo "  Cleaning $$dir volume data..."; \
