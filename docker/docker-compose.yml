@@ -285,6 +285,12 @@ volumes:
       device: ${PWD}/docker/volumes/auth-service/logs
 
   jaeger_data:
+    name: ${JAEGER_DATA_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/jaeger/data
 
   loki_data:
     name: ${LOKI_DATA_VOLUME}

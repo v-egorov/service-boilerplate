@@ -61,8 +61,8 @@ SERVICE_VOLUMES := $(shell grep "_VOLUME=" $(ENV_FILE) | grep -v "POSTGRES_VOLUM
 # Extract monitoring containers, images, and volumes from .env
 MONITORING_CONTAINERS := $(shell grep "_CONTAINER=" $(ENV_FILE) | grep -E "(LOKI|PROMTAIL|GRAFANA)_CONTAINER" | cut -d'=' -f2)
 MONITORING_IMAGES := $(shell grep "_IMAGE=" $(ENV_FILE) | grep -E "(LOKI|PROMTAIL|GRAFANA)_IMAGE" | cut -d'=' -f2)
-MONITORING_VOLUMES := $(shell grep "_VOLUME=" $(ENV_FILE) | grep -E "(LOKI_DATA|PROMTAIL_POSITIONS|GRAFANA_DATA)_VOLUME" | cut -d'=' -f2)
-MONITORING_VOLUME_DIRS := grafana loki promtail
+MONITORING_VOLUMES := $(shell grep "_VOLUME=" $(ENV_FILE) | grep -E "(LOKI_DATA|PROMTAIL_POSITIONS|GRAFANA_DATA|JAEGER_DATA)_VOLUME" | cut -d'=' -f2)
+MONITORING_VOLUME_DIRS := grafana loki promtail jaeger
 
 .PHONY: help
 help: ## Show this help message
@@ -1200,7 +1200,6 @@ create-volumes-dirs: ## (Re)create volumes directories
 	# Create volume directories
 	@echo "   Creating volume directories..."
 	@mkdir -p docker/volumes/postgres_data
-	@mkdir -p docker/volumes/loki/data
 	@for service in $$(grep "_TMP_VOLUME=" $(ENV_FILE) | cut -d'=' -f2 | sed 's/$(DOCKER_PROJECT_PREFIX)-//' | sed 's/-tmp$$//'); do \
 		echo "   Creating directory for $$service..."; \
 		mkdir -p docker/volumes/$$service/tmp; \
@@ -1212,6 +1211,8 @@ create-volumes-dirs: ## (Re)create volumes directories
 	@echo "   Creating monitoring volume directories..."
 	@echo "   Creating directory for grafana..."
 	@mkdir -p docker/volumes/grafana/data
+	@echo "   Creating directory for jaeger..."
+	@mkdir -p docker/volumes/jaeger/data
 	@echo "   Creating directory for loki..."
 	@mkdir -p docker/volumes/loki/data
 	@echo "   Creating directory for promtail..."
