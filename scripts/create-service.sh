@@ -2,6 +2,13 @@
 
 set -e
 
+# Source environment variables
+if [ -f ".env.development" ]; then
+    source .env.development
+elif [ -f ".env" ]; then
+    source .env
+fi
+
 # Cleanup function
 cleanup() {
     local exit_code=$?
@@ -338,9 +345,9 @@ echo "# $SERVICE_NAME Service Configuration" >>.env.development
 echo "${SERVICE_NAME_UPPER}_SERVICE_NAME=$SERVICE_NAME" >>.env.development
 echo "${SERVICE_NAME_UPPER}_SERVICE_PORT=$PORT" >>.env.development
 echo "${SERVICE_NAME_UPPER}_SERVICE_IMAGE=docker-$SERVICE_NAME" >>.env.development
-echo "${SERVICE_NAME_UPPER}_SERVICE_CONTAINER=service-boilerplate-$SERVICE_NAME" >>.env.development
-echo "${SERVICE_NAME_UPPER}_SERVICE_TMP_VOLUME=service-boilerplate-${SERVICE_NAME}-tmp" >>.env.development
-echo "${SERVICE_NAME_UPPER}_LOGS_VOLUME=service-boilerplate-${SERVICE_NAME}-logs" >>.env.development
+echo "${SERVICE_NAME_UPPER}_SERVICE_CONTAINER=${DOCKER_PROJECT_PREFIX}-$SERVICE_NAME" >>.env.development
+echo "${SERVICE_NAME_UPPER}_SERVICE_TMP_VOLUME=${DOCKER_PROJECT_PREFIX}-${SERVICE_NAME}-tmp" >>.env.development
+echo "${SERVICE_NAME_UPPER}_LOGS_VOLUME=${DOCKER_PROJECT_PREFIX}-${SERVICE_NAME}-logs" >>.env.development
 
 # Update Makefile
 echo "Updating Makefile..."
@@ -457,7 +464,7 @@ if [ -f "docker/promtail-config.yml" ]; then
 EOF
 
     # Append the job configuration to the end of scrape_configs
-    cat "$JOB_CONFIG_FILE" >> docker/promtail-config.yml
+    cat "$JOB_CONFIG_FILE" >>docker/promtail-config.yml
 
     # Clean up temporary file
     rm -f "$JOB_CONFIG_FILE"
