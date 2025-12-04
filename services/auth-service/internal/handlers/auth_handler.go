@@ -16,13 +16,13 @@ import (
 )
 
 type AuthHandler struct {
-	authService    *services.AuthService
+	authService    services.AuthServiceInterface
 	logger         *logrus.Logger
 	auditLogger    *logging.AuditLogger
 	standardLogger *logging.StandardLogger
 }
 
-func NewAuthHandler(authService *services.AuthService, logger *logrus.Logger) *AuthHandler {
+func NewAuthHandler(authService services.AuthServiceInterface, logger *logrus.Logger) *AuthHandler {
 	return &AuthHandler{
 		authService:    authService,
 		logger:         logger,

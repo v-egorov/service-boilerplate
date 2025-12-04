@@ -19,6 +19,35 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// AuthServiceInterface defines the interface for auth service operations
+type AuthServiceInterface interface {
+	Login(ctx context.Context, req *models.LoginRequest, ipAddress, userAgent string) (*models.TokenResponse, error)
+	Register(ctx context.Context, req *models.RegisterRequest) (*models.UserInfo, error)
+	Logout(ctx context.Context, tokenString string) error
+	RefreshToken(ctx context.Context, req *models.RefreshTokenRequest) (*models.TokenResponse, error)
+	GetCurrentUser(ctx context.Context, userID uuid.UUID, email string) (*models.UserInfo, error)
+	ValidateToken(ctx context.Context, tokenString string) (*utils.JWTClaims, error)
+	GetPublicKeyPEM() ([]byte, error)
+	RotateKeys(ctx context.Context) error
+	CreateRole(ctx context.Context, name, description string) (*models.Role, error)
+	ListRoles(ctx context.Context) ([]models.Role, error)
+	GetRole(ctx context.Context, roleID uuid.UUID) (*models.Role, error)
+	UpdateRole(ctx context.Context, roleID uuid.UUID, name, description string) (*models.Role, error)
+	DeleteRole(ctx context.Context, roleID uuid.UUID) error
+	CreatePermission(ctx context.Context, name, resource, action string) (*models.Permission, error)
+	ListPermissions(ctx context.Context) ([]models.Permission, error)
+	GetPermission(ctx context.Context, permissionID uuid.UUID) (*models.Permission, error)
+	UpdatePermission(ctx context.Context, permissionID uuid.UUID, name, resource, action string) (*models.Permission, error)
+	DeletePermission(ctx context.Context, permissionID uuid.UUID) error
+	AssignPermissionToRole(ctx context.Context, roleID, permissionID uuid.UUID) error
+	RemovePermissionFromRole(ctx context.Context, roleID, permissionID uuid.UUID) error
+	GetRolePermissions(ctx context.Context, roleID uuid.UUID) ([]models.Permission, error)
+	AssignRoleToUser(ctx context.Context, userID, roleID uuid.UUID) error
+	RemoveRoleFromUser(ctx context.Context, userID, roleID uuid.UUID) error
+	GetUserRoles(ctx context.Context, userID uuid.UUID) ([]models.Role, error)
+	UpdateUserRoles(ctx context.Context, userID uuid.UUID, roleIDs []uuid.UUID) error
+}
+
 type AuthService struct {
 	repo       *repository.AuthRepository
 	userClient *client.UserClient
