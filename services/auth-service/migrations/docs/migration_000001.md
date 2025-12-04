@@ -8,36 +8,36 @@
 **Risk Level:** Low
 
 ## Description
-Initial migration that creates the auth_service schema and the entities table with basic entity management functionality.
+Initial migration that creates the auth_service schema with authentication and authorization tables.
 
 ## Changes Made
 
 ### Database Changes
 - Create `auth_service` schema
-- Create `auth_service.entities` table with the following columns:
-  - `id` (BIGSERIAL PRIMARY KEY)
-  - `name` (VARCHAR(100) NOT NULL UNIQUE)
-  - `description` (TEXT)
-  - `created_at` (TIMESTAMP WITH TIME ZONE, defaults to CURRENT_TIMESTAMP)
-  - `updated_at` (TIMESTAMP WITH TIME ZONE, defaults to CURRENT_TIMESTAMP)
+- Create authentication and authorization tables:
+  - `auth_tokens` - JWT token storage
+  - `user_sessions` - User session management
+  - `roles` - RBAC roles
+  - `permissions` - RBAC permissions
+  - `role_permissions` - Role-permission relationships
+  - `user_roles` - User-role assignments
 
 ### Indexes Created
-- `idx_entities_name` on `auth_service.entities(name)`
-- `idx_entities_created_at` on `auth_service.entities(created_at)`
+- Various indexes for performance optimization on auth tokens, sessions, roles, and permissions
 
 ### Triggers Created
-- `update_entities_updated_at` trigger to automatically update `updated_at` column
+- `update_auth_tokens_updated_at` trigger for auth_tokens table
 
 ## Affected Tables
-- `auth_service.entities` (created)
+- `auth_service.auth_tokens` (created)
+- `auth_service.user_sessions` (created)
+- `auth_service.roles` (created)
+- `auth_service.permissions` (created)
+- `auth_service.role_permissions` (created)
+- `auth_service.user_roles` (created)
 
 ## Rollback Plan
-The down migration will:
-1. Drop the trigger
-2. Drop the function
-3. Drop the indexes
-4. Drop the entities table
-5. Drop the auth_service schema
+The down migration will drop all created tables and the schema.
 
 ## Testing
 - [x] Migration applies successfully
