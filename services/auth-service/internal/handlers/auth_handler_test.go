@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/utils"
 )
@@ -286,27 +287,21 @@ func TestAuthHandler_GetPublicKey(t *testing.T) {
 			handler.GetPublicKey(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			body := w.Body.String()
 			if tt.expectJSON {
 				var response map[string]interface{}
-				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-					t.Errorf("Failed to unmarshal JSON response: %v", err)
-				}
+				assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 				// For JSON responses, check the structure
 				if tt.name == "service error" {
-					if errorMsg, exists := response["error"]; !exists || errorMsg != "Failed to get public key" {
-						t.Errorf("Expected error message not found or incorrect")
-					}
+					errorMsg, exists := response["error"]
+					assert.True(t, exists, "Expected error field in response")
+					assert.Equal(t, "Failed to get public key", errorMsg)
 				}
 			} else {
 				// For plain text responses, check exact match
-				if body != tt.expectedBody {
-					t.Errorf("Expected body %q, got %q", tt.expectedBody, body)
-				}
+				assert.Equal(t, tt.expectedBody, body)
 			}
 		})
 	}
@@ -382,24 +377,16 @@ func TestAuthHandler_Login(t *testing.T) {
 			handler.Login(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			if tt.expectJSON {
 				var response map[string]interface{}
-				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-					t.Errorf("Failed to unmarshal JSON response: %v", err)
-				}
+				assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
 				if tt.mockResponse != nil {
 					// Check successful response structure
-					if _, exists := response["access_token"]; !exists {
-						t.Errorf("Expected access_token in response")
-					}
-					if _, exists := response["refresh_token"]; !exists {
-						t.Errorf("Expected refresh_token in response")
-					}
+					assert.Contains(t, response, "access_token")
+					assert.Contains(t, response, "refresh_token")
 				}
 			}
 		})
@@ -480,28 +467,18 @@ func TestAuthHandler_Register(t *testing.T) {
 			handler.Register(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			if tt.expectJSON {
 				var response map[string]interface{}
-				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-					t.Errorf("Failed to unmarshal JSON response: %v", err)
-				}
+				assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
 				if tt.mockResponse != nil {
 					// Check successful response structure
-					if userData, exists := response["user"]; !exists {
-						t.Errorf("Expected user in response")
-					} else if userMap, ok := userData.(map[string]interface{}); ok {
-						if _, exists := userMap["id"]; !exists {
-							t.Errorf("Expected id in user response")
-						}
-						if _, exists := userMap["email"]; !exists {
-							t.Errorf("Expected email in user response")
-						}
-					}
+					assert.Contains(t, response, "user")
+					userData, _ := response["user"].(map[string]interface{})
+					assert.Contains(t, userData, "id")
+					assert.Contains(t, userData, "email")
 				}
 			}
 		})
