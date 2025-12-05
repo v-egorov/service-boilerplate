@@ -373,6 +373,11 @@ func (s *AuthService) RefreshToken(ctx context.Context, req *models.RefreshToken
 		return nil, fmt.Errorf("refresh token not found: %w", err)
 	}
 
+	if token.RevokedAt != nil {
+		s.logger.Warn("Attempted to refresh revoked token")
+		return nil, fmt.Errorf("refresh token has been revoked")
+	}
+
 	// Revoke old refresh token
 	if err := s.repo.RevokeAuthToken(ctx, token.ID); err != nil {
 		s.logger.WithError(err).Error("Failed to revoke old refresh token")
