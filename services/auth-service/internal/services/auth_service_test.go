@@ -485,6 +485,544 @@ func TestAuthService_GetUserRoles(t *testing.T) {
 	}
 }
 
+func TestAuthService_Login(t *testing.T) {
+	tests := []struct {
+		name           string
+		request        *models.LoginRequest
+		ipAddress      string
+		userAgent      string
+		mockUserLogin  *client.UserLoginResponse
+		mockUserError  error
+		mockAccessToken string
+		mockRefreshToken string
+		mockTokenError error
+		mockRepoError  error
+		expectedError  string
+		expectTokens   bool
+	}{
+		{
+			name: "successful login",
+			request: &models.LoginRequest{
+				Email:    "user@example.com",
+				Password: "password123",
+			},
+			ipAddress: "192.168.1.1",
+			userAgent: "Mozilla/5.0",
+			mockUserLogin: &client.UserLoginResponse{
+				User: &client.UserData{
+					ID:    uuid.New(),
+					Email: "user@example.com",
+				},
+				PasswordHash: "$2a$10$oolyJReLQIIPPeH4XPtEhukeV9D115vs.XbyNQfw/zlTsF4/q8nly",
+			},
+			mockUserError:   nil,
+			mockAccessToken: "access.jwt.token",
+			mockRefreshToken: "refresh.jwt.token",
+			mockTokenError:  nil,
+			mockRepoError:   nil,
+			expectedError:  "",
+			expectTokens:   true,
+		},
+		{
+			name: "user not found",
+			request: &models.LoginRequest{
+				Email:    "nonexistent@example.com",
+				Password: "password123",
+			},
+			ipAddress:     "192.168.1.1",
+			userAgent:     "Mozilla/5.0",
+			mockUserLogin: nil,
+			mockUserError: errors.New("user not found"),
+			expectedError: "invalid credentials",
+			expectTokens:  false,
+		},
+		{
+			name: "invalid password",
+			request: &models.LoginRequest{
+				Email:    "user@example.com",
+				Password: "wrongpassword",
+			},
+			ipAddress: "192.168.1.1",
+			userAgent: "Mozilla/5.0",
+			mockUserLogin: &client.UserLoginResponse{
+				User: &client.UserData{
+					ID:    uuid.New(),
+					Email: "user@example.com",
+				},
+				PasswordHash: "$2a$10$oolyJReLQIIPPeH4XPtEhukeV9D115vs.XbyNQfw/zlTsF4/q8nly",
+			},
+			mockUserError:  nil,
+			expectedError:  "invalid credentials",
+			expectTokens:   false,
+		},
+		{
+			name: "token generation failure",
+			request: &models.LoginRequest{
+				Email:    "user@example.com",
+				Password: "password123",
+			},
+			ipAddress: "192.168.1.1",
+			userAgent: "Mozilla/5.0",
+			mockUserLogin: &client.UserLoginResponse{
+				User: &client.UserData{
+					ID:    uuid.New(),
+					Email: "user@example.com",
+				},
+				PasswordHash: "$2a$10$oolyJReLQIIPPeH4XPtEhukeV9D115vs.XbyNQfw/zlTsF4/q8nly",
+			},
+			mockUserError:   nil,
+			mockAccessToken: "",
+			mockRefreshToken: "",
+			mockTokenError:  errors.New("token generation failed"),
+			expectedError:   "failed to generate access token: token generation failed",
+			expectTokens:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mocks
+			mockRepo := &MockAuthRepository{}
+			mockUserClient := &MockUserClient{}
+			mockJWTUtils := &MockJWTUtils{}
+
+			// Setup expectations
+			if tt.mockUserLogin != nil || tt.mockUserError != nil {
+				mockUserClient.getUserWithPasswordByEmailFunc = func(ctx context.Context, email string) (*client.UserLoginResponse, error) {
+					return tt.mockUserLogin, tt.mockUserError
+				}
+			}
+
+			if tt.mockUserLogin != nil && tt.mockUserError == nil {
+				mockRepo.getUserRolesFunc = func(ctx context.Context, userID uuid.UUID) ([]models.Role, error) {
+					return []models.Role{}, nil
+				}
+				mockJWTUtils.generateAccessTokenFunc = func(userID uuid.UUID, email string, roles []string, duration time.Duration) (string, error) {
+					return tt.mockAccessToken, tt.mockTokenError
+				}
+
+				if tt.mockTokenError == nil {
+					mockJWTUtils.generateRefreshTokenFunc = func(userID uuid.UUID, duration time.Duration) (string, error) {
+						return tt.mockRefreshToken, nil
+					}
+					mockRepo.createAuthTokenFunc = func(ctx context.Context, token *models.AuthToken) error {
+						return tt.mockRepoError
+					}
+					if tt.mockRepoError == nil {
+						mockRepo.createUserSessionFunc = func(ctx context.Context, session *models.UserSession) error {
+							return nil
+						}
+					}
+				}
+			}
+
+			// Create service
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			service := NewAuthService(mockRepo, mockUserClient, mockJWTUtils, logger)
+
+			// Execute
+			result, err := service.Login(context.Background(), tt.request, tt.ipAddress, tt.userAgent)
+
+			// Assert
+			if tt.expectedError != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				if tt.expectTokens {
+					assert.Equal(t, tt.mockAccessToken, result.AccessToken)
+					assert.Equal(t, tt.mockRefreshToken, result.RefreshToken)
+					assert.Equal(t, "Bearer", result.TokenType)
+				}
+			}
+		})
+	}
+}
+
+func TestAuthService_Register(t *testing.T) {
+	tests := []struct {
+		name         string
+		request      *models.RegisterRequest
+		mockUserData *client.UserData
+		mockUserError error
+		mockRole     *models.Role
+		mockRoleError error
+		mockAssignError error
+		expectedError string
+		expectUser   bool
+	}{
+		{
+			name: "successful registration",
+			request: &models.RegisterRequest{
+				Email:     "newuser@example.com",
+				Password:  "password123",
+				FirstName: "John",
+				LastName:  "Doe",
+			},
+			mockUserData: &client.UserData{
+				ID:        uuid.New(),
+				Email:     "newuser@example.com",
+				FirstName: "John",
+				LastName:  "Doe",
+			},
+			mockUserError: nil,
+			mockRole: &models.Role{
+				ID:   uuid.New(),
+				Name: "user",
+			},
+			mockRoleError:   nil,
+			mockAssignError: nil,
+			expectedError:  "",
+			expectUser:    true,
+		},
+		{
+			name: "user creation failure",
+			request: &models.RegisterRequest{
+				Email:     "existing@example.com",
+				Password:  "password123",
+				FirstName: "Jane",
+				LastName:  "Doe",
+			},
+			mockUserData:   nil,
+			mockUserError: errors.New("user already exists"),
+			expectedError: "user already exists",
+			expectUser:    false,
+		},
+		{
+			name: "default role not found",
+			request: &models.RegisterRequest{
+				Email:     "newuser@example.com",
+				Password:  "password123",
+				FirstName: "John",
+				LastName:  "Doe",
+			},
+			mockUserData: &client.UserData{
+				ID:        uuid.New(),
+				Email:     "newuser@example.com",
+				FirstName: "John",
+				LastName:  "Doe",
+			},
+			mockUserError: nil,
+			mockRole:      nil,
+			mockRoleError: errors.New("role not found"),
+			expectedError: "failed to get default role",
+			expectUser:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mocks
+			mockRepo := &MockAuthRepository{}
+			mockUserClient := &MockUserClient{}
+			mockJWTUtils := &MockJWTUtils{}
+
+			// Setup expectations
+			mockUserClient.createUserFunc = func(ctx context.Context, req *client.CreateUserRequest) (*client.UserData, error) {
+				return tt.mockUserData, tt.mockUserError
+			}
+
+			if tt.mockUserError == nil && tt.mockUserData != nil {
+				mockRepo.getRoleByNameFunc = func(ctx context.Context, name string) (*models.Role, error) {
+					return tt.mockRole, tt.mockRoleError
+				}
+
+				if tt.mockRoleError == nil && tt.mockRole != nil {
+					mockRepo.assignRoleToUserFunc = func(ctx context.Context, userID, roleID uuid.UUID) error {
+						return tt.mockAssignError
+					}
+				}
+			}
+
+			// Create service
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			service := NewAuthService(mockRepo, mockUserClient, mockJWTUtils, logger)
+
+			// Execute
+			result, err := service.Register(context.Background(), tt.request)
+
+			// Assert
+			if tt.expectedError != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				if tt.expectUser {
+					assert.NotNil(t, result)
+					assert.Equal(t, tt.mockUserData.Email, result.Email)
+					assert.Equal(t, tt.mockUserData.FirstName, result.FirstName)
+					assert.Equal(t, tt.mockUserData.LastName, result.LastName)
+				}
+			}
+		})
+	}
+}
+
+func TestAuthService_ValidateToken(t *testing.T) {
+	tests := []struct {
+		name         string
+		tokenString  string
+		mockClaims   *utils.JWTClaims
+		mockError    error
+		expectedError string
+		expectClaims bool
+	}{
+		{
+			name:        "valid token",
+			tokenString: "valid.jwt.token",
+			mockClaims: &utils.JWTClaims{
+				UserID:   uuid.New(),
+				Email:    "user@example.com",
+				Roles:    []string{"user"},
+				TokenType: "access",
+			},
+			mockError:     nil,
+			expectedError: "",
+			expectClaims: true,
+		},
+		{
+			name:          "invalid token",
+			tokenString:  "invalid.jwt.token",
+			mockClaims:    nil,
+			mockError:     errors.New("invalid token"),
+			expectedError: "invalid token",
+			expectClaims:  false,
+		},
+		{
+			name:          "expired token",
+			tokenString:  "expired.jwt.token",
+			mockClaims:    nil,
+			mockError:     errors.New("token is expired"),
+			expectedError: "token is expired",
+			expectClaims:  false,
+		},
+		{
+			name:          "malformed token",
+			tokenString:  "malformed.token",
+			mockClaims:    nil,
+			mockError:     errors.New("token contains an invalid number of segments"),
+			expectedError: "token contains an invalid number of segments",
+			expectClaims:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mocks
+			mockRepo := &MockAuthRepository{}
+			mockUserClient := &MockUserClient{}
+			mockJWTUtils := &MockJWTUtils{}
+
+			// Setup expectations
+			mockJWTUtils.validateTokenFunc = func(tokenString string) (*utils.JWTClaims, error) {
+				return tt.mockClaims, tt.mockError
+			}
+
+			if tt.mockClaims != nil && tt.mockError == nil {
+				mockRepo.getAuthTokenByHashFunc = func(ctx context.Context, hash string) (*models.AuthToken, error) {
+					return &models.AuthToken{
+						ID:        uuid.New(),
+						UserID:    tt.mockClaims.UserID,
+						TokenHash: hash,
+						RevokedAt: nil,
+					}, nil
+				}
+			}
+
+			// Create service
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			service := NewAuthService(mockRepo, mockUserClient, mockJWTUtils, logger)
+
+			// Execute
+			result, err := service.ValidateToken(context.Background(), tt.tokenString)
+
+			// Assert
+			if tt.expectedError != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				if tt.expectClaims {
+					assert.NotNil(t, result)
+					assert.Equal(t, tt.mockClaims.UserID, result.UserID)
+					assert.Equal(t, tt.mockClaims.Email, result.Email)
+					assert.Equal(t, tt.mockClaims.Roles, result.Roles)
+				}
+			}
+		})
+	}
+}
+
+func TestAuthService_RefreshToken(t *testing.T) {
+	tests := []struct {
+		name           string
+		request        *models.RefreshTokenRequest
+		mockToken      *models.AuthToken
+		mockTokenError error
+		mockClaims     *utils.JWTClaims
+		mockClaimsError error
+		mockAccessToken string
+		mockRefreshToken string
+		mockTokenGenError error
+		mockRepoError  error
+		expectedError  string
+		expectTokens   bool
+	}{
+		{
+			name: "successful token refresh",
+			request: &models.RefreshTokenRequest{
+				RefreshToken: "refresh.jwt.token",
+			},
+			mockToken: &models.AuthToken{
+				ID:     uuid.New(),
+				UserID: uuid.New(),
+				TokenHash: "token.hash",
+			},
+			mockTokenError: nil,
+			mockClaims: &utils.JWTClaims{
+				UserID:    uuid.New(),
+				Email:     "user@example.com",
+				Roles:     []string{"user"},
+				TokenType: "refresh",
+			},
+			mockClaimsError: nil,
+			mockAccessToken: "new.access.jwt.token",
+			mockRefreshToken: "new.refresh.jwt.token",
+			mockTokenGenError: nil,
+			mockRepoError:   nil,
+			expectedError:  "",
+			expectTokens:   true,
+		},
+		{
+			name: "invalid refresh token",
+			request: &models.RefreshTokenRequest{
+				RefreshToken: "invalid.refresh.token",
+			},
+			mockToken:      nil,
+			mockTokenError: errors.New("token not found"),
+			expectedError:  "invalid refresh token",
+			expectTokens:   false,
+		},
+		{
+			name: "revoked refresh token",
+			request: &models.RefreshTokenRequest{
+				RefreshToken: "revoked.refresh.token",
+			},
+			mockToken: &models.AuthToken{
+				ID:        uuid.New(),
+				UserID:    uuid.New(),
+				TokenHash: "token.hash",
+				RevokedAt: &time.Time{},
+			},
+			mockTokenError: nil,
+			mockClaims: &utils.JWTClaims{
+				UserID:    uuid.New(),
+				Email:     "user@example.com",
+				Roles:     []string{"user"},
+				TokenType: "refresh",
+			},
+			mockClaimsError: nil,
+			expectedError:   "refresh token has been revoked",
+			expectTokens:    false,
+		},
+		{
+			name: "token generation failure",
+			request: &models.RefreshTokenRequest{
+				RefreshToken: "refresh.jwt.token",
+			},
+			mockToken: &models.AuthToken{
+				ID:     uuid.New(),
+				UserID: uuid.New(),
+				TokenHash: "token.hash",
+			},
+			mockTokenError: nil,
+			mockClaims: &utils.JWTClaims{
+				UserID:    uuid.New(),
+				Email:     "user@example.com",
+				Roles:     []string{"user"},
+				TokenType: "refresh",
+			},
+			mockClaimsError: nil,
+			mockAccessToken: "",
+			mockRefreshToken: "",
+			mockTokenGenError: errors.New("token generation failed"),
+			expectedError:   "failed to generate new access token: token generation failed",
+			expectTokens:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mocks
+			mockRepo := &MockAuthRepository{}
+			mockUserClient := &MockUserClient{}
+			mockJWTUtils := &MockJWTUtils{}
+
+			// Setup expectations
+			mockRepo.getAuthTokenByHashFunc = func(ctx context.Context, hash string) (*models.AuthToken, error) {
+				return tt.mockToken, tt.mockTokenError
+			}
+
+			if tt.mockToken != nil && tt.mockTokenError == nil {
+				mockJWTUtils.validateTokenFunc = func(tokenString string) (*utils.JWTClaims, error) {
+					return tt.mockClaims, tt.mockClaimsError
+				}
+
+				if tt.mockClaimsError == nil && tt.mockClaims != nil {
+					mockRepo.getUserRolesFunc = func(ctx context.Context, userID uuid.UUID) ([]models.Role, error) {
+						return []models.Role{}, nil
+					}
+					mockJWTUtils.generateAccessTokenFunc = func(userID uuid.UUID, email string, roles []string, duration time.Duration) (string, error) {
+						return tt.mockAccessToken, tt.mockTokenGenError
+					}
+
+					if tt.mockTokenGenError == nil {
+						mockJWTUtils.generateRefreshTokenFunc = func(userID uuid.UUID, duration time.Duration) (string, error) {
+							return tt.mockRefreshToken, nil
+						}
+						mockRepo.revokeAuthTokenFunc = func(ctx context.Context, tokenID uuid.UUID) error {
+							return nil
+						}
+						mockRepo.createAuthTokenFunc = func(ctx context.Context, token *models.AuthToken) error {
+							return tt.mockRepoError
+						}
+					}
+				}
+			}
+
+			// Create service
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			service := NewAuthService(mockRepo, mockUserClient, mockJWTUtils, logger)
+
+			// Execute
+			result, err := service.RefreshToken(context.Background(), tt.request)
+
+			// Assert
+			if tt.expectedError != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				if tt.expectTokens {
+					assert.Equal(t, tt.mockAccessToken, result.AccessToken)
+					assert.Equal(t, tt.mockRefreshToken, result.RefreshToken)
+					assert.Equal(t, "Bearer", result.TokenType)
+				}
+			}
+		})
+	}
+}
+
 // Helper function to create string pointer
 func stringPtr(s string) *string {
 	return &s
