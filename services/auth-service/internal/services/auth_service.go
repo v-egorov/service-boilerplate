@@ -10,7 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/client"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
-	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/repository"
+
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/utils"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -18,6 +18,52 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
 )
+
+// RepositoryInterface defines the interface for repository operations
+type RepositoryInterface interface {
+	CreateAuthToken(ctx context.Context, token *models.AuthToken) error
+	GetAuthTokenByHash(ctx context.Context, hash string) (*models.AuthToken, error)
+	RevokeAuthToken(ctx context.Context, tokenID uuid.UUID) error
+	CreateUserSession(ctx context.Context, session *models.UserSession) error
+	GetUserRoles(ctx context.Context, userID uuid.UUID) ([]models.Role, error)
+	GetRoleByName(ctx context.Context, name string) (*models.Role, error)
+	CreateRole(ctx context.Context, role *models.Role) (*models.Role, error)
+	ListRoles(ctx context.Context) ([]models.Role, error)
+	GetRole(ctx context.Context, roleID uuid.UUID) (*models.Role, error)
+	UpdateRole(ctx context.Context, roleID uuid.UUID, name, description string) (*models.Role, error)
+	CountUsersWithRole(ctx context.Context, roleID uuid.UUID) (int, error)
+	DeleteRole(ctx context.Context, roleID uuid.UUID) error
+	CreatePermission(ctx context.Context, permission *models.Permission) (*models.Permission, error)
+	ListPermissions(ctx context.Context) ([]models.Permission, error)
+	GetPermission(ctx context.Context, permissionID uuid.UUID) (*models.Permission, error)
+	UpdatePermission(ctx context.Context, permissionID uuid.UUID, name, resource, action string) (*models.Permission, error)
+	CountRolesWithPermission(ctx context.Context, permissionID uuid.UUID) (int, error)
+	DeletePermission(ctx context.Context, permissionID uuid.UUID) error
+	AssignPermissionToRole(ctx context.Context, roleID, permissionID uuid.UUID) error
+	RemovePermissionFromRole(ctx context.Context, roleID, permissionID uuid.UUID) error
+	GetRolePermissions(ctx context.Context, roleID uuid.UUID) ([]models.Permission, error)
+	AssignRoleToUser(ctx context.Context, userID, roleID uuid.UUID) error
+	RemoveRoleFromUser(ctx context.Context, userID, roleID uuid.UUID) error
+	UpdateUserRoles(ctx context.Context, userID uuid.UUID, roleIDs []uuid.UUID) error
+}
+
+// UserClientInterface defines the interface for user client operations
+type UserClientInterface interface {
+	GetUserWithPasswordByEmail(ctx context.Context, email string) (*client.UserLoginResponse, error)
+	GetUserByID(ctx context.Context, userID uuid.UUID) (*client.UserData, error)
+	GetUserByEmail(ctx context.Context, email string) (*client.UserData, error)
+	CreateUser(ctx context.Context, req *client.CreateUserRequest) (*client.UserData, error)
+}
+
+// JWTUtilsInterface defines the interface for JWT utilities
+type JWTUtilsInterface interface {
+	GenerateAccessToken(userID uuid.UUID, email string, roles []string, duration time.Duration) (string, error)
+	GenerateRefreshToken(userID uuid.UUID, duration time.Duration) (string, error)
+	ValidateToken(tokenString string) (*utils.JWTClaims, error)
+	GetPublicKeyPEM() ([]byte, error)
+	RotateKeys(ctx context.Context) error
+	GetKeyID() string
+}
 
 // AuthServiceInterface defines the interface for auth service operations
 type AuthServiceInterface interface {
@@ -49,13 +95,13 @@ type AuthServiceInterface interface {
 }
 
 type AuthService struct {
-	repo       *repository.AuthRepository
-	userClient *client.UserClient
-	jwtUtils   *utils.JWTUtils
+	repo       RepositoryInterface
+	userClient UserClientInterface
+	jwtUtils   JWTUtilsInterface
 	logger     *logrus.Logger
 }
 
-func NewAuthService(repo *repository.AuthRepository, userClient *client.UserClient, jwtUtils *utils.JWTUtils, logger *logrus.Logger) *AuthService {
+func NewAuthService(repo RepositoryInterface, userClient UserClientInterface, jwtUtils JWTUtilsInterface, logger *logrus.Logger) *AuthService {
 	return &AuthService{
 		repo:       repo,
 		userClient: userClient,
