@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/client"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/utils"
@@ -340,16 +341,10 @@ func TestAuthService_GetPublicKeyPEM(t *testing.T) {
 
 			// Assert
 			if tt.expectError {
-				if err == nil {
-					t.Errorf("Expected error but got none")
-				}
+				assert.Error(t, err)
 			} else {
-				if err != nil {
-					t.Errorf("Expected no error but got: %v", err)
-				}
-				if string(result) != string(tt.expectedKey) {
-					t.Errorf("Expected key %s, got %s", string(tt.expectedKey), string(result))
-				}
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expectedKey, result)
 			}
 		})
 	}
@@ -405,20 +400,11 @@ func TestAuthService_CreateRole(t *testing.T) {
 
 			// Assert
 			if tt.expectError {
-				if err == nil {
-					t.Errorf("Expected error but got none")
-				}
+				assert.Error(t, err)
 			} else {
-				if err != nil {
-					t.Errorf("Expected no error but got: %v", err)
-				}
-				if result == nil {
-					t.Errorf("Expected role but got nil")
-				} else {
-					if result.Name != tt.roleName {
-						t.Errorf("Expected role name %s, got %s", tt.roleName, result.Name)
-					}
-				}
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.roleName, result.Name)
 			}
 		})
 	}
@@ -490,16 +476,10 @@ func TestAuthService_GetUserRoles(t *testing.T) {
 
 			// Assert
 			if tt.expectError {
-				if err == nil {
-					t.Errorf("Expected error but got none")
-				}
+				assert.Error(t, err)
 			} else {
-				if err != nil {
-					t.Errorf("Expected no error but got: %v", err)
-				}
-				if len(result) != tt.expectedCount {
-					t.Errorf("Expected %d roles, got %d", tt.expectedCount, len(result))
-				}
+				assert.NoError(t, err)
+				assert.Len(t, result, tt.expectedCount)
 			}
 		})
 	}
@@ -509,4 +489,3 @@ func TestAuthService_GetUserRoles(t *testing.T) {
 func stringPtr(s string) *string {
 	return &s
 }
-
