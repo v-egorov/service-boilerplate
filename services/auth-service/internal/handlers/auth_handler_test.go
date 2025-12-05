@@ -19,31 +19,31 @@ import (
 
 // MockAuthService is a mock implementation of AuthService for testing
 type MockAuthService struct {
-	getPublicKeyPEMFunc func() ([]byte, error)
-	loginFunc           func(ctx context.Context, req *models.LoginRequest, ipAddress, userAgent string) (*models.TokenResponse, error)
-	registerFunc        func(ctx context.Context, req *models.RegisterRequest) (*models.UserInfo, error)
-	getCurrentUserFunc  func(ctx context.Context, userID uuid.UUID, email string) (*models.UserInfo, error)
-	logoutFunc          func(ctx context.Context, tokenString string) error
-	refreshTokenFunc    func(ctx context.Context, req *models.RefreshTokenRequest) (*models.TokenResponse, error)
-	validateTokenFunc   func(ctx context.Context, tokenString string) (*utils.JWTClaims, error)
-	rotateKeysFunc      func(ctx context.Context) error
-	createRoleFunc      func(ctx context.Context, name, description string) (*models.Role, error)
-	listRolesFunc       func(ctx context.Context) ([]models.Role, error)
-	getRoleFunc         func(ctx context.Context, roleID uuid.UUID) (*models.Role, error)
-	updateRoleFunc      func(ctx context.Context, roleID uuid.UUID, name, description string) (*models.Role, error)
-	deleteRoleFunc      func(ctx context.Context, roleID uuid.UUID) error
-	createPermissionFunc func(ctx context.Context, name, resource, action string) (*models.Permission, error)
-	listPermissionsFunc  func(ctx context.Context) ([]models.Permission, error)
-	getPermissionFunc    func(ctx context.Context, permissionID uuid.UUID) (*models.Permission, error)
-	updatePermissionFunc func(ctx context.Context, permissionID uuid.UUID, name, resource, action string) (*models.Permission, error)
-	deletePermissionFunc func(ctx context.Context, permissionID uuid.UUID) error
-	assignPermissionToRoleFunc func(ctx context.Context, roleID, permissionID uuid.UUID) error
+	getPublicKeyPEMFunc          func() ([]byte, error)
+	loginFunc                    func(ctx context.Context, req *models.LoginRequest, ipAddress, userAgent string) (*models.TokenResponse, error)
+	registerFunc                 func(ctx context.Context, req *models.RegisterRequest) (*models.UserInfo, error)
+	getCurrentUserFunc           func(ctx context.Context, userID uuid.UUID, email string) (*models.UserInfo, error)
+	logoutFunc                   func(ctx context.Context, tokenString string) error
+	refreshTokenFunc             func(ctx context.Context, req *models.RefreshTokenRequest) (*models.TokenResponse, error)
+	validateTokenFunc            func(ctx context.Context, tokenString string) (*utils.JWTClaims, error)
+	rotateKeysFunc               func(ctx context.Context) error
+	createRoleFunc               func(ctx context.Context, name, description string) (*models.Role, error)
+	listRolesFunc                func(ctx context.Context) ([]models.Role, error)
+	getRoleFunc                  func(ctx context.Context, roleID uuid.UUID) (*models.Role, error)
+	updateRoleFunc               func(ctx context.Context, roleID uuid.UUID, name, description string) (*models.Role, error)
+	deleteRoleFunc               func(ctx context.Context, roleID uuid.UUID) error
+	createPermissionFunc         func(ctx context.Context, name, resource, action string) (*models.Permission, error)
+	listPermissionsFunc          func(ctx context.Context) ([]models.Permission, error)
+	getPermissionFunc            func(ctx context.Context, permissionID uuid.UUID) (*models.Permission, error)
+	updatePermissionFunc         func(ctx context.Context, permissionID uuid.UUID, name, resource, action string) (*models.Permission, error)
+	deletePermissionFunc         func(ctx context.Context, permissionID uuid.UUID) error
+	assignPermissionToRoleFunc   func(ctx context.Context, roleID, permissionID uuid.UUID) error
 	removePermissionFromRoleFunc func(ctx context.Context, roleID, permissionID uuid.UUID) error
-	getRolePermissionsFunc func(ctx context.Context, roleID uuid.UUID) ([]models.Permission, error)
-	assignRoleToUserFunc func(ctx context.Context, userID, roleID uuid.UUID) error
-	removeRoleFromUserFunc func(ctx context.Context, userID, roleID uuid.UUID) error
-	getUserRolesFunc     func(ctx context.Context, userID uuid.UUID) ([]models.Role, error)
-	updateUserRolesFunc  func(ctx context.Context, userID uuid.UUID, roleIDs []uuid.UUID) error
+	getRolePermissionsFunc       func(ctx context.Context, roleID uuid.UUID) ([]models.Permission, error)
+	assignRoleToUserFunc         func(ctx context.Context, userID, roleID uuid.UUID) error
+	removeRoleFromUserFunc       func(ctx context.Context, userID, roleID uuid.UUID) error
+	getUserRolesFunc             func(ctx context.Context, userID uuid.UUID) ([]models.Role, error)
+	updateUserRolesFunc          func(ctx context.Context, userID uuid.UUID, roleIDs []uuid.UUID) error
 }
 
 func (m *MockAuthService) Login(ctx context.Context, req *models.LoginRequest, ipAddress, userAgent string) (*models.TokenResponse, error) {
@@ -551,26 +551,16 @@ func TestAuthHandler_GetCurrentUser(t *testing.T) {
 			handler.GetCurrentUser(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			if tt.expectedStatus == http.StatusOK {
 				var response map[string]interface{}
-				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-					t.Errorf("Failed to unmarshal JSON response: %v", err)
-				}
+				assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-				if userData, exists := response["user"]; !exists {
-					t.Errorf("Expected user in response")
-				} else if userMap, ok := userData.(map[string]interface{}); ok {
-					if _, exists := userMap["id"]; !exists {
-						t.Errorf("Expected id in user response")
-					}
-					if _, exists := userMap["email"]; !exists {
-						t.Errorf("Expected email in user response")
-					}
-				}
+				assert.Contains(t, response, "user")
+				userData, _ := response["user"].(map[string]interface{})
+				assert.Contains(t, userData, "id")
+				assert.Contains(t, userData, "email")
 			}
 		})
 	}
@@ -629,9 +619,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 			handler.Logout(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 		})
 	}
 }
@@ -701,22 +689,14 @@ func TestAuthHandler_RefreshToken(t *testing.T) {
 			handler.RefreshToken(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			if tt.expectJSON && tt.expectedStatus == http.StatusOK {
 				var response map[string]interface{}
-				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-					t.Errorf("Failed to unmarshal JSON response: %v", err)
-				}
+				assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-				if _, exists := response["access_token"]; !exists {
-					t.Errorf("Expected access_token in response")
-				}
-				if _, exists := response["refresh_token"]; !exists {
-					t.Errorf("Expected refresh_token in response")
-				}
+				assert.Contains(t, response, "access_token")
+				assert.Contains(t, response, "refresh_token")
 			}
 		})
 	}
@@ -791,19 +771,15 @@ func TestAuthHandler_ValidateToken(t *testing.T) {
 			handler.ValidateToken(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			if tt.expectedStatus == http.StatusOK {
 				var response map[string]interface{}
-				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-					t.Errorf("Failed to unmarshal JSON response: %v", err)
-				}
+				assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-				if valid, exists := response["valid"]; !exists || valid != true {
-					t.Errorf("Expected valid=true in response")
-				}
+				valid, exists := response["valid"]
+				assert.True(t, exists, "Expected valid field in response")
+				assert.Equal(t, true, valid)
 			}
 		})
 	}
@@ -873,22 +849,14 @@ func TestAuthHandler_CreateRole(t *testing.T) {
 			handler.CreateRole(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			if tt.expectedStatus == http.StatusCreated {
 				var response map[string]interface{}
-				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-					t.Errorf("Failed to unmarshal JSON response: %v", err)
-				}
+				assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-				if _, exists := response["id"]; !exists {
-					t.Errorf("Expected id in response")
-				}
-				if _, exists := response["name"]; !exists {
-					t.Errorf("Expected name in response")
-				}
+				assert.Contains(t, response, "id")
+				assert.Contains(t, response, "name")
 			}
 		})
 	}
@@ -947,21 +915,15 @@ func TestAuthHandler_ListRoles(t *testing.T) {
 			handler.ListRoles(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			if tt.expectedStatus == http.StatusOK {
 				var response map[string]interface{}
-				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-					t.Errorf("Failed to unmarshal JSON response: %v", err)
-				}
+				assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
 				if rolesData, exists := response["roles"]; exists {
 					if rolesArray, ok := rolesData.([]interface{}); ok {
-						if len(rolesArray) != len(tt.mockResponse) {
-							t.Errorf("Expected %d roles, got %d", len(tt.mockResponse), len(rolesArray))
-						}
+						assert.Len(t, rolesArray, len(tt.mockResponse))
 					}
 				}
 			}
@@ -1027,22 +989,14 @@ func TestAuthHandler_GetRole(t *testing.T) {
 			handler.GetRole(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			if tt.expectedStatus == http.StatusOK {
 				var response map[string]interface{}
-				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-					t.Errorf("Failed to unmarshal JSON response: %v", err)
-				}
+				assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 
-				if _, exists := response["id"]; !exists {
-					t.Errorf("Expected id in response")
-				}
-				if _, exists := response["name"]; !exists {
-					t.Errorf("Expected name in response")
-				}
+				assert.Contains(t, response, "id")
+				assert.Contains(t, response, "name")
 			}
 		})
 	}
@@ -1057,10 +1011,10 @@ func TestAuthHandler_AssignPermissionToRole(t *testing.T) {
 	roleID := uuid.New()
 	permissionID := uuid.New()
 	tests := []struct {
-		name         string
-		roleID       string
-		permissionID string
-		mockError    error
+		name           string
+		roleID         string
+		permissionID   string
+		mockError      error
 		expectedStatus int
 	}{
 		{
@@ -1118,9 +1072,7 @@ func TestAuthHandler_AssignPermissionToRole(t *testing.T) {
 			handler.AssignPermissionToRole(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 		})
 	}
 }
@@ -1129,10 +1081,10 @@ func TestAuthHandler_RemovePermissionFromRole(t *testing.T) {
 	roleID := uuid.New()
 	permissionID := uuid.New()
 	tests := []struct {
-		name         string
-		roleID       string
-		permissionID string
-		mockError    error
+		name           string
+		roleID         string
+		permissionID   string
+		mockError      error
 		expectedStatus int
 	}{
 		{
@@ -1190,9 +1142,7 @@ func TestAuthHandler_RemovePermissionFromRole(t *testing.T) {
 			handler.RemovePermissionFromRole(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 		})
 	}
 }
@@ -1261,9 +1211,7 @@ func TestAuthHandler_GetRolePermissions(t *testing.T) {
 			handler.GetRolePermissions(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 		})
 	}
 }
@@ -1272,10 +1220,10 @@ func TestAuthHandler_AssignRoleToUser(t *testing.T) {
 	userID := uuid.New()
 	roleID := uuid.New()
 	tests := []struct {
-		name         string
-		userID       string
-		roleID       string
-		mockError    error
+		name           string
+		userID         string
+		roleID         string
+		mockError      error
 		expectedStatus int
 	}{
 		{
@@ -1333,9 +1281,7 @@ func TestAuthHandler_AssignRoleToUser(t *testing.T) {
 			handler.AssignRoleToUser(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 		})
 	}
 }
@@ -1344,10 +1290,10 @@ func TestAuthHandler_RemoveRoleFromUser(t *testing.T) {
 	userID := uuid.New()
 	roleID := uuid.New()
 	tests := []struct {
-		name         string
-		userID       string
-		roleID       string
-		mockError    error
+		name           string
+		userID         string
+		roleID         string
+		mockError      error
 		expectedStatus int
 	}{
 		{
@@ -1405,9 +1351,7 @@ func TestAuthHandler_RemoveRoleFromUser(t *testing.T) {
 			handler.RemoveRoleFromUser(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 		})
 	}
 }
@@ -1475,9 +1419,7 @@ func TestAuthHandler_GetUserRoles(t *testing.T) {
 			handler.GetUserRoles(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 		})
 	}
 }
@@ -1487,10 +1429,10 @@ func TestAuthHandler_UpdateUserRoles(t *testing.T) {
 	roleID1 := uuid.New()
 	roleID2 := uuid.New()
 	tests := []struct {
-		name         string
-		userID       string
-		requestBody  map[string][]string
-		mockError    error
+		name           string
+		userID         string
+		requestBody    map[string][]string
+		mockError      error
 		expectedStatus int
 	}{
 		{
@@ -1547,27 +1489,25 @@ func TestAuthHandler_UpdateUserRoles(t *testing.T) {
 			handler.UpdateUserRoles(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 		})
 	}
 }
 
 func TestAuthHandler_RotateKeys(t *testing.T) {
 	tests := []struct {
-		name        string
-		mockError   error
+		name           string
+		mockError      error
 		expectedStatus int
 	}{
 		{
-			name:          "successful key rotation",
-			mockError:     nil,
+			name:           "successful key rotation",
+			mockError:      nil,
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:          "service error",
-			mockError:     errors.New("key rotation failed"),
+			name:           "service error",
+			mockError:      errors.New("key rotation failed"),
 			expectedStatus: http.StatusInternalServerError,
 		},
 	}
@@ -1596,9 +1536,7 @@ func TestAuthHandler_RotateKeys(t *testing.T) {
 			handler.RotateKeys(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 		})
 	}
 }
@@ -1639,8 +1577,8 @@ func TestAuthHandler_UpdateRole(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name:         "role not found",
-			roleID:       roleID.String(),
+			name:   "role not found",
+			roleID: roleID.String(),
 			requestBody: map[string]string{
 				"name": "updated-admin",
 			},
@@ -1675,21 +1613,19 @@ func TestAuthHandler_UpdateRole(t *testing.T) {
 			handler.UpdateRole(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			if tt.expectedStatus == http.StatusOK {
 				var response map[string]interface{}
 				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-					t.Errorf("Failed to unmarshal JSON response: %v", err)
+					assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 				}
 
 				if _, exists := response["id"]; !exists {
-					t.Errorf("Expected id in response")
+					assert.Contains(t, response, "id")
 				}
 				if _, exists := response["name"]; !exists {
-					t.Errorf("Expected name in response")
+					assert.Contains(t, response, "name")
 				}
 			}
 		})
@@ -1749,9 +1685,7 @@ func TestAuthHandler_DeleteRole(t *testing.T) {
 			handler.DeleteRole(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 		})
 	}
 }
@@ -1767,7 +1701,7 @@ func TestAuthHandler_CreatePermission(t *testing.T) {
 		{
 			name: "successful permission creation",
 			requestBody: map[string]string{
-				"name":    "read:users",
+				"name":     "read:users",
 				"resource": "users",
 				"action":   "read",
 			},
@@ -1792,7 +1726,7 @@ func TestAuthHandler_CreatePermission(t *testing.T) {
 		{
 			name: "service error",
 			requestBody: map[string]string{
-				"name":    "read:users",
+				"name":     "read:users",
 				"resource": "users",
 				"action":   "read",
 			},
@@ -1826,21 +1760,19 @@ func TestAuthHandler_CreatePermission(t *testing.T) {
 			handler.CreatePermission(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			if tt.expectedStatus == http.StatusCreated {
 				var response map[string]interface{}
 				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-					t.Errorf("Failed to unmarshal JSON response: %v", err)
+					assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 				}
 
 				if _, exists := response["id"]; !exists {
-					t.Errorf("Expected id in response")
+					assert.Contains(t, response, "id")
 				}
 				if _, exists := response["name"]; !exists {
-					t.Errorf("Expected name in response")
+					assert.Contains(t, response, "name")
 				}
 			}
 		})
@@ -1905,20 +1837,18 @@ func TestAuthHandler_ListPermissions(t *testing.T) {
 			handler.ListPermissions(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			if tt.expectedStatus == http.StatusOK {
 				var response map[string]interface{}
 				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-					t.Errorf("Failed to unmarshal JSON response: %v", err)
+					assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 				}
 
 				if permissionsData, exists := response["permissions"]; exists {
 					if permissionsArray, ok := permissionsData.([]interface{}); ok {
 						if len(permissionsArray) != len(tt.mockResponse) {
-							t.Errorf("Expected %d permissions, got %d", len(tt.mockResponse), len(permissionsArray))
+							assert.Len(t, permissionsArray, len(tt.mockResponse))
 						}
 					}
 				}
@@ -1930,11 +1860,11 @@ func TestAuthHandler_ListPermissions(t *testing.T) {
 func TestAuthHandler_GetPermission(t *testing.T) {
 	permissionID := uuid.New()
 	tests := []struct {
-		name             string
-		permissionID     string
-		mockResponse     *models.Permission
-		mockError        error
-		expectedStatus   int
+		name           string
+		permissionID   string
+		mockResponse   *models.Permission
+		mockError      error
+		expectedStatus int
 	}{
 		{
 			name:         "successful permission retrieval",
@@ -1989,21 +1919,19 @@ func TestAuthHandler_GetPermission(t *testing.T) {
 			handler.GetPermission(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			if tt.expectedStatus == http.StatusOK {
 				var response map[string]interface{}
 				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-					t.Errorf("Failed to unmarshal JSON response: %v", err)
+					assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 				}
 
 				if _, exists := response["id"]; !exists {
-					t.Errorf("Expected id in response")
+					assert.Contains(t, response, "id")
 				}
 				if _, exists := response["name"]; !exists {
-					t.Errorf("Expected name in response")
+					assert.Contains(t, response, "name")
 				}
 			}
 		})
@@ -2013,18 +1941,18 @@ func TestAuthHandler_GetPermission(t *testing.T) {
 func TestAuthHandler_UpdatePermission(t *testing.T) {
 	permissionID := uuid.New()
 	tests := []struct {
-		name             string
-		permissionID     string
-		requestBody      map[string]string
-		mockResponse     *models.Permission
-		mockError        error
-		expectedStatus   int
+		name           string
+		permissionID   string
+		requestBody    map[string]string
+		mockResponse   *models.Permission
+		mockError      error
+		expectedStatus int
 	}{
 		{
 			name:         "successful permission update",
 			permissionID: permissionID.String(),
 			requestBody: map[string]string{
-				"name":    "write:users",
+				"name":     "write:users",
 				"resource": "users",
 				"action":   "write",
 			},
@@ -2086,21 +2014,19 @@ func TestAuthHandler_UpdatePermission(t *testing.T) {
 			handler.UpdatePermission(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 
 			if tt.expectedStatus == http.StatusOK {
 				var response map[string]interface{}
 				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-					t.Errorf("Failed to unmarshal JSON response: %v", err)
+					assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 				}
 
 				if _, exists := response["id"]; !exists {
-					t.Errorf("Expected id in response")
+					assert.Contains(t, response, "id")
 				}
 				if _, exists := response["name"]; !exists {
-					t.Errorf("Expected name in response")
+					assert.Contains(t, response, "name")
 				}
 			}
 		})
@@ -2110,10 +2036,10 @@ func TestAuthHandler_UpdatePermission(t *testing.T) {
 func TestAuthHandler_DeletePermission(t *testing.T) {
 	permissionID := uuid.New()
 	tests := []struct {
-		name             string
-		permissionID     string
-		mockError        error
-		expectedStatus   int
+		name           string
+		permissionID   string
+		mockError      error
+		expectedStatus int
 	}{
 		{
 			name:           "successful permission deletion",
@@ -2160,9 +2086,8 @@ func TestAuthHandler_DeletePermission(t *testing.T) {
 			handler.DeletePermission(c)
 
 			// Assert
-			if w.Code != tt.expectedStatus {
-				t.Errorf("Expected status %d, got %d", tt.expectedStatus, w.Code)
-			}
+			assert.Equal(t, tt.expectedStatus, w.Code)
 		})
 	}
 }
+
