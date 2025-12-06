@@ -173,9 +173,53 @@ func (m *MockRow) Scan(dest ...any) error {
 
 // MockTx is a mock implementation of pgx.Tx for testing
 type MockTx struct {
-	ExecFunc     func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-	CommitFunc   func(ctx context.Context) error
+	ExecFunc func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	CommitFunc func(ctx context.Context) error
 	RollbackFunc func(ctx context.Context) error
+	QueryFunc func(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRowFunc func(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func (m *MockTx) Begin(ctx context.Context) (pgx.Tx, error) {
+	return nil, errors.New("nested transactions not supported")
+}
+
+func (m *MockTx) Conn() *pgx.Conn {
+	return nil
+}
+
+func (m *MockTx) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnNames []string, rowSrc pgx.CopyFromSource) (int64, error) {
+	return 0, errors.New("not implemented")
+}
+
+func (m *MockTx) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
+	return nil
+}
+
+func (m *MockTx) LargeObjects() pgx.LargeObjects {
+	return pgx.LargeObjects{}
+}
+
+func (m *MockTx) Prepare(ctx context.Context, name, sql string) (*pgconn.StatementDescription, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *MockTx) Deallocate(ctx context.Context, name string) error {
+	return errors.New("not implemented")
+}
+
+func (m *MockTx) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	if m.QueryFunc != nil {
+		return m.QueryFunc(ctx, sql, args...)
+	}
+	return nil, nil
+}
+
+func (m *MockTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	if m.QueryRowFunc != nil {
+		return m.QueryRowFunc(ctx, sql, args...)
+	}
+	return nil
 }
 
 func (m *MockTx) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
@@ -1806,3 +1850,572 @@ func TestAuthRepository_DeletePermission(t *testing.T) {
 	}
 }
 
+func TestAuthRepository_AssignPermissionToRole(t *testing.T) {
+	roleID := uuid.New()
+	permissionID := uuid.New()
+
+	tests := []struct {
+		name         string
+		roleID       uuid.UUID
+		permissionID uuid.UUID
+		mockExec     func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+		expectError  bool
+	}{
+		{
+			name:         "successful permission assignment",
+			roleID:       roleID,
+			permissionID: permissionID,
+			mockExec: func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+				return pgconn.CommandTag{}, nil
+			},
+			expectError: false,
+		},
+		{
+			name:         "database error",
+			roleID:       roleID,
+			permissionID: permissionID,
+			mockExec: func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+				return pgconn.CommandTag{}, errors.New("database connection failed")
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockDB := &MockDBPool{
+				ExecFunc: tt.mockExec,
+			}
+
+			// Create repository
+			repo := NewAuthRepositoryWithInterface(mockDB)
+
+			// Execute
+			err := repo.AssignPermissionToRole(context.Background(), tt.roleID, tt.permissionID)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestAuthRepository_RemovePermissionFromRole(t *testing.T) {
+	roleID := uuid.New()
+	permissionID := uuid.New()
+
+	tests := []struct {
+		name         string
+		roleID       uuid.UUID
+		permissionID uuid.UUID
+		mockExec     func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+		expectError  bool
+	}{
+		{
+			name:         "successful permission removal",
+			roleID:       roleID,
+			permissionID: permissionID,
+			mockExec: func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+				return pgconn.CommandTag{}, nil
+			},
+			expectError: false,
+		},
+		{
+			name:         "database error",
+			roleID:       roleID,
+			permissionID: permissionID,
+			mockExec: func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+				return pgconn.CommandTag{}, errors.New("database connection failed")
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockDB := &MockDBPool{
+				ExecFunc: tt.mockExec,
+			}
+
+			// Create repository
+			repo := NewAuthRepositoryWithInterface(mockDB)
+
+			// Execute
+			err := repo.RemovePermissionFromRole(context.Background(), tt.roleID, tt.permissionID)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestAuthRepository_GetRolePermissions(t *testing.T) {
+	roleID := uuid.New()
+	permissionID1 := uuid.New()
+	permissionID2 := uuid.New()
+	createdAt := time.Now()
+
+	tests := []struct {
+		name            string
+		roleID          uuid.UUID
+		mockRows        *MockRows
+		expectedPerms   []models.Permission
+		expectError     bool
+	}{
+		{
+			name:   "successful permission retrieval",
+			roleID: roleID,
+			mockRows: &MockRows{
+				ScanResults: [][]any{
+					{permissionID1, "read_users", "users", "read", createdAt},
+					{permissionID2, "write_posts", "posts", "write", createdAt},
+				},
+			},
+			expectedPerms: []models.Permission{
+				{
+					ID:       permissionID1,
+					Name:     "read_users",
+					Resource: "users",
+					Action:   "read",
+					CreatedAt: createdAt,
+				},
+				{
+					ID:       permissionID2,
+					Name:     "write_posts",
+					Resource: "posts",
+					Action:   "write",
+					CreatedAt: createdAt,
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:   "role with no permissions",
+			roleID: roleID,
+			mockRows: &MockRows{
+				ScanResults: [][]any{},
+			},
+			expectedPerms: []models.Permission{},
+			expectError:   false,
+		},
+		{
+			name:   "database error",
+			roleID: roleID,
+			mockRows: &MockRows{
+				ScanResults: [][]any{},
+				ErrFunc: func() error {
+					return errors.New("database connection failed")
+				},
+			},
+			expectedPerms: nil,
+			expectError:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockDB := &MockDBPool{
+				QueryFunc: func(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+					return tt.mockRows, nil
+				},
+			}
+
+			// Create repository
+			repo := NewAuthRepositoryWithInterface(mockDB)
+
+			// Execute
+			result, err := repo.GetRolePermissions(context.Background(), tt.roleID)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.Len(t, result, len(tt.expectedPerms))
+				for i, expected := range tt.expectedPerms {
+					assert.Equal(t, expected.ID, result[i].ID)
+					assert.Equal(t, expected.Name, result[i].Name)
+					assert.Equal(t, expected.Resource, result[i].Resource)
+					assert.Equal(t, expected.Action, result[i].Action)
+				}
+			}
+		})
+	}
+}
+
+func TestAuthRepository_AssignRoleToUser(t *testing.T) {
+	userID := uuid.New()
+	roleID := uuid.New()
+
+	tests := []struct {
+		name    string
+		userID  uuid.UUID
+		roleID  uuid.UUID
+		mockExec func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+		expectError bool
+	}{
+		{
+			name:   "successful role assignment",
+			userID: userID,
+			roleID: roleID,
+			mockExec: func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+				return pgconn.CommandTag{}, nil
+			},
+			expectError: false,
+		},
+		{
+			name:   "database error",
+			userID: userID,
+			roleID: roleID,
+			mockExec: func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+				return pgconn.CommandTag{}, errors.New("database connection failed")
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockDB := &MockDBPool{
+				ExecFunc: tt.mockExec,
+			}
+
+			// Create repository
+			repo := NewAuthRepositoryWithInterface(mockDB)
+
+			// Execute
+			err := repo.AssignRoleToUser(context.Background(), tt.userID, tt.roleID)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestAuthRepository_RemoveRoleFromUser(t *testing.T) {
+	userID := uuid.New()
+	roleID := uuid.New()
+
+	tests := []struct {
+		name    string
+		userID  uuid.UUID
+		roleID  uuid.UUID
+		mockExec func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+		expectError bool
+	}{
+		{
+			name:   "successful role removal",
+			userID: userID,
+			roleID: roleID,
+			mockExec: func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+				return pgconn.CommandTag{}, nil
+			},
+			expectError: false,
+		},
+		{
+			name:   "database error",
+			userID: userID,
+			roleID: roleID,
+			mockExec: func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+				return pgconn.CommandTag{}, errors.New("database connection failed")
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockDB := &MockDBPool{
+				ExecFunc: tt.mockExec,
+			}
+
+			// Create repository
+			repo := NewAuthRepositoryWithInterface(mockDB)
+
+			// Execute
+			err := repo.RemoveRoleFromUser(context.Background(), tt.userID, tt.roleID)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestAuthRepository_UpdateUserRoles(t *testing.T) {
+	userID := uuid.New()
+	roleID1 := uuid.New()
+	roleID2 := uuid.New()
+
+	tests := []struct {
+		name     string
+		userID   uuid.UUID
+		roleIDs  []uuid.UUID
+		mockTx   *MockTx
+		expectError bool
+	}{
+		{
+			name:    "successful user roles update",
+			userID:  userID,
+			roleIDs: []uuid.UUID{roleID1, roleID2},
+			mockTx: &MockTx{
+				ExecFunc: func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+					return pgconn.CommandTag{}, nil
+				},
+				CommitFunc: func(ctx context.Context) error {
+					return nil
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:    "empty role list",
+			userID:  userID,
+			roleIDs: []uuid.UUID{},
+			mockTx: &MockTx{
+				ExecFunc: func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+					return pgconn.CommandTag{}, nil
+				},
+				CommitFunc: func(ctx context.Context) error {
+					return nil
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:    "transaction begin error",
+			userID:  userID,
+			roleIDs: []uuid.UUID{roleID1},
+			mockTx:  nil, // This will cause Begin to return an error
+			expectError: true,
+		},
+		{
+			name:    "delete existing roles error",
+			userID:  userID,
+			roleIDs: []uuid.UUID{roleID1},
+			mockTx: &MockTx{
+				ExecFunc: func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+					// Fail on DELETE query
+					if len(args) == 1 { // DELETE FROM user_roles WHERE user_id = $1
+						return pgconn.CommandTag{}, errors.New("delete failed")
+					}
+					return pgconn.CommandTag{}, nil
+				},
+			},
+			expectError: true,
+		},
+		{
+			name:    "insert new roles error",
+			userID:  userID,
+			roleIDs: []uuid.UUID{roleID1},
+			mockTx: &MockTx{
+				ExecFunc: func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+					// Fail on INSERT query
+					if len(args) == 2 { // INSERT INTO user_roles VALUES ($1, $2)
+						return pgconn.CommandTag{}, errors.New("insert failed")
+					}
+					return pgconn.CommandTag{}, nil
+				},
+				CommitFunc: func(ctx context.Context) error {
+					return nil
+				},
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockDB := &MockDBPool{
+				BeginFunc: func(ctx context.Context) (pgx.Tx, error) {
+					if tt.mockTx == nil {
+						return nil, errors.New("begin transaction failed")
+					}
+					return tt.mockTx, nil
+				},
+			}
+
+			// Create repository
+			repo := NewAuthRepositoryWithInterface(mockDB)
+
+			// Execute
+			err := repo.UpdateUserRoles(context.Background(), tt.userID, tt.roleIDs)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestAuthRepository_CountUsersWithRole(t *testing.T) {
+	roleID := uuid.New()
+
+	tests := []struct {
+		name     string
+		roleID   uuid.UUID
+		mockRow  *MockRow
+		expected int
+		expectError bool
+	}{
+		{
+			name:   "successful count",
+			roleID: roleID,
+			mockRow: &MockRow{
+				ScanFunc: func(dest ...any) error {
+					*dest[0].(*int) = 5
+					return nil
+				},
+			},
+			expected:    5,
+			expectError: false,
+		},
+		{
+			name:   "zero count",
+			roleID: roleID,
+			mockRow: &MockRow{
+				ScanFunc: func(dest ...any) error {
+					*dest[0].(*int) = 0
+					return nil
+				},
+			},
+			expected:    0,
+			expectError: false,
+		},
+		{
+			name:   "database error",
+			roleID: roleID,
+			mockRow: &MockRow{
+				ScanFunc: func(dest ...any) error {
+					return errors.New("database connection failed")
+				},
+			},
+			expected:    0,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockDB := &MockDBPool{
+				QueryRowFunc: func(ctx context.Context, sql string, args ...any) pgx.Row {
+					return tt.mockRow
+				},
+			}
+
+			// Create repository
+			repo := NewAuthRepositoryWithInterface(mockDB)
+
+			// Execute
+			result, err := repo.CountUsersWithRole(context.Background(), tt.roleID)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Equal(t, 0, result)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestAuthRepository_CountRolesWithPermission(t *testing.T) {
+	permissionID := uuid.New()
+
+	tests := []struct {
+		name         string
+		permissionID uuid.UUID
+		mockRow      *MockRow
+		expected     int
+		expectError  bool
+	}{
+		{
+			name:         "successful count",
+			permissionID: permissionID,
+			mockRow: &MockRow{
+				ScanFunc: func(dest ...any) error {
+					*dest[0].(*int) = 3
+					return nil
+				},
+			},
+			expected:    3,
+			expectError: false,
+		},
+		{
+			name:         "zero count",
+			permissionID: permissionID,
+			mockRow: &MockRow{
+				ScanFunc: func(dest ...any) error {
+					*dest[0].(*int) = 0
+					return nil
+				},
+			},
+			expected:    0,
+			expectError: false,
+		},
+		{
+			name:         "database error",
+			permissionID: permissionID,
+			mockRow: &MockRow{
+				ScanFunc: func(dest ...any) error {
+					return errors.New("database connection failed")
+				},
+			},
+			expected:    0,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockDB := &MockDBPool{
+				QueryRowFunc: func(ctx context.Context, sql string, args ...any) pgx.Row {
+					return tt.mockRow
+				},
+			}
+
+			// Create repository
+			repo := NewAuthRepositoryWithInterface(mockDB)
+
+			// Execute
+			result, err := repo.CountRolesWithPermission(context.Background(), tt.permissionID)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Equal(t, 0, result)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}
