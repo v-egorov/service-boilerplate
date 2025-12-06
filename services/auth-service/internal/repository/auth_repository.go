@@ -4,16 +4,31 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/v-egorov/service-boilerplate/common/database"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
 )
 
+// DBPoolInterface defines the database operations needed
+type DBPoolInterface interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
 type AuthRepository struct {
-	db *pgxpool.Pool
+	db DBPoolInterface
 }
 
 func NewAuthRepository(db *pgxpool.Pool) *AuthRepository {
+	return &AuthRepository{db: db}
+}
+
+// NewAuthRepositoryWithInterface creates a repository with a custom database interface (for testing)
+func NewAuthRepositoryWithInterface(db DBPoolInterface) *AuthRepository {
 	return &AuthRepository{db: db}
 }
 
