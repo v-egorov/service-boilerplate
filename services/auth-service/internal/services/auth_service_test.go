@@ -1023,6 +1023,689 @@ func TestAuthService_RefreshToken(t *testing.T) {
 	}
 }
 
+func TestAuthService_ListRoles(t *testing.T) {
+	tests := []struct {
+		name         string
+		mockRoles    []models.Role
+		mockError    error
+		expectError  bool
+		expectedCount int
+	}{
+		{
+			name: "successful role listing",
+			mockRoles: []models.Role{
+				{
+					ID:          uuid.New(),
+					Name:        "admin",
+					Description: stringPtr("Administrator role"),
+				},
+				{
+					ID:          uuid.New(),
+					Name:        "user",
+					Description: stringPtr("Regular user role"),
+				},
+			},
+			mockError:     nil,
+			expectError:   false,
+			expectedCount: 2,
+		},
+		{
+			name:          "empty role list",
+			mockRoles:     []models.Role{},
+			mockError:     nil,
+			expectError:   false,
+			expectedCount: 0,
+		},
+		{
+			name:          "repository error",
+			mockRoles:     nil,
+			mockError:     errors.New("database connection failed"),
+			expectError:   true,
+			expectedCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockRepo := &MockAuthRepository{
+				listRolesFunc: func(ctx context.Context) ([]models.Role, error) {
+					return tt.mockRoles, tt.mockError
+				},
+			}
+
+			// Create service
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			service := NewAuthService(mockRepo, nil, nil, logger)
+
+			// Execute
+			result, err := service.ListRoles(context.Background())
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to list roles")
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.Len(t, result, tt.expectedCount)
+				if tt.expectedCount > 0 {
+					assert.Equal(t, tt.mockRoles[0].Name, result[0].Name)
+				}
+			}
+		})
+	}
+}
+
+func TestAuthService_GetRole(t *testing.T) {
+	roleID := uuid.New()
+	tests := []struct {
+		name        string
+		roleID      uuid.UUID
+		mockRole    *models.Role
+		mockError   error
+		expectError bool
+	}{
+		{
+			name:   "successful role retrieval",
+			roleID: roleID,
+			mockRole: &models.Role{
+				ID:          roleID,
+				Name:        "admin",
+				Description: stringPtr("Administrator role"),
+			},
+			mockError:   nil,
+			expectError: false,
+		},
+		{
+			name:        "role not found",
+			roleID:      roleID,
+			mockRole:    nil,
+			mockError:   errors.New("role not found"),
+			expectError: true,
+		},
+		{
+			name:        "repository error",
+			roleID:      roleID,
+			mockRole:    nil,
+			mockError:   errors.New("database connection failed"),
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockRepo := &MockAuthRepository{
+				getRoleFunc: func(ctx context.Context, rid uuid.UUID) (*models.Role, error) {
+					return tt.mockRole, tt.mockError
+				},
+			}
+
+			// Create service
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			service := NewAuthService(mockRepo, nil, nil, logger)
+
+			// Execute
+			result, err := service.GetRole(context.Background(), tt.roleID)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to get role")
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.mockRole.ID, result.ID)
+				assert.Equal(t, tt.mockRole.Name, result.Name)
+			}
+		})
+	}
+}
+
+func TestAuthService_UpdateRole(t *testing.T) {
+	roleID := uuid.New()
+	tests := []struct {
+		name         string
+		roleID       uuid.UUID
+		nameUpdate   string
+		descUpdate   string
+		mockRole     *models.Role
+		mockError    error
+		expectError  bool
+	}{
+		{
+			name:       "successful role update",
+			roleID:     roleID,
+			nameUpdate: "super-admin",
+			descUpdate: "Super Administrator role",
+			mockRole: &models.Role{
+				ID:          roleID,
+				Name:        "super-admin",
+				Description: stringPtr("Super Administrator role"),
+			},
+			mockError:   nil,
+			expectError: false,
+		},
+		{
+			name:        "role update error",
+			roleID:      roleID,
+			nameUpdate:  "invalid-role",
+			descUpdate:  "Invalid role",
+			mockRole:    nil,
+			mockError:   errors.New("role not found"),
+			expectError: true,
+		},
+		{
+			name:        "repository error",
+			roleID:      roleID,
+			nameUpdate:  "admin",
+			descUpdate:  "Administrator role",
+			mockRole:    nil,
+			mockError:   errors.New("database connection failed"),
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockRepo := &MockAuthRepository{
+				updateRoleFunc: func(ctx context.Context, rid uuid.UUID, name, description string) (*models.Role, error) {
+					return tt.mockRole, tt.mockError
+				},
+			}
+
+			// Create service
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			service := NewAuthService(mockRepo, nil, nil, logger)
+
+			// Execute
+			result, err := service.UpdateRole(context.Background(), tt.roleID, tt.nameUpdate, tt.descUpdate)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to update role")
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.mockRole.ID, result.ID)
+				assert.Equal(t, tt.nameUpdate, result.Name)
+			}
+		})
+	}
+}
+
+func TestAuthService_DeleteRole(t *testing.T) {
+	roleID := uuid.New()
+	tests := []struct {
+		name           string
+		roleID         uuid.UUID
+		mockUserCount  int
+		mockCountError error
+		mockDeleteError error
+		expectError    bool
+		expectedErrorMsg string
+	}{
+		{
+			name:            "successful role deletion",
+			roleID:          roleID,
+			mockUserCount:   0,
+			mockCountError:  nil,
+			mockDeleteError: nil,
+			expectError:     false,
+		},
+		{
+			name:             "role in use",
+			roleID:           roleID,
+			mockUserCount:    3,
+			mockCountError:   nil,
+			mockDeleteError:  nil,
+			expectError:      true,
+			expectedErrorMsg: "cannot delete role: 3 users are assigned to this role",
+		},
+		{
+			name:            "count users error",
+			roleID:          roleID,
+			mockUserCount:   0,
+			mockCountError:  errors.New("database error"),
+			mockDeleteError: nil,
+			expectError:     true,
+			expectedErrorMsg: "failed to check role usage",
+		},
+		{
+			name:            "delete role error",
+			roleID:          roleID,
+			mockUserCount:   0,
+			mockCountError:  nil,
+			mockDeleteError: errors.New("delete failed"),
+			expectError:     true,
+			expectedErrorMsg: "failed to delete role",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockRepo := &MockAuthRepository{
+				countUsersWithRoleFunc: func(ctx context.Context, rid uuid.UUID) (int, error) {
+					return tt.mockUserCount, tt.mockCountError
+				},
+				deleteRoleFunc: func(ctx context.Context, rid uuid.UUID) error {
+					return tt.mockDeleteError
+				},
+			}
+
+			// Create service
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			service := NewAuthService(mockRepo, nil, nil, logger)
+
+			// Execute
+			err := service.DeleteRole(context.Background(), tt.roleID)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErrorMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestAuthService_CreatePermission(t *testing.T) {
+	tests := []struct {
+		name         string
+		permName     string
+		resource     string
+		action       string
+		mockPermission *models.Permission
+		mockError    error
+		expectError  bool
+	}{
+		{
+			name:     "successful permission creation",
+			permName: "read_users",
+			resource: "users",
+			action:   "read",
+			mockPermission: &models.Permission{
+				ID:       uuid.New(),
+				Name:     "read_users",
+				Resource: "users",
+				Action:   "read",
+			},
+			mockError:   nil,
+			expectError: false,
+		},
+		{
+			name:         "permission creation error",
+			permName:     "invalid_perm",
+			resource:     "invalid",
+			action:       "invalid",
+			mockPermission: nil,
+			mockError:    errors.New("permission already exists"),
+			expectError:  true,
+		},
+		{
+			name:         "repository error",
+			permName:     "write_posts",
+			resource:     "posts",
+			action:       "write",
+			mockPermission: nil,
+			mockError:    errors.New("database connection failed"),
+			expectError:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockRepo := &MockAuthRepository{
+				createPermissionFunc: func(ctx context.Context, permission *models.Permission) (*models.Permission, error) {
+					return tt.mockPermission, tt.mockError
+				},
+			}
+
+			// Create service
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			service := NewAuthService(mockRepo, nil, nil, logger)
+
+			// Execute
+			result, err := service.CreatePermission(context.Background(), tt.permName, tt.resource, tt.action)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to create permission")
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.permName, result.Name)
+				assert.Equal(t, tt.resource, result.Resource)
+				assert.Equal(t, tt.action, result.Action)
+			}
+		})
+	}
+}
+
+func TestAuthService_ListPermissions(t *testing.T) {
+	tests := []struct {
+		name            string
+		mockPermissions []models.Permission
+		mockError       error
+		expectError     bool
+		expectedCount   int
+	}{
+		{
+			name: "successful permission listing",
+			mockPermissions: []models.Permission{
+				{
+					ID:       uuid.New(),
+					Name:     "read_users",
+					Resource: "users",
+					Action:   "read",
+				},
+				{
+					ID:       uuid.New(),
+					Name:     "write_posts",
+					Resource: "posts",
+					Action:   "write",
+				},
+			},
+			mockError:     nil,
+			expectError:   false,
+			expectedCount: 2,
+		},
+		{
+			name:            "empty permission list",
+			mockPermissions: []models.Permission{},
+			mockError:       nil,
+			expectError:     false,
+			expectedCount:   0,
+		},
+		{
+			name:            "repository error",
+			mockPermissions: nil,
+			mockError:       errors.New("database connection failed"),
+			expectError:     true,
+			expectedCount:   0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockRepo := &MockAuthRepository{
+				listPermissionsFunc: func(ctx context.Context) ([]models.Permission, error) {
+					return tt.mockPermissions, tt.mockError
+				},
+			}
+
+			// Create service
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			service := NewAuthService(mockRepo, nil, nil, logger)
+
+			// Execute
+			result, err := service.ListPermissions(context.Background())
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to list permissions")
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.Len(t, result, tt.expectedCount)
+				if tt.expectedCount > 0 {
+					assert.Equal(t, tt.mockPermissions[0].Name, result[0].Name)
+				}
+			}
+		})
+	}
+}
+
+func TestAuthService_GetPermission(t *testing.T) {
+	permissionID := uuid.New()
+	tests := []struct {
+		name           string
+		permissionID   uuid.UUID
+		mockPermission *models.Permission
+		mockError      error
+		expectError    bool
+	}{
+		{
+			name:         "successful permission retrieval",
+			permissionID: permissionID,
+			mockPermission: &models.Permission{
+				ID:       permissionID,
+				Name:     "read_users",
+				Resource: "users",
+				Action:   "read",
+			},
+			mockError:   nil,
+			expectError: false,
+		},
+		{
+			name:           "permission not found",
+			permissionID:   permissionID,
+			mockPermission: nil,
+			mockError:      errors.New("permission not found"),
+			expectError:    true,
+		},
+		{
+			name:           "repository error",
+			permissionID:   permissionID,
+			mockPermission: nil,
+			mockError:      errors.New("database connection failed"),
+			expectError:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockRepo := &MockAuthRepository{
+				getPermissionFunc: func(ctx context.Context, pid uuid.UUID) (*models.Permission, error) {
+					return tt.mockPermission, tt.mockError
+				},
+			}
+
+			// Create service
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			service := NewAuthService(mockRepo, nil, nil, logger)
+
+			// Execute
+			result, err := service.GetPermission(context.Background(), tt.permissionID)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to get permission")
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.mockPermission.ID, result.ID)
+				assert.Equal(t, tt.mockPermission.Name, result.Name)
+			}
+		})
+	}
+}
+
+func TestAuthService_UpdatePermission(t *testing.T) {
+	permissionID := uuid.New()
+	tests := []struct {
+		name           string
+		permissionID   uuid.UUID
+		nameUpdate     string
+		resourceUpdate string
+		actionUpdate   string
+		mockPermission *models.Permission
+		mockError      error
+		expectError    bool
+	}{
+		{
+			name:           "successful permission update",
+			permissionID:   permissionID,
+			nameUpdate:     "write_users",
+			resourceUpdate: "users",
+			actionUpdate:   "write",
+			mockPermission: &models.Permission{
+				ID:       permissionID,
+				Name:     "write_users",
+				Resource: "users",
+				Action:   "write",
+			},
+			mockError:   nil,
+			expectError: false,
+		},
+		{
+			name:           "permission update error",
+			permissionID:   permissionID,
+			nameUpdate:     "invalid_perm",
+			resourceUpdate: "invalid",
+			actionUpdate:   "invalid",
+			mockPermission: nil,
+			mockError:      errors.New("permission not found"),
+			expectError:    true,
+		},
+		{
+			name:           "repository error",
+			permissionID:   permissionID,
+			nameUpdate:     "delete_posts",
+			resourceUpdate: "posts",
+			actionUpdate:   "delete",
+			mockPermission: nil,
+			mockError:      errors.New("database connection failed"),
+			expectError:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockRepo := &MockAuthRepository{
+				updatePermissionFunc: func(ctx context.Context, pid uuid.UUID, name, resource, action string) (*models.Permission, error) {
+					return tt.mockPermission, tt.mockError
+				},
+			}
+
+			// Create service
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			service := NewAuthService(mockRepo, nil, nil, logger)
+
+			// Execute
+			result, err := service.UpdatePermission(context.Background(), tt.permissionID, tt.nameUpdate, tt.resourceUpdate, tt.actionUpdate)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "failed to update permission")
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.mockPermission.ID, result.ID)
+				assert.Equal(t, tt.nameUpdate, result.Name)
+				assert.Equal(t, tt.resourceUpdate, result.Resource)
+				assert.Equal(t, tt.actionUpdate, result.Action)
+			}
+		})
+	}
+}
+
+func TestAuthService_DeletePermission(t *testing.T) {
+	permissionID := uuid.New()
+	tests := []struct {
+		name             string
+		permissionID     uuid.UUID
+		mockRoleCount    int
+		mockCountError   error
+		mockDeleteError  error
+		expectError      bool
+		expectedErrorMsg string
+	}{
+		{
+			name:            "successful permission deletion",
+			permissionID:    permissionID,
+			mockRoleCount:   0,
+			mockCountError:  nil,
+			mockDeleteError: nil,
+			expectError:     false,
+		},
+		{
+			name:             "permission in use",
+			permissionID:     permissionID,
+			mockRoleCount:    2,
+			mockCountError:   nil,
+			mockDeleteError:  nil,
+			expectError:      true,
+			expectedErrorMsg: "cannot delete permission: 2 roles are assigned this permission",
+		},
+		{
+			name:            "count roles error",
+			permissionID:    permissionID,
+			mockRoleCount:   0,
+			mockCountError:  errors.New("database error"),
+			mockDeleteError: nil,
+			expectError:     true,
+			expectedErrorMsg: "failed to check permission usage",
+		},
+		{
+			name:            "delete permission error",
+			permissionID:    permissionID,
+			mockRoleCount:   0,
+			mockCountError:  nil,
+			mockDeleteError: errors.New("delete failed"),
+			expectError:     true,
+			expectedErrorMsg: "failed to delete permission",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup mock
+			mockRepo := &MockAuthRepository{
+				countRolesWithPermissionFunc: func(ctx context.Context, pid uuid.UUID) (int, error) {
+					return tt.mockRoleCount, tt.mockCountError
+				},
+				deletePermissionFunc: func(ctx context.Context, pid uuid.UUID) error {
+					return tt.mockDeleteError
+				},
+			}
+
+			// Create service
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			service := NewAuthService(mockRepo, nil, nil, logger)
+
+			// Execute
+			err := service.DeletePermission(context.Background(), tt.permissionID)
+
+			// Assert
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErrorMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 // Helper function to create string pointer
 func stringPtr(s string) *string {
 	return &s
