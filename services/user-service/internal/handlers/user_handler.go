@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
@@ -14,14 +15,36 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// UserServiceInterface defines the service operations needed for handlers
+type UserServiceInterface interface {
+	CreateUser(ctx context.Context, req *models.CreateUserRequest) (*models.UserResponse, error)
+	GetUser(ctx context.Context, id uuid.UUID) (*models.UserResponse, error)
+	GetUserByEmail(ctx context.Context, email string) (*models.UserResponse, error)
+	GetUserWithPasswordByEmail(ctx context.Context, email string) (*models.UserLoginResponse, error)
+	ReplaceUser(ctx context.Context, id uuid.UUID, req *models.ReplaceUserRequest) (*models.UserResponse, error)
+	UpdateUser(ctx context.Context, id uuid.UUID, req *models.UpdateUserRequest) (*models.UserResponse, error)
+	DeleteUser(ctx context.Context, id uuid.UUID) error
+	ListUsers(ctx context.Context, limit, offset int) ([]*models.UserResponse, error)
+}
+
 type UserHandler struct {
-	service        *services.UserService
+	service        UserServiceInterface
 	logger         *logrus.Logger
 	auditLogger    *logging.AuditLogger
 	standardLogger *logging.StandardLogger
 }
 
 func NewUserHandler(service *services.UserService, logger *logrus.Logger) *UserHandler {
+	return &UserHandler{
+		service:        service,
+		logger:         logger,
+		auditLogger:    logging.NewAuditLogger(logger, "user-service"),
+		standardLogger: logging.NewStandardLogger(logger, "user-service"),
+	}
+}
+
+// NewUserHandlerWithInterface creates a handler with a service interface (for testing)
+func NewUserHandlerWithInterface(service UserServiceInterface, logger *logrus.Logger) *UserHandler {
 	return &UserHandler{
 		service:        service,
 		logger:         logger,

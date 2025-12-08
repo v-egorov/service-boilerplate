@@ -13,12 +13,30 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// UserRepositoryInterface defines the repository operations needed
+type UserRepositoryInterface interface {
+	Create(ctx context.Context, user *models.User) (*models.User, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*models.User, error)
+	GetByEmail(ctx context.Context, email string) (*models.User, error)
+	Update(ctx context.Context, id uuid.UUID, user *models.User) (*models.User, error)
+	Delete(ctx context.Context, id uuid.UUID) error
+	List(ctx context.Context, limit, offset int) ([]*models.User, error)
+}
+
 type UserService struct {
-	repo   *repository.UserRepository
+	repo   UserRepositoryInterface
 	logger *logrus.Logger
 }
 
 func NewUserService(repo *repository.UserRepository, logger *logrus.Logger) *UserService {
+	return &UserService{
+		repo:   repo,
+		logger: logger,
+	}
+}
+
+// NewUserServiceWithInterface creates a service with a custom repository interface (for testing)
+func NewUserServiceWithInterface(repo UserRepositoryInterface, logger *logrus.Logger) *UserService {
 	return &UserService{
 		repo:   repo,
 		logger: logger,

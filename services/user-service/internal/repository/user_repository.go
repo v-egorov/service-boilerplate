@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -14,12 +15,27 @@ import (
 	"github.com/v-egorov/service-boilerplate/services/user-service/internal/models"
 )
 
+// DBInterface defines the database operations needed for testing
+type DBInterface interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
 type UserRepository struct {
-	db     *pgxpool.Pool
+	db     DBInterface
 	logger *logrus.Logger
 }
 
 func NewUserRepository(db *pgxpool.Pool, logger *logrus.Logger) *UserRepository {
+	return &UserRepository{
+		db:     db,
+		logger: logger,
+	}
+}
+
+// NewUserRepositoryWithInterface creates a UserRepository with a database interface for testing
+func NewUserRepositoryWithInterface(db DBInterface, logger *logrus.Logger) *UserRepository {
 	return &UserRepository{
 		db:     db,
 		logger: logger,
