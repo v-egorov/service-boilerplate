@@ -28,21 +28,25 @@ UPDATE_DOCS=true
 
 # Check for help first
 if [[ $# -eq 1 && ($1 == "-h" || $1 == "--help") ]]; then
-    echo "Usage: $0 <service-name> <port> [options]"
+    echo "Usage: $0 <service-name> <port> <entity-name> <plural-name> [options]"
     echo ""
     echo "Arguments:"
     echo "  service-name    Name of the service (must end with '-service', lowercase, hyphens allowed)"
     echo "  port           Port number (1024-65535)"
+    echo "  entity-name    PascalCase entity name (e.g., Product, OrderItem)"
+    echo "  plural-name    Plural form for routes (e.g., products, order-items)"
     echo ""
     echo "Options:"
     echo "  --no-db-schema    Skip database schema creation"
     echo "  --no-docs-update  Skip documentation updates"
     echo "  -h, --help        Show this help message"
     echo ""
-    echo "Example: $0 product-service 8082"
+    echo "Examples:"
+    echo "  $0 product-service 8082 Product products"
+    echo "  $0 order-service 8083 OrderItem order-items"
+    echo "  $0 user-service 8084 UserProfile user-profiles"
     echo ""
     echo "Note: Service names must end with '-service' for automatic Makefile integration."
-    echo "Example: $0 user-service 8081 --no-db-schema"
     exit 0
 fi
 
@@ -67,14 +71,16 @@ for arg in "$@"; do
 done
 
 # Check arguments
-if [ ${#ARGS[@]} -ne 2 ]; then
-    echo "Usage: $0 <service-name> <port> [options]"
+if [ ${#ARGS[@]} -ne 4 ]; then
+    echo "Usage: $0 <service-name> <port> <entity-name> <plural-name> [options]"
     echo "Use -h or --help for more information"
     exit 1
 fi
 
 SERVICE_NAME=${ARGS[0]}
 PORT=${ARGS[1]}
+ENTITY_NAME=${ARGS[2]}
+ENTITY_PLURAL=${ARGS[3]}
 
 # Validate service name (lowercase, hyphens allowed)
 if [[ ! $SERVICE_NAME =~ ^[a-z-]+[a-z]$ ]]; then
@@ -91,6 +97,25 @@ for reserved in "${RESERVED_NAMES[@]}"; do
         exit 1
     fi
 done
+
+# Validate entity name (PascalCase, alphanumeric, 3-50 characters)
+if [[ ! $ENTITY_NAME =~ ^[A-Z][a-zA-Z0-9]{2,49}$ ]]; then
+    echo "Error: Entity name must be PascalCase, alphanumeric, 3-50 characters"
+    echo "Examples: Product, OrderItem, UserProfile, BlogPost"
+    exit 1
+fi
+
+# Validate plural name (lowercase, alphanumeric with hyphens, 3-50 characters)
+if [[ ! $ENTITY_PLURAL =~ ^[a-z][a-z0-9-]{2,49}$ ]]; then
+    echo "Error: Plural name must be lowercase, alphanumeric with hyphens, 3-50 characters"
+    echo "Examples: products, order-items, user-profiles, blog-posts"
+    exit 1
+fi
+
+# Generate derived names
+ENTITY_NAME_LOWER=$(echo "$ENTITY_NAME" | sed 's/\([A-Z]\)/\L\1/g')
+ENTITY_PLURAL_CAPITAL=$(echo "$ENTITY_PLURAL" | sed 's/\b\w/\U&/g')
+ENTITY_PLURAL_METHOD=$(echo "$ENTITY_PLURAL" | sed 's/-//g' | sed 's/\b\w/\U&/g')
 
 # Validate port
 if [[ ! $PORT =~ ^[0-9]+$ ]] || [ $PORT -lt 1024 ] || [ $PORT -gt 65535 ]; then
@@ -166,6 +191,12 @@ replace_vars() {
     sed -i "s|// ENTITY_HANDLER_INIT|entityHandler := handlers.NewEntityHandler(entityService, logger.Logger)|g" "$file"
     sed -i "s|// ENTITY_ROUTES|v1 := router.Group(\"/api/v1\")\n\t{\n\t\tentities := v1.Group(\"/entities\")\n\t\t{\n\t\t\tv1.POST(\"\", entityHandler.CreateEntity)\n\t\t\tv1.GET(\"/:id\", entityHandler.GetEntity)\n\t\t\tv1.PUT(\"/:id\", entityHandler.UpdateEntity)\n\t\t\tv1.DELETE(\"/:id\", entityHandler.DeleteEntity)\n\t\t\tv1.GET(\"\", entityHandler.ListEntities)\n\t\t}\n\t}|g" "$file"
 
+    # Replace entity names
+    sed -i "s/Entity/$ENTITY_NAME/g" "$file"
+    sed -i "s/Entities/$ENTITY_PLURAL_METHOD/g" "$file"
+    sed -i "s/entity/$ENTITY_NAME_LOWER/g" "$file"
+    sed -i "s/entities/$ENTITY_PLURAL/g" "$file"
+
     # Replace service name and port
     sed -i "s/SERVICE_NAME/$SERVICE_NAME/g" "$file"
     sed -i "s/PORT/$PORT/g" "$file"
@@ -180,6 +211,8 @@ replace_vars() {
     # Replace service-specific placeholders
     sed -i "s/{{SERVICE_NAME}}/$SERVICE_NAME/g" "$file"
     sed -i "s/{{PORT}}/$PORT/g" "$file"
+    sed -i "s/{{ENTITY_NAME}}/$ENTITY_NAME/g" "$file"
+    sed -i "s/{{ENTITY_PLURAL}}/$ENTITY_PLURAL/g" "$file"
 }
 
 # Find and replace in all files
