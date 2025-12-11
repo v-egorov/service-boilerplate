@@ -176,6 +176,28 @@ External Client → API Gateway (Port 8080) → Auth Service (Port 8083)
 - **[Authentication Examples](docs/auth-api-examples.md)**: API usage with JWT tokens, token refresh, and error handling
 - **[Troubleshooting Auth](docs/troubleshooting-auth-logging.md)**: Debug authentication issues and token problems
 
+## Forking This Project
+
+This project is designed to be easily forkable. After forking:
+
+1. **Run the setup script** with your new module path:
+   ```bash
+   ./scripts/setup-fork.sh github.com/yourusername/yourprojectname
+   ```
+
+2. **Customize environment variables** in `.env`:
+   - `DOCKER_PROJECT_PREFIX`: Change from `service-boilerplate` to your preferred prefix
+   - `DATABASE_NAME`: Update from `service_db` to your database name
+   - `API_GATEWAY_PORT`, `USER_SERVICE_PORT`, etc.: Adjust service ports if needed
+   - `JAEGER_UI_PORT`, `LOKI_PORT`, `GRAFANA_PORT`: Change monitoring ports to avoid conflicts with other projects
+
+3. **Start development**:
+   ```bash
+   make dev-bootstrap  # For first-time setup with database
+   ```
+
+The setup script will update all Go module references and import paths automatically.
+
 ## Quick Start
 
 ### Prerequisites
