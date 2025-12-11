@@ -323,15 +323,18 @@ func (h *EntityHandler) DeleteEntity(c *gin.Context) {
 		h.logger.WithFields(logrus.Fields{
 			"request_id": requestID,
 			"error":      err.Error(),
-		}).Error("Invalid entity ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid entity ID"})
+		}).Error("Invalid entity ID format")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid entity ID format",
+			"details": "Entity ID must be a valid integer",
+			"type":    "validation_error",
+			"field":   "id",
+		})
 		return
 	}
 
 	if err := h.service.Delete(c.Request.Context(), id); err != nil {
-		h.logger.WithError(err).Error("Failed to delete entity")
-		h.auditLogger.LogEntityDeletion("", requestID, fmt.Sprintf("%d", id), c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete entity"})
+		h.handleServiceError(c, err, "Failed to delete entity")
 		return
 	}
 
@@ -359,6 +362,15 @@ func (h *EntityHandler) ListEntities(c *gin.Context) {
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit <= 0 {
 		limit = 10
+	}
+	if limit > 100 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Limit too high",
+			"details": "Maximum limit is 100",
+			"type":    "validation_error",
+			"field":   "limit",
+		})
+		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)

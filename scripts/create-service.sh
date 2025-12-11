@@ -158,6 +158,10 @@ replace_vars() {
     sed -i "s|// ENTITY_IMPORT_SERVICES|\"github.com/v-egorov/service-boilerplate/services/$SERVICE_NAME/internal/services\"|g" "$file"
     sed -i "s|// ENTITY_IMPORT_MODELS|\"github.com/v-egorov/service-boilerplate/services/$SERVICE_NAME/internal/models\"|g" "$file"
 
+    # Update test file imports from template to service paths
+    sed -i "s|\"github.com/v-egorov/service-boilerplate/templates/service-template/internal/models\"|\"github.com/v-egorov/service-boilerplate/services/$SERVICE_NAME/internal/models\"|g" "$file"
+    sed -i "s|\"github.com/v-egorov/service-boilerplate/templates/service-template/internal/services\"|\"github.com/v-egorov/service-boilerplate/services/$SERVICE_NAME/internal/services\"|g" "$file"
+
     # Replace hardcoded template imports
     sed -i "s|github.com/v-egorov/service-boilerplate/templates/service-template/internal/handlers|github.com/v-egorov/service-boilerplate/services/$SERVICE_NAME/internal/handlers|g" "$file"
     # Remove aliased template imports

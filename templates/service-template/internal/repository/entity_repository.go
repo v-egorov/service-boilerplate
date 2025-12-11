@@ -6,6 +6,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 	// ENTITY_IMPORT_MODELS
@@ -14,12 +16,27 @@ import (
 // Import models package for Entity type
 // This will be replaced with proper import during template processing
 
+// DBInterface defines the database operations needed for testing
+type DBInterface interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
 type EntityRepository struct {
-	db     *pgxpool.Pool
+	db     DBInterface
 	logger *logrus.Logger
 }
 
 func NewEntityRepository(db *pgxpool.Pool, logger *logrus.Logger) *EntityRepository {
+	return &EntityRepository{
+		db:     db,
+		logger: logger,
+	}
+}
+
+// NewEntityRepositoryWithInterface creates a EntityRepository with a database interface for testing
+func NewEntityRepositoryWithInterface(db DBInterface, logger *logrus.Logger) *EntityRepository {
 	return &EntityRepository{
 		db:     db,
 		logger: logger,

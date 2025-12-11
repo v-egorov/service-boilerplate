@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 
 	"github.com/sirupsen/logrus"
@@ -137,8 +138,11 @@ func (s *EntityService) Delete(ctx context.Context, id int64) error {
 	}
 
 	if err := s.repo.Delete(ctx, id); err != nil {
+		if err == sql.ErrNoRows {
+			return models.NewNotFoundError("entity", "id", string(rune(id)))
+		}
 		s.logger.WithError(err).WithField("id", id).Error("Failed to delete entity")
-		return err
+		return models.NewInternalError("delete entity", err)
 	}
 
 	s.logger.WithField("id", id).Info("Entity deleted successfully")
