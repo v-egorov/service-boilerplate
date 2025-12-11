@@ -493,8 +493,8 @@ echo "📋 Next steps:"
 echo "1. Review and customize the generated code in services/$SERVICE_NAME/"
 echo "2. Update API gateway routes in api-gateway/cmd/main.go for $SERVICE_NAME"
 if [ "$CREATE_DB_SCHEMA" = true ]; then
-    echo "3. Run database migrations: make db-migrate-up SERVICE_NAME=$SERVICE_NAME"
-    echo "   - This will create the migration tracking table and enable enhanced migration features"
+    echo "3. Run database migrations: make db-migrate SERVICE_NAME=$SERVICE_NAME"
+    echo "   - This will initialize migration tracking and run all migrations for the service"
 fi
 echo "4. Build the service: make build-$SERVICE_NAME"
 echo "5. Start the service: make run-$SERVICE_NAME"
