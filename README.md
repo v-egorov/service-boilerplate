@@ -191,6 +191,16 @@ This project is designed to be easily forkable. After forking:
    - `API_GATEWAY_PORT`, `USER_SERVICE_PORT`, etc.: Adjust service ports if needed
    - `JAEGER_UI_PORT`, `LOKI_PORT`, `GRAFANA_PORT`: Change monitoring ports to avoid conflicts with other projects
 
+   **Alternative:** Use the automated Docker prefix script:
+   ```bash
+   # Update development environment (default)
+   ./scripts/update-docker-prefix.sh myproject
+
+   # Update specific environment
+   ./scripts/update-docker-prefix.sh prodproject .env.production
+   ```
+   This automatically updates all Docker container names, volumes, and networks for the specified environment.
+
 3. **Start development**:
    ```bash
    make dev-bootstrap  # For first-time setup with database
