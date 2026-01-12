@@ -6,7 +6,16 @@
 
 ## Overview
 
-Create repository implementations for Object Types and Objects with full CRUD operations, hierarchical queries, and search capabilities. Delete old Entity repository files.
+Create repository implementations for Object Types and Objects with full CRUD operations, hierarchical queries, and search capabilities. Use pgx/v5 patterns consistent with existing services. Delete old Entity repository files.
+
+## Key Patterns to Follow
+
+1. **DBInterface Pattern** - For testability and mocking
+2. **OpenTelemetry Tracing** - Use database.TraceDB* helpers for all operations
+3. **pgx/v5 Direct Usage** - Not sqlx (inconsistent with codebase)
+4. **Connection Pooling** - Use pgxpool.Pool
+5. **Error Handling** - Check for pgx.ErrNoRows and constraint violations
+6. **Transaction Support** - Use db.WithTx() helper
 
 ## Tasks
 
@@ -15,37 +24,56 @@ Create repository implementations for Object Types and Objects with full CRUD op
 **File**: `internal/repository/object_type_repository.go`
 
 **Steps**:
-1. Create ObjectTypeRepository struct
-2. Implement CRUD methods
-3. Implement hierarchical queries
-4. Add transaction support
+1. Create DBInterface for testability
+2. Create ObjectTypeRepository struct with logger
+3. Implement CRUD methods with tracing
+4. Implement hierarchical queries
+5. Add transaction support
 
 ```go
 package repository
 
 import (
     "context"
-    "database/sql"
     "errors"
     "fmt"
+    "strings"
     
-    "your-project/services/objects-service/internal/models"
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgconn"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/sirupsen/logrus"
     
-    "github.com/jmoiron/sqlx"
+    "github.com/v-egorov/service-boilerplate/common/database"
+    "github.com/v-egorov/service-boilerplate/services/objects-service/internal/models"
 )
 
-var (
-    ErrObjectTypeNotFound = errors.New("object type not found")
-    ErrObjectTypeExists   = errors.New("object type already exists")
-    ErrCircularReference  = errors.New("circular reference detected")
-)
-
-type ObjectTypeRepository struct {
-    db *sqlx.DB
+// DBInterface defines database operations needed for testing
+type DBInterface interface {
+    Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+    QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+    Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+    Begin(ctx context.Context) (pgx.Tx, error)
 }
 
-func NewObjectTypeRepository(db *sqlx.DB) *ObjectTypeRepository {
-    return &ObjectTypeRepository{db: db}
+type ObjectTypeRepository struct {
+    db     DBInterface
+    logger *logrus.Logger
+}
+
+func NewObjectTypeRepository(db *pgxpool.Pool, logger *logrus.Logger) *ObjectTypeRepository {
+    return &ObjectTypeRepository{
+        db:     db,
+        logger: logger,
+    }
+}
+
+// NewObjectTypeRepositoryWithInterface creates repository with custom DB interface (for testing)
+func NewObjectTypeRepositoryWithInterface(db DBInterface, logger *logrus.Logger) *ObjectTypeRepository {
+    return &ObjectTypeRepository{
+        db:     db,
+        logger: logger,
+    }
 }
 
 func (r *ObjectTypeRepository) Create(ctx context.Context, ot *models.ObjectType) error {
@@ -55,22 +83,26 @@ func (r *ObjectTypeRepository) Create(ctx context.Context, ot *models.ObjectType
         RETURNING id, created_at, updated_at
     `
     
-    err := r.db.QueryRowContext(ctx, query,
-        ot.Name,
-        ot.ParentTypeID,
-        ot.ConcreteTableName,
-        ot.Description,
-        ot.IsSealed,
-        ot.Metadata,
-    ).Scan(&ot.ID, &ot.CreatedAt, &ot.UpdatedAt)
+    err := database.TraceDBInsert(ctx, "object_types", query, func(ctx context.Context) error {
+        return r.db.QueryRow(ctx, query,
+            ot.Name,
+            ot.ParentTypeID,
+            ot.ConcreteTableName,
+            ot.Description,
+            ot.IsSealed,
+            ot.Metadata,
+        ).Scan(&ot.ID, &ot.CreatedAt, &ot.UpdatedAt)
+    })
     
     if err != nil {
         if isUniqueViolation(err) {
             return ErrObjectTypeExists
         }
-        return err
+        r.logger.WithError(err).Error("Failed to create object type")
+        return fmt.Errorf("failed to create object type: %w", err)
     }
     
+    r.logger.WithField("object_type_id", ot.ID).Info("Object type created successfully")
     return nil
 }
 
@@ -82,12 +114,19 @@ func (r *ObjectTypeRepository) GetByID(ctx context.Context, id int64) (*models.O
     `
     
     var ot models.ObjectType
-    err := r.db.GetContext(ctx, &ot, query, id)
+    err := database.TraceDBQuery(ctx, "object_types", query, func(ctx context.Context) error {
+        return r.db.QueryRow(ctx, query, id).Scan(
+            &ot.ID, &ot.Name, &ot.ParentTypeID, &ot.ConcreteTableName,
+            &ot.Description, &ot.IsSealed, &ot.Metadata, &ot.CreatedAt, &ot.UpdatedAt,
+        )
+    })
+    
     if err != nil {
-        if errors.Is(err, sql.ErrNoRows) {
+        if errors.Is(err, pgx.ErrNoRows) {
             return nil, ErrObjectTypeNotFound
         }
-        return nil, err
+        r.logger.WithError(err).Error("Failed to get object type by ID")
+        return nil, fmt.Errorf("failed to get object type: %w", err)
     }
     
     return &ot, nil
@@ -101,12 +140,19 @@ func (r *ObjectTypeRepository) GetByName(ctx context.Context, name string) (*mod
     `
     
     var ot models.ObjectType
-    err := r.db.GetContext(ctx, &ot, query, name)
+    err := database.TraceDBQuery(ctx, "object_types", query, func(ctx context.Context) error {
+        return r.db.QueryRow(ctx, query, name).Scan(
+            &ot.ID, &ot.Name, &ot.ParentTypeID, &ot.ConcreteTableName,
+            &ot.Description, &ot.IsSealed, &ot.Metadata, &ot.CreatedAt, &ot.UpdatedAt,
+        )
+    })
+    
     if err != nil {
-        if errors.Is(err, sql.ErrNoRows) {
+        if errors.Is(err, pgx.ErrNoRows) {
             return nil, ErrObjectTypeNotFound
         }
-        return nil, err
+        r.logger.WithError(err).Error("Failed to get object type by name")
+        return nil, fmt.Errorf("failed to get object type: %w", err)
     }
     
     return &ot, nil
@@ -119,7 +165,7 @@ func (r *ObjectTypeRepository) List(ctx context.Context, filter *models.ObjectTy
         WHERE 1=1
     `
     
-    args := []interface{}{}
+    args := []any{}
     argPos := 1
     
     if filter.ParentTypeID != nil {
@@ -144,9 +190,31 @@ func (r *ObjectTypeRepository) List(ctx context.Context, filter *models.ObjectTy
     query += " ORDER BY name ASC"
     
     var types []models.ObjectType
-    err := r.db.SelectContext(ctx, &types, query, args...)
+    err := database.TraceDBQuery(ctx, "object_types", query, func(ctx context.Context) error {
+        rows, err := r.db.Query(ctx, query, args...)
+        if err != nil {
+            return err
+        }
+        defer rows.Close()
+        
+        for rows.Next() {
+            var ot models.ObjectType
+            err := rows.Scan(
+                &ot.ID, &ot.Name, &ot.ParentTypeID, &ot.ConcreteTableName,
+                &ot.Description, &ot.IsSealed, &ot.Metadata, &ot.CreatedAt, &ot.UpdatedAt,
+            )
+            if err != nil {
+                return fmt.Errorf("failed to scan object type: %w", err)
+            }
+            types = append(types, ot)
+        }
+        
+        return rows.Err()
+    })
+    
     if err != nil {
-        return nil, err
+        r.logger.WithError(err).Error("Failed to list object types")
+        return nil, fmt.Errorf("failed to list object types: %w", err)
     }
     
     return types, nil
@@ -160,45 +228,52 @@ func (r *ObjectTypeRepository) Update(ctx context.Context, ot *models.ObjectType
         RETURNING updated_at
     `
     
-    err := r.db.QueryRowContext(ctx, query,
-        ot.ID,
-        ot.Name,
-        ot.ConcreteTableName,
-        ot.Description,
-        ot.IsSealed,
-        ot.Metadata,
-    ).Scan(&ot.UpdatedAt)
+    err := database.TraceDBUpdate(ctx, "object_types", query, func(ctx context.Context) error {
+        return r.db.QueryRow(ctx, query,
+            ot.ID,
+            ot.Name,
+            ot.ConcreteTableName,
+            ot.Description,
+            ot.IsSealed,
+            ot.Metadata,
+        ).Scan(&ot.UpdatedAt)
+    })
     
     if err != nil {
-        if errors.Is(err, sql.ErrNoRows) {
+        if errors.Is(err, pgx.ErrNoRows) {
             return ErrObjectTypeNotFound
         }
         if isUniqueViolation(err) {
             return ErrObjectTypeExists
         }
-        return err
+        r.logger.WithError(err).Error("Failed to update object type")
+        return fmt.Errorf("failed to update object type: %w", err)
     }
     
+    r.logger.WithField("object_type_id", ot.ID).Info("Object type updated successfully")
     return nil
 }
 
 func (r *ObjectTypeRepository) Delete(ctx context.Context, id int64) error {
     query := `DELETE FROM object_types WHERE id = $1`
     
-    result, err := r.db.ExecContext(ctx, query, id)
+    var result pgconn.CommandTag
+    err := database.TraceDBDelete(ctx, "object_types", query, func(ctx context.Context) error {
+        var execErr error
+        result, execErr = r.db.Exec(ctx, query, id)
+        return execErr
+    })
+    
     if err != nil {
-        return err
+        r.logger.WithError(err).Error("Failed to delete object type")
+        return fmt.Errorf("failed to delete object type: %w", err)
     }
     
-    rowsAffected, err := result.RowsAffected()
-    if err != nil {
-        return err
-    }
-    
-    if rowsAffected == 0 {
+    if result.RowsAffected() == 0 {
         return ErrObjectTypeNotFound
     }
     
+    r.logger.WithField("object_type_id", id).Info("Object type deleted successfully")
     return nil
 }
 
@@ -211,15 +286,37 @@ func (r *ObjectTypeRepository) GetChildren(ctx context.Context, parentID int64) 
     `
     
     var types []models.ObjectType
-    err := r.db.SelectContext(ctx, &types, query, parentID)
+    err := database.TraceDBQuery(ctx, "object_types", query, func(ctx context.Context) error {
+        rows, err := r.db.Query(ctx, query, parentID)
+        if err != nil {
+            return err
+        }
+        defer rows.Close()
+        
+        for rows.Next() {
+            var ot models.ObjectType
+            err := rows.Scan(
+                &ot.ID, &ot.Name, &ot.ParentTypeID, &ot.ConcreteTableName,
+                &ot.Description, &ot.IsSealed, &ot.Metadata, &ot.CreatedAt, &ot.UpdatedAt,
+            )
+            if err != nil {
+                return fmt.Errorf("failed to scan object type: %w", err)
+            }
+            types = append(types, ot)
+        }
+        
+        return rows.Err()
+    })
+    
     if err != nil {
-        return nil, err
+        r.logger.WithError(err).Error("Failed to get child object types")
+        return nil, fmt.Errorf("failed to get child object types: %w", err)
     }
     
     return types, nil
 }
 
-func (r *ObjectTypeRepository) GetTree(ctx context.Context, rootID *int64) ([]models.ObjectType, error) {
+func (r *ObjectTypeRepository) GetTree(ctx context.Context) ([]models.ObjectType, error) {
     query := `
         WITH RECURSIVE type_tree AS (
             SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at, 0 as level
@@ -236,9 +333,31 @@ func (r *ObjectTypeRepository) GetTree(ctx context.Context, rootID *int64) ([]mo
     `
     
     var types []models.ObjectType
-    err := r.db.SelectContext(ctx, &types, query)
+    err := database.TraceDBQuery(ctx, "object_types", query, func(ctx context.Context) error {
+        rows, err := r.db.Query(ctx, query)
+        if err != nil {
+            return err
+        }
+        defer rows.Close()
+        
+        for rows.Next() {
+            var ot models.ObjectType
+            err := rows.Scan(
+                &ot.ID, &ot.Name, &ot.ParentTypeID, &ot.ConcreteTableName,
+                &ot.Description, &ot.IsSealed, &ot.Metadata, &ot.CreatedAt, &ot.UpdatedAt,
+            )
+            if err != nil {
+                return fmt.Errorf("failed to scan object type: %w", err)
+            }
+            types = append(types, ot)
+        }
+        
+        return rows.Err()
+    })
+    
     if err != nil {
-        return nil, err
+        r.logger.WithError(err).Error("Failed to get object type tree")
+        return nil, fmt.Errorf("failed to get object type tree: %w", err)
     }
     
     return types, nil
@@ -246,7 +365,7 @@ func (r *ObjectTypeRepository) GetTree(ctx context.Context, rootID *int64) ([]mo
 
 func (r *ObjectTypeRepository) Count(ctx context.Context, filter *models.ObjectTypeFilter) (int64, error) {
     query := `SELECT COUNT(*) FROM object_types WHERE 1=1`
-    args := []interface{}{}
+    args := []any{}
     argPos := 1
     
     if filter.ParentTypeID != nil {
@@ -262,14 +381,23 @@ func (r *ObjectTypeRepository) Count(ctx context.Context, filter *models.ObjectT
     }
     
     var count int64
-    err := r.db.GetContext(ctx, &count, query, args...)
-    return count, err
+    err := database.TraceDBQuery(ctx, "object_types", query, func(ctx context.Context) error {
+        return r.db.QueryRow(ctx, query, args...).Scan(&count)
+    })
+    
+    if err != nil {
+        r.logger.WithError(err).Error("Failed to count object types")
+        return 0, fmt.Errorf("failed to count object types: %w", err)
+    }
+    
+    return count, nil
 }
 
+// isUniqueViolation checks if error is a unique constraint violation
 func isUniqueViolation(err error) bool {
-    var pgErr *pq.Error
+    var pgErr *pgconn.PgError
     if errors.As(err, &pgErr) {
-        return pgErr.Code == "23505"
+        return pgErr.Code == "23505" // unique_violation
     }
     return false
 }
@@ -282,38 +410,41 @@ func isUniqueViolation(err error) bool {
 **File**: `internal/repository/object_repository.go`
 
 **Steps**:
-1. Create ObjectRepository struct
-2. Implement CRUD methods with public_id support
-3. Implement filtering and search
-4. Add version checking for optimistic locking
-5. Implement soft delete
+1. Create DBInterface (can share with ObjectTypeRepository)
+2. Create ObjectRepository struct with logger
+3. Implement CRUD methods with public_id support
+4. Implement filtering and search
+5. Add version checking for optimistic locking
+6. Implement soft delete with WithTx for transactions
 
 ```go
 package repository
 
 import (
     "context"
-    "database/sql"
     "errors"
     "fmt"
     
-    "github.com/jmoiron/sqlx"
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgconn"
+    "github.com/jackc/pgx/v5/pgxpool"
     "github.com/google/uuid"
+    "github.com/sirupsen/logrus"
     
-    "your-project/services/objects-service/internal/models"
-)
-
-var (
-    ErrObjectNotFound        = errors.New("object not found")
-    ErrObjectVersionConflict = errors.New("object version conflict")
+    "github.com/v-egorov/service-boilerplate/common/database"
+    "github.com/v-egorov/service-boilerplate/services/objects-service/internal/models"
 )
 
 type ObjectRepository struct {
-    db *sqlx.DB
+    db     *pgxpool.Pool  // Need pool for WithTx
+    logger *logrus.Logger
 }
 
-func NewObjectRepository(db *sqlx.DB) *ObjectRepository {
-    return &ObjectRepository{db: db}
+func NewObjectRepository(db *pgxpool.Pool, logger *logrus.Logger) *ObjectRepository {
+    return &ObjectRepository{
+        db:     db,
+        logger: logger,
+    }
 }
 
 func (r *ObjectRepository) Create(ctx context.Context, obj *models.Object, userID string) error {
@@ -323,20 +454,28 @@ func (r *ObjectRepository) Create(ctx context.Context, obj *models.Object, userI
         RETURNING id, created_at, updated_at, version
     `
     
-    err := r.db.QueryRowContext(ctx, query,
-        obj.PublicID,
-        obj.ObjectTypeID,
-        obj.ParentObjectID,
-        obj.Name,
-        obj.Description,
-        userID,
-        userID,
-        obj.Metadata,
-        obj.Status,
-        obj.Tags,
-    ).Scan(&obj.ID, &obj.CreatedAt, &obj.UpdatedAt, &obj.Version)
+    err := database.TraceDBInsert(ctx, "objects", query, func(ctx context.Context) error {
+        return r.db.QueryRow(ctx, query,
+            obj.PublicID,
+            obj.ObjectTypeID,
+            obj.ParentObjectID,
+            obj.Name,
+            obj.Description,
+            userID,
+            userID,
+            obj.Metadata,
+            obj.Status,
+            obj.Tags,
+        ).Scan(&obj.ID, &obj.CreatedAt, &obj.UpdatedAt, &obj.Version)
+    })
     
-    return err
+    if err != nil {
+        r.logger.WithError(err).Error("Failed to create object")
+        return fmt.Errorf("failed to create object: %w", err)
+    }
+    
+    r.logger.WithField("object_id", obj.ID).Info("Object created successfully")
+    return nil
 }
 
 func (r *ObjectRepository) GetByID(ctx context.Context, id int64) (*models.Object, error) {
@@ -347,12 +486,20 @@ func (r *ObjectRepository) GetByID(ctx context.Context, id int64) (*models.Objec
     `
     
     var obj models.Object
-    err := r.db.GetContext(ctx, &obj, query, id)
+    err := database.TraceDBQuery(ctx, "objects", query, func(ctx context.Context) error {
+        return r.db.QueryRow(ctx, query, id).Scan(
+            &obj.ID, &obj.PublicID, &obj.ObjectTypeID, &obj.ParentObjectID,
+            &obj.Name, &obj.Description, &obj.CreatedAt, &obj.UpdatedAt, &obj.DeletedAt,
+            &obj.Version, &obj.CreatedBy, &obj.UpdatedBy, &obj.Metadata, &obj.Status, &obj.Tags,
+        )
+    })
+    
     if err != nil {
-        if errors.Is(err, sql.ErrNoRows) {
+        if errors.Is(err, pgx.ErrNoRows) {
             return nil, ErrObjectNotFound
         }
-        return nil, err
+        r.logger.WithError(err).Error("Failed to get object by ID")
+        return nil, fmt.Errorf("failed to get object: %w", err)
     }
     
     return &obj, nil
@@ -366,12 +513,20 @@ func (r *ObjectRepository) GetByPublicID(ctx context.Context, publicID uuid.UUID
     `
     
     var obj models.Object
-    err := r.db.GetContext(ctx, &obj, query, publicID)
+    err := database.TraceDBQuery(ctx, "objects", query, func(ctx context.Context) error {
+        return r.db.QueryRow(ctx, query, publicID).Scan(
+            &obj.ID, &obj.PublicID, &obj.ObjectTypeID, &obj.ParentObjectID,
+            &obj.Name, &obj.Description, &obj.CreatedAt, &obj.UpdatedAt, &obj.DeletedAt,
+            &obj.Version, &obj.CreatedBy, &obj.UpdatedBy, &obj.Metadata, &obj.Status, &obj.Tags,
+        )
+    })
+    
     if err != nil {
-        if errors.Is(err, sql.ErrNoRows) {
+        if errors.Is(err, pgx.ErrNoRows) {
             return nil, ErrObjectNotFound
         }
-        return nil, err
+        r.logger.WithError(err).Error("Failed to get object by public ID")
+        return nil, fmt.Errorf("failed to get object: %w", err)
     }
     
     return &obj, nil
@@ -380,7 +535,7 @@ func (r *ObjectRepository) GetByPublicID(ctx context.Context, publicID uuid.UUID
 func (r *ObjectRepository) List(ctx context.Context, filter *models.ObjectFilter) ([]models.Object, int64, error) {
     var query string
     var countQuery string
-    var args []interface{}
+    args := []any{}
     argPos := 1
     
     if !*filter.IncludeDeleted {
@@ -443,9 +598,12 @@ func (r *ObjectRepository) List(ctx context.Context, filter *models.ObjectFilter
     }
     
     var total int64
-    err := r.db.GetContext(ctx, &total, countQuery, args...)
+    err := database.TraceDBQuery(ctx, "objects", countQuery, func(ctx context.Context) error {
+        return r.db.QueryRow(ctx, countQuery, args...).Scan(&total)
+    })
     if err != nil {
-        return nil, 0, err
+        r.logger.WithError(err).Error("Failed to count objects")
+        return nil, 0, fmt.Errorf("failed to count objects: %w", err)
     }
     
     sortBy := "created_at"
@@ -465,9 +623,32 @@ func (r *ObjectRepository) List(ctx context.Context, filter *models.ObjectFilter
     args = append(args, filter.PageSize, offset)
     
     var objects []models.Object
-    err = r.db.SelectContext(ctx, &objects, query, args...)
+    err = database.TraceDBQuery(ctx, "objects", query, func(ctx context.Context) error {
+        rows, err := r.db.Query(ctx, query, args...)
+        if err != nil {
+            return err
+        }
+        defer rows.Close()
+        
+        for rows.Next() {
+            var obj models.Object
+            err := rows.Scan(
+                &obj.ID, &obj.PublicID, &obj.ObjectTypeID, &obj.ParentObjectID,
+                &obj.Name, &obj.Description, &obj.CreatedAt, &obj.UpdatedAt, &obj.DeletedAt,
+                &obj.Version, &obj.CreatedBy, &obj.UpdatedBy, &obj.Metadata, &obj.Status, &obj.Tags,
+            )
+            if err != nil {
+                return fmt.Errorf("failed to scan object: %w", err)
+            }
+            objects = append(objects, obj)
+        }
+        
+        return rows.Err()
+    })
+    
     if err != nil {
-        return nil, 0, err
+        r.logger.WithError(err).Error("Failed to list objects")
+        return nil, 0, fmt.Errorf("failed to list objects: %w", err)
     }
     
     return objects, total, nil
@@ -481,24 +662,28 @@ func (r *ObjectRepository) Update(ctx context.Context, obj *models.Object, userI
         RETURNING updated_at, version
     `
     
-    err := r.db.QueryRowContext(ctx, query,
-        obj.ID,
-        obj.Name,
-        obj.Description,
-        obj.Metadata,
-        obj.Status,
-        obj.Tags,
-        userID,
-        obj.Version,
-    ).Scan(&obj.UpdatedAt, &obj.Version)
+    err := database.TraceDBUpdate(ctx, "objects", query, func(ctx context.Context) error {
+        return r.db.QueryRow(ctx, query,
+            obj.ID,
+            obj.Name,
+            obj.Description,
+            obj.Metadata,
+            obj.Status,
+            obj.Tags,
+            userID,
+            obj.Version,
+        ).Scan(&obj.UpdatedAt, &obj.Version)
+    })
     
     if err != nil {
-        if errors.Is(err, sql.ErrNoRows) {
+        if errors.Is(err, pgx.ErrNoRows) {
             return ErrObjectVersionConflict
         }
-        return err
+        r.logger.WithError(err).Error("Failed to update object")
+        return fmt.Errorf("failed to update object: %w", err)
     }
     
+    r.logger.WithField("object_id", obj.ID).Info("Object updated successfully")
     return nil
 }
 
@@ -509,40 +694,46 @@ func (r *ObjectRepository) SoftDelete(ctx context.Context, id int64, userID stri
         WHERE id = $1 AND deleted_at IS NULL
     `
     
-    result, err := r.db.ExecContext(ctx, query, id, userID)
+    var result pgconn.CommandTag
+    err := database.TraceDBUpdate(ctx, "objects", query, func(ctx context.Context) error {
+        var execErr error
+        result, execErr = r.db.Exec(ctx, query, id, userID)
+        return execErr
+    })
+    
     if err != nil {
-        return err
+        r.logger.WithError(err).Error("Failed to soft delete object")
+        return fmt.Errorf("failed to soft delete object: %w", err)
     }
     
-    rowsAffected, err := result.RowsAffected()
-    if err != nil {
-        return err
-    }
-    
-    if rowsAffected == 0 {
+    if result.RowsAffected() == 0 {
         return ErrObjectNotFound
     }
     
+    r.logger.WithField("object_id", id).Info("Object soft deleted successfully")
     return nil
 }
 
 func (r *ObjectRepository) HardDelete(ctx context.Context, id int64) error {
     query := `DELETE FROM objects WHERE id = $1`
     
-    result, err := r.db.ExecContext(ctx, query, id)
+    var result pgconn.CommandTag
+    err := database.TraceDBDelete(ctx, "objects", query, func(ctx context.Context) error {
+        var execErr error
+        result, execErr = r.db.Exec(ctx, query, id)
+        return execErr
+    })
+    
     if err != nil {
-        return err
+        r.logger.WithError(err).Error("Failed to hard delete object")
+        return fmt.Errorf("failed to hard delete object: %w", err)
     }
     
-    rowsAffected, err := result.RowsAffected()
-    if err != nil {
-        return err
-    }
-    
-    if rowsAffected == 0 {
+    if result.RowsAffected() == 0 {
         return ErrObjectNotFound
     }
     
+    r.logger.WithField("object_id", id).Info("Object hard deleted successfully")
     return nil
 }
 
@@ -555,58 +746,88 @@ func (r *ObjectRepository) GetChildren(ctx context.Context, parentID int64) ([]m
     `
     
     var objects []models.Object
-    err := r.db.SelectContext(ctx, &objects, query, parentID)
+    err := database.TraceDBQuery(ctx, "objects", query, func(ctx context.Context) error {
+        rows, err := r.db.Query(ctx, query, parentID)
+        if err != nil {
+            return err
+        }
+        defer rows.Close()
+        
+        for rows.Next() {
+            var obj models.Object
+            err := rows.Scan(
+                &obj.ID, &obj.PublicID, &obj.ObjectTypeID, &obj.ParentObjectID,
+                &obj.Name, &obj.Description, &obj.CreatedAt, &obj.UpdatedAt, &obj.DeletedAt,
+                &obj.Version, &obj.CreatedBy, &obj.UpdatedBy, &obj.Metadata, &obj.Status, &obj.Tags,
+            )
+            if err != nil {
+                return fmt.Errorf("failed to scan object: %w", err)
+            }
+            objects = append(objects, obj)
+        }
+        
+        return rows.Err()
+    })
+    
     if err != nil {
-        return nil, err
+        r.logger.WithError(err).Error("Failed to get child objects")
+        return nil, fmt.Errorf("failed to get child objects: %w", err)
     }
     
     return objects, nil
 }
 
 func (r *ObjectRepository) CreateBatch(ctx context.Context, objects []models.Object, userID string) ([]models.Object, []error) {
-    tx, err := r.db.BeginTxx(ctx, nil)
-    if err != nil {
-        return nil, []error{err}
-    }
-    defer tx.Rollback()
+    // Use WithTx for transaction support with tracing
+    var created []models.Object
+    var errs []error
     
-    created := make([]models.Object, 0, len(objects))
-    errors := make([]error, 0)
-    
-    query := `
-        INSERT INTO objects (public_id, object_type_id, parent_object_id, name, description, created_by, updated_by, metadata, status, tags)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING id, created_at, updated_at, version
-    `
-    
-    for i := range objects {
-        obj := &objects[i]
-        err := tx.QueryRow(query,
-            obj.PublicID,
-            obj.ObjectTypeID,
-            obj.ParentObjectID,
-            obj.Name,
-            obj.Description,
-            userID,
-            userID,
-            obj.Metadata,
-            obj.Status,
-            obj.Tags,
-        ).Scan(&obj.ID, &obj.CreatedAt, &obj.UpdatedAt, &obj.Version)
+    err := database.WithTx(ctx, "objects", r.db, func(tx pgx.Tx) error {
+        query := `
+            INSERT INTO objects (public_id, object_type_id, parent_object_id, name, description, created_by, updated_by, metadata, status, tags)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            RETURNING id, created_at, updated_at, version
+        `
         
-        if err != nil {
-            errors = append(errors, fmt.Errorf("object %d: %w", i, err))
-            continue
+        for i := range objects {
+            obj := &objects[i]
+            
+            err := tx.QueryRow(ctx, query,
+                obj.PublicID,
+                obj.ObjectTypeID,
+                obj.ParentObjectID,
+                obj.Name,
+                obj.Description,
+                userID,
+                userID,
+                obj.Metadata,
+                obj.Status,
+                obj.Tags,
+            ).Scan(&obj.ID, &obj.CreatedAt, &obj.UpdatedAt, &obj.Version)
+            
+            if err != nil {
+                errs = append(errs, fmt.Errorf("object %d: %w", i, err))
+                continue
+            }
+            
+            created = append(created, *obj)
         }
         
-        created = append(created, *obj)
+        return nil
+    })
+    
+    if err != nil {
+        r.logger.WithError(err).Error("Failed to create objects in batch")
+        return created, append(errs, err)
     }
     
-    if err := tx.Commit(); err != nil {
-        return created, append(errors, err)
-    }
+    r.logger.WithFields(map[string]interface{}{
+        "count":      len(created),
+        "total":      len(objects),
+        "errors":     len(errs),
+    }).Info("Objects created in batch")
     
-    return created, errors
+    return created, errs
 }
 ```
 
@@ -631,8 +852,13 @@ rm services/objects-service/internal/repository/entity_repository_test.go
 
 ## Checklist
 
-- [ ] Create `internal/repository/object_type_repository.go`
-- [ ] Create `internal/repository/object_repository.go`
+- [ ] Create `internal/repository/object_type_repository.go` with pgx/v5
+- [ ] Create `internal/repository/object_repository.go` with pgx/v5
+- [ ] Add DBInterface pattern for testability
+- [ ] Use database.TraceDB* helpers for all operations
+- [ ] Implement proper error handling (pgx.ErrNoRows, constraint violations)
+- [ ] Add logging with logrus
+- [ ] Use WithTx for batch operations
 - [ ] Delete `internal/repository/entity_repository.go`
 - [ ] Delete `internal/repository/entity_repository_test.go`
 - [ ] Verify no compilation errors: `go build ./internal/repository/...`
@@ -651,10 +877,14 @@ go build ./internal/repository/...
 go test ./internal/repository/... -v
 
 # Test queries manually
-psql postgresql://postgres:password@localhost:5432/objects_service
+psql postgresql://postgres:password@localhost:5432/objects_service -c "\dt"
+psql postgresql://postgres:password@localhost:5432/objects_service -c "SELECT * FROM object_types LIMIT 5;"
 ```
 
 ## Common Issues
+
+**Issue**: pgx.ErrNoRows not recognized
+**Solution**: Import `github.com/jackc/pgx/v5` and use `errors.Is(err, pgx.ErrNoRows)`
 
 **Issue**: Recursive query syntax error
 **Solution**: Ensure PostgreSQL version is 8.4+ for CTE support
@@ -662,8 +892,14 @@ psql postgresql://postgres:password@localhost:5432/objects_service
 **Issue**: JSONB array operators not working
 **Solution**: Use `@>` (contains) or `&&` (overlap) for array operations
 
-**Issue**: Transaction rollback not working
-**Solution**: Ensure defer tx.Rollback() is called before checking err
+**Issue**: Transaction not committing
+**Solution**: Use `database.WithTx()` helper which handles commit/rollback automatically
+
+**Issue**: Tracing spans not appearing
+**Solution**: Ensure `database.TraceDB*` wrappers are used for all operations
+
+**Issue**: Connection pool errors
+**Solution**: Verify pgxpool.Pool is passed to constructors, not pgx.Conn
 
 ## Next Phase
 

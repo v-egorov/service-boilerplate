@@ -28,26 +28,55 @@ import (
     "errors"
     "fmt"
     
-    "your-project/services/objects-service/internal/models"
-    "your-project/services/objects-service/internal/repository"
+    "github.com/sirupsen/logrus"
+    
+    "github.com/v-egorov/service-boilerplate/services/objects-service/internal/models"
+    "github.com/v-egorov/service-boilerplate/services/objects-service/internal/repository"
 )
 
 type ObjectTypeService struct {
-    repo *repository.ObjectTypeRepository
+    repo   *repository.ObjectTypeRepository
+    logger *logrus.Logger
 }
 
-func NewObjectTypeService(repo *repository.ObjectTypeRepository) *ObjectTypeService {
-    return &ObjectTypeService{repo: repo}
+func NewObjectTypeService(repo *repository.ObjectTypeRepository, logger *logrus.Logger) *ObjectTypeService {
+    return &ObjectTypeService{
+        repo:   repo,
+        logger: logger,
+    }
+}
+
+// ObjectTypeRepositoryInterface defines repository operations needed
+type ObjectTypeRepositoryInterface interface {
+    Create(ctx context.Context, ot *models.ObjectType) error
+    GetByID(ctx context.Context, id int64) (*models.ObjectType, error)
+    GetByName(ctx context.Context, name string) (*models.ObjectType, error)
+    List(ctx context.Context, filter *models.ObjectTypeFilter) ([]models.ObjectType, error)
+    Update(ctx context.Context, ot *models.ObjectType) error
+    Delete(ctx context.Context, id int64) error
+    GetChildren(ctx context.Context, parentID int64) ([]models.ObjectType, error)
+    GetTree(ctx context.Context) ([]models.ObjectType, error)
+    Count(ctx context.Context, filter *models.ObjectTypeFilter) (int64, error)
+}
+
+// NewObjectTypeServiceWithInterface creates service with custom repository (for testing)
+func NewObjectTypeServiceWithInterface(repo ObjectTypeRepositoryInterface, logger *logrus.Logger) *ObjectTypeService {
+    return &ObjectTypeService{
+        repo:   repo,
+        logger: logger,
+    }
 }
 
 func (s *ObjectTypeService) Create(ctx context.Context, req *models.CreateObjectTypeRequest) (*models.ObjectType, error) {
     if req.ParentTypeID != nil {
         parent, err := s.repo.GetByID(ctx, *req.ParentTypeID)
         if err != nil {
+            s.logger.WithError(err).Error("Failed to get parent object type")
             return nil, fmt.Errorf("parent type not found: %w", err)
         }
         
         if parent.IsSealed {
+            s.logger.Warn("Attempted to create child type for sealed parent type")
             return nil, errors.New("cannot create child type for sealed parent type")
         }
     }
@@ -66,18 +95,42 @@ func (s *ObjectTypeService) Create(ctx context.Context, req *models.CreateObject
     }
     
     if err := s.repo.Create(ctx, ot); err != nil {
+        s.logger.WithError(err).Error("Failed to create object type in service")
+        
+        // Check for constraint violations
+        errMsg := err.Error()
+        if containsString(errMsg, "duplicate key") ||
+           containsString(errMsg, "unique constraint") ||
+           containsString(errMsg, "already exists") {
+            return nil, fmt.Errorf("object type already exists: %w", err)
+        }
+        
         return nil, fmt.Errorf("failed to create object type: %w", err)
     }
     
+    s.logger.WithField("object_type_id", ot.ID).Info("Object type created successfully")
     return ot, nil
 }
 
 func (s *ObjectTypeService) GetByID(ctx context.Context, id int64) (*models.ObjectType, error) {
+    if id == 0 {
+        return nil, errors.New("object type ID is required")
+    }
+    
     return s.repo.GetByID(ctx, id)
 }
 
 func (s *ObjectTypeService) GetByName(ctx context.Context, name string) (*models.ObjectType, error) {
+    if name == "" {
+        return nil, errors.New("object type name is required")
+    }
+    
     return s.repo.GetByName(ctx, name)
+}
+
+// Helper function for string checking
+func containsString(s, substr string) bool {
+    return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && s[len(s)-len(substr):] == substr || len(s) > len(substr) && s[:len(substr)] == substr)
 }
 
 func (s *ObjectTypeService) List(ctx context.Context, filter *models.ObjectTypeFilter) (*models.ObjectTypeListResponse, error) {

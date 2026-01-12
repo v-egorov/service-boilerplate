@@ -166,25 +166,193 @@ package repository
 
 import (
     "context"
+    "errors"
+    "fmt"
     "testing"
+    "time"
     
-    "github.com/jmoiron/sqlx"
-    _ "github.com/lib/pq"
+    "github.com/jackc/pgx/v5"
+    "github.com/jackc/pgx/v5/pgconn"
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/sirupsen/logrus"
+    "github.com/stretchr/testify/assert"
     
-    "your-project/services/objects-service/internal/models"
+    "github.com/v-egorov/service-boilerplate/services/objects-service/internal/models"
 )
 
-func setupTestDB(t *testing.T) *sqlx.DB {
-    db, err := sqlx.Connect("postgres", "postgres://postgres:password@localhost:5432/objects_service_test?sslmode=disable")
-    if err != nil {
-        t.Fatalf("Failed to connect to test database: %v", err)
+// Helper function to create command tag with specific rows affected
+func newCommandTag(rowsAffected int64) pgconn.CommandTag {
+    return pgconn.NewCommandTag(fmt.Sprintf("DELETE %d", rowsAffected))
+}
+
+// Helper function to create a test logger
+func createTestLogger() *logrus.Logger {
+    logger := logrus.New()
+    logger.SetLevel(logrus.FatalLevel)
+    return logger
+}
+
+// MockDBPool is a mock implementation of DBInterface for testing
+type MockDBPool struct {
+    QueryFunc    func(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+    QueryRowFunc func(ctx context.Context, sql string, args ...any) pgx.Row
+    ExecFunc     func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+    BeginFunc    func(ctx context.Context) (pgx.Tx, error)
+}
+
+func (m *MockDBPool) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+    if m.QueryFunc != nil {
+        return m.QueryFunc(ctx, sql, args...)
     }
-    return db
+    return nil, nil
+}
+
+func (m *MockDBPool) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+    if m.QueryRowFunc != nil {
+        return m.QueryRowFunc(ctx, sql, args...)
+    }
+    return nil
+}
+
+func (m *MockDBPool) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+    if m.ExecFunc != nil {
+        return m.ExecFunc(ctx, sql, args...)
+    }
+    return pgconn.CommandTag{}, nil
+}
+
+func (m *MockDBPool) Begin(ctx context.Context) (pgx.Tx, error) {
+    if m.BeginFunc != nil {
+        return m.BeginFunc(ctx)
+    }
+    return nil, nil
+}
+
+// MockTx is a mock implementation of pgx.Tx for testing
+type MockTx struct {
+    QueryFunc    func(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+    QueryRowFunc func(ctx context.Context, sql string, args ...any) pgx.Row
+    ExecFunc     func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+    CommitFunc   func(ctx context.Context) error
+    RollbackFunc func(ctx context.Context) error
+}
+
+func (m *MockTx) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+    if m.QueryFunc != nil {
+        return m.QueryFunc(ctx, sql, args...)
+    }
+    return nil, nil
+}
+
+func (m *MockTx) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+    if m.QueryRowFunc != nil {
+        return m.QueryRowFunc(ctx, sql, args...)
+    }
+    return nil
+}
+
+func (m *MockTx) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+    if m.ExecFunc != nil {
+        return m.ExecFunc(ctx, sql, args...)
+    }
+    return pgconn.CommandTag{}, nil
+}
+
+func (m *MockTx) Commit(ctx context.Context) error {
+    if m.CommitFunc != nil {
+        return m.CommitFunc(ctx)
+    }
+    return nil
+}
+
+func (m *MockTx) Rollback(ctx context.Context) error {
+    if m.RollbackFunc != nil {
+        return m.RollbackFunc(ctx)
+    }
+    return nil
+}
+
+// MockRows is a mock implementation of pgx.Rows for testing
+type MockRows struct {
+    CloseFunc   func()
+    NextFunc    func() bool
+    ScanFunc    func(dest ...any) error
+    ErrFunc     func() error
+    NextCalled  int
+    ScanCalled  int
+    ScanResults [][]any
+    ScanIndex   int
+}
+
+func (m *MockRows) Close() {
+    if m.CloseFunc != nil {
+        m.CloseFunc()
+    }
+}
+
+func (m *MockRows) Next() bool {
+    m.NextCalled++
+    if m.NextFunc != nil {
+        return m.NextFunc()
+    }
+    if m.ScanIndex < len(m.ScanResults) {
+        m.ScanIndex++
+        return true
+    }
+    return false
+}
+
+func (m *MockRows) Scan(dest ...any) error {
+    m.ScanCalled++
+    if m.ScanFunc != nil {
+        return m.ScanFunc(dest...)
+    }
+    if m.ScanIndex-1 < len(m.ScanResults) {
+        values := m.ScanResults[m.ScanIndex-1]
+        if len(values) != len(dest) {
+            return pgx.ErrNoRows
+        }
+        for i, val := range values {
+            if dest[i] != nil {
+                destVal := dest[i].(interface{})
+                switch v := val.(type) {
+                case int64:
+                    if ptr, ok := destVal.(*int64); ok {
+                        *ptr = v
+                    }
+                case string:
+                    if ptr, ok := destVal.(*string); ok {
+                        *ptr = v
+                    }
+                case bool:
+                    if ptr, ok := destVal.(*bool); ok {
+                        *ptr = v
+                    }
+                case time.Time:
+                    if ptr, ok := destVal.(*time.Time); ok {
+                        *ptr = v
+                    }
+                default:
+                    return fmt.Errorf("unsupported type: %T", v)
+                }
+            }
+        }
+        return nil
+    }
+    return pgx.ErrNoRows
+}
+
+func (m *MockRows) Err() error {
+    if m.ErrFunc != nil {
+        return m.ErrFunc()
+    }
+    return nil
 }
 
 func TestObjectTypeRepository_Create(t *testing.T) {
-    db := setupTestDB(t)
-    repo := NewObjectTypeRepository(db)
+    mockDB := &MockDBPool{}
+    logger := createTestLogger()
+    repo := NewObjectTypeRepositoryWithInterface(mockDB, logger)
     
     ot := &models.ObjectType{
         Name:       "TestType",
@@ -193,236 +361,145 @@ func TestObjectTypeRepository_Create(t *testing.T) {
         Metadata:    make(models.Metadata),
     }
     
+    var createdID int64
+    var createdTime time.Time
+    
+    mockDB.QueryRowFunc = func(ctx context.Context, sql string, args ...any) pgx.Row {
+        return &mockRow{
+            scanFunc: func(dest ...any) error {
+                createdID = 1
+                createdTime = time.Now()
+                dest[0].(*int64).(*createdID)
+                dest[2].(*time.Time).(*createdTime)
+                dest[3].(*time.Time).(*createdTime)
+                return nil
+            },
+        }
+    }
+    
     err := repo.Create(context.Background(), ot)
-    if err != nil {
-        t.Fatalf("Failed to create object type: %v", err)
-    }
-    
-    if ot.ID == 0 {
-        t.Error("Expected non-zero ID after creation")
-    }
-    
-    if ot.CreatedAt.IsZero() {
-        t.Error("Expected CreatedAt to be set")
-    }
+    assert.NoError(t, err)
+    assert.Equal(t, int64(1), ot.ID)
 }
 
 func TestObjectTypeRepository_GetByID(t *testing.T) {
-    db := setupTestDB(t)
-    repo := NewObjectTypeRepository(db)
+    mockDB := &MockDBPool{}
+    logger := createTestLogger()
+    repo := NewObjectTypeRepositoryWithInterface(mockDB, logger)
     
-    ot := &models.ObjectType{
-        Name:    "GetTypeTest",
-        IsSealed: false,
-        Metadata: make(models.Metadata),
+    expectedOT := &models.ObjectType{
+        ID:         1,
+        Name:       "GetTypeTest",
+        IsSealed:   false,
+        Metadata:   make(models.Metadata),
+        CreatedAt:  time.Now(),
+        UpdatedAt:  time.Now(),
     }
     
-    if err := repo.Create(context.Background(), ot); err != nil {
-        t.Fatalf("Failed to create object type: %v", err)
+    mockDB.QueryRowFunc = func(ctx context.Context, sql string, args ...any) pgx.Row {
+        return &mockRow{
+            scanFunc: func(dest ...any) error {
+                dest[0].(*int64).(*expectedOT.ID)
+                dest[1].(*string).(*expectedOT.Name)
+                dest[6].(*time.Time).(*expectedOT.CreatedAt)
+                dest[7].(*time.Time).(*expectedOT.UpdatedAt)
+                return nil
+            },
+        }
     }
     
-    fetched, err := repo.GetByID(context.Background(), ot.ID)
-    if err != nil {
-        t.Fatalf("Failed to get object type by ID: %v", err)
-    }
-    
-    if fetched.Name != ot.Name {
-        t.Errorf("Name mismatch: expected %s, got %s", ot.Name, fetched.Name)
-    }
+    fetched, err := repo.GetByID(context.Background(), 1)
+    assert.NoError(t, err)
+    assert.Equal(t, expectedOT.Name, fetched.Name)
 }
 
 func TestObjectTypeRepository_GetByID_NotFound(t *testing.T) {
-    db := setupTestDB(t)
-    repo := NewObjectTypeRepository(db)
+    mockDB := &MockDBPool{}
+    logger := createTestLogger()
+    repo := NewObjectTypeRepositoryWithInterface(mockDB, logger)
+    
+    mockDB.QueryRowFunc = func(ctx context.Context, sql string, args ...any) pgx.Row {
+        return &mockRow{
+            scanFunc: func(dest ...any) error {
+                return pgx.ErrNoRows
+            },
+        }
+    }
     
     _, err := repo.GetByID(context.Background(), 99999)
-    if err != ErrObjectTypeNotFound {
-        t.Errorf("Expected ErrObjectTypeNotFound, got %v", err)
-    }
+    assert.Error(t, err)
+    assert.Equal(t, ErrObjectTypeNotFound, err)
 }
 
 func TestObjectTypeRepository_List(t *testing.T) {
-    db := setupTestDB(t)
-    repo := NewObjectTypeRepository(db)
+    mockDB := &MockDBPool{}
+    logger := createTestLogger()
+    repo := NewObjectTypeRepositoryWithInterface(mockDB, logger)
+    
+    mockRows := &MockRows{
+        ScanResults: [][]any{
+            {int64(1), "Type1", nil, nil, nil, false, make(models.Metadata), time.Now(), time.Now()},
+            {int64(2), "Type2", nil, nil, nil, false, make(models.Metadata), time.Now(), time.Now()},
+        },
+    }
+    
+    mockDB.QueryFunc = func(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+        return mockRows, nil
+    }
     
     filter := &models.ObjectTypeFilter{}
-    
     types, err := repo.List(context.Background(), filter)
-    if err != nil {
-        t.Fatalf("Failed to list object types: %v", err)
-    }
-    
-    if len(types) == 0 {
-        t.Error("Expected at least one object type")
-    }
+    assert.NoError(t, err)
+    assert.Len(t, types, 2)
 }
 
 func TestObjectTypeRepository_Update(t *testing.T) {
-    db := setupTestDB(t)
-    repo := NewObjectTypeRepository(db)
+    mockDB := &MockDBPool{}
+    logger := createTestLogger()
+    repo := NewObjectTypeRepositoryWithInterface(mockDB, logger)
     
     ot := &models.ObjectType{
-        Name:    "UpdateTest",
-        IsSealed: false,
+        ID:   1,
+        Name:  "UpdatedType",
         Metadata: make(models.Metadata),
     }
     
-    if err := repo.Create(context.Background(), ot); err != nil {
-        t.Fatalf("Failed to create object type: %v", err)
+    mockDB.QueryRowFunc = func(ctx context.Context, sql string, args ...any) pgx.Row {
+        return &mockRow{
+            scanFunc: func(dest ...any) error {
+                dest[0].(*time.Time).(*time.Now())
+                return nil
+            },
+        }
     }
     
-    newName := "UpdatedType"
-    ot.Name = newName
-    
-    if err := repo.Update(context.Background(), ot); err != nil {
-        t.Fatalf("Failed to update object type: %v", err)
-    }
-    
-    updated, err := repo.GetByID(context.Background(), ot.ID)
-    if err != nil {
-        t.Fatalf("Failed to get updated object type: %v", err)
-    }
-    
-    if updated.Name != newName {
-        t.Errorf("Name not updated: expected %s, got %s", newName, updated.Name)
-    }
+    err := repo.Update(context.Background(), ot)
+    assert.NoError(t, err)
 }
 
 func TestObjectTypeRepository_Delete(t *testing.T) {
-    db := setupTestDB(t)
-    repo := NewObjectTypeRepository(db)
+    mockDB := &MockDBPool{}
+    logger := createTestLogger()
+    repo := NewObjectTypeRepositoryWithInterface(mockDB, logger)
     
-    ot := &models.ObjectType{
-        Name:    "DeleteTest",
-        IsSealed: false,
-        Metadata: make(models.Metadata),
+    mockDB.ExecFunc = func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+        return newCommandTag(1), nil
     }
     
-    if err := repo.Create(context.Background(), ot); err != nil {
-        t.Fatalf("Failed to create object type: %v", err)
-    }
-    
-    id := ot.ID
-    
-    if err := repo.Delete(context.Background(), id); err != nil {
-        t.Fatalf("Failed to delete object type: %v", err)
-    }
-    
-    _, err := repo.GetByID(context.Background(), id)
-    if err != ErrObjectTypeNotFound {
-        t.Errorf("Expected ErrObjectTypeNotFound after deletion, got %v", err)
-    }
+    err := repo.Delete(context.Background(), 1)
+    assert.NoError(t, err)
 }
 
-func TestObjectRepository_Create(t *testing.T) {
-    db := setupTestDB(t)
-    typeRepo := NewObjectTypeRepository(db)
-    objRepo := NewObjectRepository(db)
-    
-    ot := &models.ObjectType{
-        Name:    "TestObjectType",
-        IsSealed: false,
-        Metadata: make(models.Metadata),
-    }
-    
-    if err := typeRepo.Create(context.Background(), ot); err != nil {
-        t.Fatalf("Failed to create object type: %v", err)
-    }
-    
-    obj := &models.Object{
-        ObjectTypeID: ot.ID,
-        Name:         "TestObject",
-        Status:       models.StatusActive,
-        Tags:         []string{"tag1"},
-        Metadata:     make(models.Metadata),
-    }
-    
-    err := objRepo.Create(context.Background(), obj, "test-user")
-    if err != nil {
-        t.Fatalf("Failed to create object: %v", err)
-    }
-    
-    if obj.ID == 0 {
-        t.Error("Expected non-zero ID after creation")
-    }
+// mockRow is a helper for mocking pgx.Row
+type mockRow struct {
+    scanFunc func(dest ...any) error
 }
 
-func TestObjectRepository_GetByPublicID(t *testing.T) {
-    db := setupTestDB(t)
-    typeRepo := NewObjectTypeRepository(db)
-    objRepo := NewObjectRepository(db)
-    
-    ot := &models.ObjectType{
-        Name:    "GetByPublicTest",
-        IsSealed: false,
-        Metadata: make(models.Metadata),
+func (m *mockRow) Scan(dest ...any) error {
+    if m.scanFunc != nil {
+        return m.scanFunc(dest...)
     }
-    
-    if err := typeRepo.Create(context.Background(), ot); err != nil {
-        t.Fatalf("Failed to create object type: %v", err)
-    }
-    
-    obj := &models.Object{
-        ObjectTypeID: ot.ID,
-        Name:         "TestObject",
-        Status:       models.StatusActive,
-        Tags:         []string{"tag1"},
-        Metadata:     make(models.Metadata),
-    }
-    
-    if err := objRepo.Create(context.Background(), obj, "test-user"); err != nil {
-        t.Fatalf("Failed to create object: %v", err)
-    }
-    
-    fetched, err := objRepo.GetByPublicID(context.Background(), obj.PublicID)
-    if err != nil {
-        t.Fatalf("Failed to get object by public ID: %v", err)
-    }
-    
-    if fetched.Name != obj.Name {
-        t.Errorf("Name mismatch: expected %s, got %s", obj.Name, fetched.Name)
-    }
-}
-
-func TestObjectRepository_SoftDelete(t *testing.T) {
-    db := setupTestDB(t)
-    typeRepo := NewObjectTypeRepository(db)
-    objRepo := NewObjectRepository(db)
-    
-    ot := &models.ObjectType{
-        Name:    "SoftDeleteTest",
-        IsSealed: false,
-        Metadata: make(models.Metadata),
-    }
-    
-    if err := typeRepo.Create(context.Background(), ot); err != nil {
-        t.Fatalf("Failed to create object type: %v", err)
-    }
-    
-    obj := &models.Object{
-        ObjectTypeID: ot.ID,
-        Name:         "TestObject",
-        Status:       models.StatusActive,
-        Tags:         []string{"tag1"},
-        Metadata:     make(models.Metadata),
-    }
-    
-    if err := objRepo.Create(context.Background(), obj, "test-user"); err != nil {
-        t.Fatalf("Failed to create object: %v", err)
-    }
-    
-    if err := objRepo.SoftDelete(context.Background(), obj.ID, "test-user"); err != nil {
-        t.Fatalf("Failed to soft delete object: %v", err)
-    }
-    
-    fetched, err := objRepo.GetByID(context.Background(), obj.ID)
-    if err != nil {
-        t.Fatalf("Failed to get soft deleted object: %v", err)
-    }
-    
-    if fetched.DeletedAt == nil {
-        t.Error("Expected DeletedAt to be set")
-    }
+    return nil
 }
 
 func stringPtr(s string) *string {
@@ -732,6 +809,9 @@ go test ./internal/repository/... -v
 go test ./internal/services/... -v
 go test ./internal/handlers/... -v
 
+# Run tests with testify/assert
+go test ./internal/repository/... -v -run TestObjectTypeRepository
+
 # Run integration tests
 go test ./tests/integration/... -v
 ```
@@ -744,8 +824,17 @@ go test ./tests/integration/... -v
 **Issue**: Concurrent test failures
 **Solution**: Use test database transactions and rollback after each test
 
+**Issue**: pgx.ErrNoRows not recognized
+**Solution**: Import `github.com/jackc/pgx/v5` and use `errors.Is(err, pgx.ErrNoRows)`
+
+**Issue**: Mock rows not scanning correctly
+**Solution**: Ensure mockRow implements pgx.Row interface correctly with Scan method
+
+**Issue**: Command tag not returning rows affected
+**Solution**: Use `pgconn.NewCommandTag(fmt.Sprintf("DELETE %d", rowsAffected))` to create proper command tags
+
 **Issue**: UUID parsing errors in tests
-**Solution**: Use proper UUID test fixtures or generate valid UUIDs
+**Solution**: Use `github.com/google/uuid` package with `uuid.New()` for valid UUIDs in tests
 
 ## Next Phase
 

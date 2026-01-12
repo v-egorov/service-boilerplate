@@ -127,6 +127,7 @@ This folder contains the following documents:
 2. **design-questions.md** - Questions that need answers to refine implementation
 3. **phases.md** - Detailed 9-phase implementation plan with steps
 4. **progress.md** - Progress tracking checklist
+5. **database-pattern-updates.md** - Database pattern updates for pgx/v5 alignment
 
 ## Risk Assessment
 
