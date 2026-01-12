@@ -163,7 +163,7 @@ setup: ## Initialize project (download deps, setup tools)
 	@$(GOMOD) tidy
 
 .PHONY: build
-build: build-gateway build-user-service build-auth-service ## Build all services
+build: build-gateway build-user-service build-auth-service build-objects-service ## Build all services
 
 .PHONY: build-gateway
 build-gateway: ## Build API Gateway
@@ -1598,3 +1598,24 @@ test-auth-service: ## Run auth-service tests
 air-auth-service: ## Run auth-service with Air in Docker
 	@echo "Starting auth-service with Air..."
 	@cd services/auth-service && air
+
+.PHONY: build-objects-service
+build-objects-service: ## Build objects-service
+	@echo "Building objects-service..."
+	@mkdir -p $(BUILD_DIR)
+	@cd services/objects-service && $(GOBUILD) -o ../$(BUILD_DIR)/objects-service ./cmd
+
+.PHONY: run-objects-service
+run-objects-service: ## Run objects-service
+	@echo "Running objects-service..."
+	@cd services/objects-service && $(GO) run ./cmd
+
+.PHONY: test-objects-service
+test-objects-service: ## Run objects-service tests
+	@echo "Running objects-service tests..."
+	@cd services/objects-service && $(GOTEST) ./...
+
+.PHONY: air-objects-service
+air-objects-service: ## Run objects-service with Air locally
+	@echo "Starting objects-service with Air..."
+	@cd services/objects-service && air

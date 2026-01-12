@@ -94,3 +94,29 @@ services:
           - auth-service
           - auth-service-service
           - auth-service-svc
+
+  objects-service:
+    build:
+      context: ..
+      dockerfile: services/objects-service/Dockerfile.dev
+    environment:
+      - APP_ENV=development
+      - LOGGING_LEVEL=debug
+      - LOGGING_FORMAT=json
+      - LOGGING_OUTPUT=file
+      - LOGGING_DUAL_OUTPUT=true
+      - LOGGING_STRIP_ANSI_FROM_FILES=true
+    volumes:
+      - ../services/objects-service:/app/services/objects-service
+      - ../common:/app/common
+      - objects-service_service_tmp:/app/services/objects-service/tmp
+      - objects-service_logs:/app/logs
+    ports:
+      - "${OBJECTS_SERVICE_SERVICE_PORT}:${OBJECTS_SERVICE_SERVICE_PORT}"
+    working_dir: /app/services/objects-service
+    networks:
+      service-network:
+        aliases:
+          - objects-service
+          - objects-service-service
+          - objects-service-svc

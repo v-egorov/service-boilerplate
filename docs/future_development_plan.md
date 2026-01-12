@@ -163,6 +163,7 @@ Distributed tracing has been successfully implemented across the microservices a
 - [ ] **Test multi-service authentication flows end-to-end**
 
 ## Planned Features
+- [x] Add objects-service service (completed)
 - [x] Add auth-service service (completed)
 - [x] Add dynamic-service service (completed)
 

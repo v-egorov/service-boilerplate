@@ -194,6 +194,7 @@ services:
       - ./volumes/api-gateway/logs:/var/log/api-gateway:ro
       - ./volumes/user-service/logs:/var/log/user-service:ro
       - ./volumes/auth-service/logs:/var/log/auth-service:ro
+      - ./volumes/objects-service/logs:/var/log/objects-service:ro
     command: -config.file=/etc/promtail/config.yml
     networks:
       - service-network
@@ -213,12 +214,57 @@ services:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./volumes/objects-service/logs:/var/log/objects-service:ro
     networks:
       - service-network
     restart: unless-stopped
     depends_on:
       - loki
 
+
+  objects-service:
+    build:
+      context: ..
+      dockerfile: services/objects-service/Dockerfile
+    image: ${OBJECTS_SERVICE_SERVICE_IMAGE}
+    container_name: ${OBJECTS_SERVICE_SERVICE_CONTAINER}
+    ports:
+      - "${OBJECTS_SERVICE_SERVICE_PORT:-8085}:${OBJECTS_SERVICE_SERVICE_PORT:-8085}"
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - SERVER_PORT=${OBJECTS_SERVICE_SERVICE_PORT:-8085}
+      - DATABASE_HOST=${POSTGRES_NAME}
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${DATABASE_USER:-postgres}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD:-postgres}
+      - DATABASE_NAME=${DATABASE_NAME:-service_db}
+      - DATABASE_SSL_MODE=disable
+      - LOGGING_LEVEL=${LOGGING_LEVEL:-info}
+      - LOGGING_FORMAT=${LOGGING_FORMAT:-json}
+      - LOGGING_OUTPUT=file
+      - LOGGING_DUAL_OUTPUT=${LOGGING_DUAL_OUTPUT:-true}
+      - LOGGING_STRIP_ANSI_FROM_FILES=${LOGGING_STRIP_ANSI_FROM_FILES:-true}
+      - AUTH_SERVICE_URL=${AUTH_SERVICE_URL:-http://auth-service:8083}
+      - USER_SERVICE_URL=${USER_SERVICE_URL:-http://user-service:8081}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - objects-service_logs:/app/logs
+      - ./volumes/objects-service/logs:/var/log/objects-service:ro
+    networks:
+      service-network:
+        aliases:
+          - objects-service
+          - objects-service-service
+          - objects-service-svc
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${OBJECTS_SERVICE_SERVICE_PORT:-8085}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
 volumes:
   postgres_data:
     name: ${POSTGRES_VOLUME}
@@ -315,6 +361,22 @@ volumes:
       type: none
       o: bind
       device: ${PWD}/docker/volumes/grafana/data
+
+  objects-service_service_tmp:
+    name: ${OBJECTS_SERVICE_SERVICE_TMP_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/objects-service/tmp
+
+  objects-service_logs:
+    name: ${OBJECTS_SERVICE_LOGS_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/objects-service/logs
 
 networks:
   service-network:

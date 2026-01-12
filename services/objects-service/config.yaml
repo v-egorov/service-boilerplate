@@ -1,0 +1,44 @@
+app:
+  name: "objects-service"
+  version: "1.0.0"
+  environment: "development"
+
+database:
+  host: "localhost"  # Local development default
+  port: 5432
+  user: "postgres"
+  password: "postgres"
+  database: "service_db"
+  ssl_mode: "disable"
+  max_conns: 10
+  min_conns: 2
+  max_conn_idle: 300
+  max_conn_life: 3600
+
+logging:
+  level: "debug"
+  format: "json"
+  output: "stdout"
+  dual_output: true
+  strip_ansi_from_files: true
+
+server:
+  host: "0.0.0.0"
+  port: 8085
+
+monitoring:
+  health_check_timeout: 5
+  status_cache_duration: 30
+  enable_detailed_metrics: true
+
+alerting:
+  enabled: false
+  error_rate_threshold: 0.1  # 10% error rate
+  response_time_threshold_ms: 5000  # 5 seconds
+  alert_interval_minutes: 5  # Alert every 5 minutes max
+
+tracing:
+  enabled: true
+  service_name: "objects-service"
+  collector_url: "http://jaeger:4318/v1/traces"
+  sampling_rate: 1.0

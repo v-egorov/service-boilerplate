@@ -94,6 +94,9 @@ func main() {
 	serviceRegistry.RegisterService("auth-service", authServiceURL)
 	serviceRegistry.RegisterService("user-service", userServiceURL)
 
+	// Register objects-service
+	serviceRegistry.RegisterService("objects-service", "http://objects-service:8085")
+
 	// Initialize handlers
 	gatewayHandler := handlers.NewGatewayHandler(serviceRegistry, logger.Logger, cfg)
 
