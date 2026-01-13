@@ -20,7 +20,7 @@ This document contains questions that need to be answered to refine the implemen
 
 **Recommendation**: Option A - No limit, but add database-level cycle detection triggers to prevent infinite loops.
 
-**Decision**: [ANSWER NEEDED]
+**Decision**: [Option A]
 
 ---
 
@@ -41,7 +41,7 @@ This document contains questions that need to be answered to refine the implemen
 
 **Recommendation**: Option A - No restrictions initially for maximum flexibility. Add metadata-based constraints later if needed.
 
-**Decision**: [ANSWER NEEDED]
+**Decision**: [Option A]
 
 ---
 
@@ -61,7 +61,7 @@ This document contains questions that need to be answered to refine the implemen
 
 **Recommendation**: Option B - Reject creation with clear validation error explaining sealed type cannot be extended.
 
-**Decision**: [ANSWER NEEDED]
+**Decision**: [Option B]
 
 ---
 
@@ -86,7 +86,7 @@ This document contains questions that need to be answered to refine the implemen
 - Monotonically increasing (helps with database performance)
 - Still UUID standard format
 
-**Decision**: [ANSWER NEEDED]
+**Decision**: [Option B]
 
 ---
 
@@ -124,7 +124,7 @@ type ObjectType struct {
 }
 ```
 
-**Decision**: [ANSWER NEEDED]
+**Decision**: [Option B]
 
 ---
 
@@ -156,7 +156,7 @@ Example endpoints:
 - `POST /api/v1/objects` - Create object
 - `GET /api/v1/object-types/{id}/objects` - List objects of specific type
 
-**Decision**: [ANSWER NEEDED]
+**Decision**: [Option A]
 
 ---
 
@@ -191,7 +191,7 @@ Special cases:
 - Hard delete: `objects:admin`
 - Sealed type operations: `object_types:admin`
 
-**Decision**: [ANSWER NEEDED]
+**Decision**: [Option C]
 
 ---
 
@@ -223,7 +223,7 @@ Features:
 - Configurable batch size limits
 - Async option for very large batches
 
-**Decision**: [ANSWER NEEDED]
+**Decision**: [Option C]
 
 ---
 
@@ -266,7 +266,7 @@ Database indexes:
 - BTREE index on (object_type_id, status)
 - GIN index on name, description (gin_trgm_ops)
 
-**Decision**: [ANSWER NEEDED]
+**Decision**: [Option C]
 
 ---
 
@@ -310,7 +310,7 @@ if userID == "" {
 }
 ```
 
-**Decision**: [ANSWER NEEDED]
+**Decision**: [Option A]
 
 ---
 
@@ -318,4 +318,4 @@ if userID == "" {
 
 All questions need answers before starting implementation. Once answered, update this document with the decisions, then proceed to **phases.md** for the detailed implementation plan.
 
-**Progress**: 0/10 questions answered
+**Progress**: 10/10 questions answered
