@@ -125,10 +125,37 @@ This folder contains the following documents:
 
 1. **README.md** (this file) - Overview and summary
 2. **design-questions.md** - Questions that need answers to refine implementation
-3. **phases.md** - Detailed 9-phase implementation plan with steps
+3. **phases.md** - Detailed 10-phase implementation plan with steps
 4. **progress.md** - Progress tracking checklist
 5. **database-pattern-updates.md** - Database pattern updates for pgx/v5 alignment
-6. **phase-10-class-table-inheritance.md** - Future enhancement: Class Table Inheritance (CTI) pattern
+6. **migration-orchestrator-integration.md** - Migration Orchestrator integration guide
+7. **phase-10-class-table-inheritance.md** - Future enhancement: Class Table Inheritance (CTI) pattern
+
+## Migration Orchestrator
+
+The objects-service uses **Migration Orchestrator** for intelligent migration management, following the same pattern as user-service and auth-service.
+
+**Documentation**: See [migration-orchestrator integration guide](migration-orchestrator-integration.md) for detailed usage.
+
+**Key Features**:
+- Dependency management with topological sorting
+- Environment-specific migration sets
+- Risk assessment for high-impact changes
+- Comprehensive execution tracking
+- Intelligent rollback with state verification
+- Cross-service dependency resolution
+
+**Migration Files Structure**:
+```
+services/objects-service/migrations/
+├── dependencies.json           # Migration dependencies and metadata
+├── environments.json            # Environment-specific migration sets
+├── 000001_initial.up.sql        # Base schema with CTI foundation
+├── 000001_initial.down.sql
+└── development/
+    ├── 000002_dev_tax_test_data.up.sql
+    └── 000002_dev_tax_test_data.down.sql
+```
 
 ## Future Enhancements
 

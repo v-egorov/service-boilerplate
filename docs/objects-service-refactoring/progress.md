@@ -40,154 +40,10 @@ Track the progress of the objects-service refactoring implementation.
 - [ ] Verify table structure
 - [ ] Verify indexes
 - [ ] Verify triggers
-
-**Notes**:
--
-
-### Phase 2: Models Layer
-**Estimated Time**: 2.5 hours
-**Status**: ⬜ Not Started
-
-- [ ] Create `internal/models/object_type.go`
-- [ ] Create `internal/models/object.go`
-- [ ] Create `internal/models/object_type_request.go`
-- [ ] Create `internal/models/object_request.go`
-- [ ] Delete `internal/models/entity.go`
-- [ ] Delete `internal/models/entity_test.go`
-- [ ] Verify no compilation errors
-- [ ] Create basic unit tests
-
-**Notes**:
--
-
-### Phase 3: Repository Layer
-**Estimated Time**: 4 hours
-**Status**: ⬜ Not Started
-
-- [ ] Create `internal/repository/object_type_repository.go`
-- [ ] Create `internal/repository/object_repository.go`
-- [ ] Delete `internal/repository/entity_repository.go`
-- [ ] Delete `internal/repository/entity_repository_test.go`
-- [ ] Verify no compilation errors
-- [ ] Create basic unit tests
-- [ ] Test database queries
-
-**Notes**:
--
-
-### Phase 4: Service Layer
-**Estimated Time**: 4 hours
-**Status**: ⬜ Not Started
-
-- [ ] Create `internal/services/object_type_service.go`
-- [ ] Create `internal/services/object_service.go`
-- [ ] Delete `internal/services/entity_service.go`
-- [ ] Delete `internal/services/entity_service_test.go`
-- [ ] Verify no compilation errors
-- [ ] Create unit tests
-- [ ] Test business logic
-
-**Notes**:
--
-
-### Phase 5: Handlers Layer
-**Estimated Time**: 4 hours
-**Status**: ⬜ Not Started
-
-- [ ] Create `internal/handlers/object_type_handler.go`
-- [ ] Create `internal/handlers/object_handler.go`
-- [ ] Delete `internal/handlers/entity_handler.go`
-- [ ] Delete `internal/handlers/entity_handler_test.go`
-- [ ] Verify no compilation errors
-- [ ] Create handler tests
-- [ ] Test API endpoints
-
-**Notes**:
--
-
-### Phase 6: Main Application
-**Estimated Time**: 1 hour
-**Status**: ⬜ Not Started
-
-- [ ] Remove entity imports from `cmd/main.go`
-- [ ] Add new imports
-- [ ] Update repository initialization
-- [ ] Update service initialization
-- [ ] Update handler initialization
-- [ ] Register new routes
-- [ ] Verify application compiles
-- [ ] Test application startup
-- [ ] Verify health endpoint
-- [ ] Verify API endpoints
-
-**Notes**:
--
-
-### Phase 7: Development Test Data
-**Estimated Time**: 1 hour
-**Status**: ⬜ Not Started
-
-- [ ] Create `migrations/development/000002_dev_tax_test_data.up.sql`
-- [ ] Create `migrations/development/000002_dev_tax_test_data.down.sql`
-- [ ] Update `migrations/environments.json`
-- [ ] Test migration up
-- [ ] Verify test data
-- [ ] Test migration down
-- [ ] Verify data cleanup
-
-**Notes**:
--
-
-### Phase 8: Tests
-**Estimated Time**: 4 hours
-**Status**: ⬜ Not Started
-
-- [ ] Create `internal/models/object_type_test.go`
-- [ ] Create `internal/models/object_test.go`
-- [ ] Create `internal/repository/object_type_repository_test.go`
-- [ ] Create `internal/repository/object_repository_test.go`
-- [ ] Create `internal/handlers/object_type_handler_test.go`
-- [ ] Create `internal/handlers/object_handler_test.go`
-- [ ] Create `tests/integration/api_integration_test.go`
-- [ ] Run all tests
-- [ ] Verify test coverage
-- [ ] Fix failing tests
-
-**Notes**:
--
-
-### Phase 9: Documentation
-**Estimated Time**: 2 hours
-**Status**: ⬜ Not Started
-
-- [ ] Update `README.md`
-- [ ] Create `api/swagger.yaml`
-- [ ] Create `CHANGELOG.md`
-- [ ] Update progress.md with completion
-- [ ] Verify all documentation
-- [ ] Test API examples
-- [ ] Verify Swagger file
-
-**Notes**:
--
-
-### Phase 10: Class Table Inheritance (Future Enhancement)
-**Estimated Time**: 8-10 hours
-**Status**: ⬜ Not Started
-
-- [ ] Create `migrations/000010_create_concrete_tables_registry.up.sql`
-- [ ] Create `internal/models/concrete_objects.go`
-- [ ] Create `internal/repository/concrete_table_repository.go`
-- [ ] Update `internal/repository/object_repository.go` with CTI methods
-- [ ] Update `internal/services/object_service.go` with concrete field support
-- [ ] Update `internal/handlers/object_handler.go` with concrete endpoints
-- [ ] Create example concrete table migration (products table)
-- [ ] Add CTI query builder/reflection utilities
-- [ ] Write migration tool: JSONB → CTI
-- [ ] Update documentation with CTI pattern
-- [ ] Create decision criteria document
-- [ ] Add tests for CTI queries
-- [ ] Add tests for JSONB → CTI migration
+- [ ] **[INTEGRATION] Create `services/objects-service/migrations/dependencies.json` (migration-orchestrator format)**
+- [ ] **[INTEGRATION] Create `services/objects-service/migrations/environments.json` (migration-orchestrator format)**
+- [ ] **[INTEGRATION] Test migrations with migration-orchestrator CLI**
+- [ ] **[INTEGRATION] Update `cmd/main.go` to optionally use migration-orchestrator**
 - [ ] Update progress.md
 
 **Notes**:
@@ -201,18 +57,18 @@ Review [design-questions.md](design-questions.md) for the complete list of quest
 
 | Question | Status | Decision |
 |----------|--------|----------|
-| Q1: Hierarchy depth limits | ⬜ Pending | - |
-| Q2: Type compatibility rules | ⬜ Pending | - |
-| Q3: Sealed type behavior | ⬜ Pending | - |
-| Q4: Public ID generation strategy | ⬜ Pending | - |
-| Q5: Metadata schema validation | ⬜ Pending | - |
-| Q6: API Gateway routing | ⬜ Pending | - |
-| Q7: Authentication requirements | ⬜ Pending | - |
-| Q8: Batch operations | ⬜ Pending | - |
-| Q9: Search sophistication level | ⬜ Pending | - |
-| Q10: Audit field storage format | ⬜ Pending | - |
+| Q1: Hierarchy depth limits | ✅ Resolved | [Option A] - No limit, but add database-level cycle detection triggers |
+| Q2: Type compatibility rules | ✅ Resolved | [Option A] - No restrictions initially for maximum flexibility. Add metadata-based constraints later if needed |
+| Q3: Sealed type behavior | ✅ Resolved | [Option B] - Reject creation with clear validation error explaining sealed type cannot be extended |
+| Q4: Public ID generation strategy | ✅ Resolved | [Option B] - UUID v7 (time-ordered) |
+| Q5: Metadata schema validation | ✅ Resolved | [Option B] - JSON Schema validation per object_type stored in object_type.metadata.validation_schema |
+| Q6: API Gateway routing | ✅ Resolved | [Option A] - Clear separation |
+| Q7: Authentication requirements | ✅ Resolved | [Option C] - Permission-based RBAC |
+| Q8: Batch operations | ✅ Resolved | [Option C] - Full batch support with transaction safety |
+| Q9: Search sophistication level | ✅ Resolved | [Option C] - Indexed search |
+| Q10: Audit field storage format | ✅ Resolved | [Option A] - Store user_id (JWT sub claim) |
 
-**Progress**: 0/10 questions answered
+**Progress**: 10/10 questions answered
 
 ## Files Status
 
