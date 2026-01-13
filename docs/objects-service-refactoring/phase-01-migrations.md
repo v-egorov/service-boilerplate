@@ -30,47 +30,68 @@ Replace the existing migration files with the new schema that supports hierarchi
 CREATE TABLE object_types (
     id BIGSERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL UNIQUE,
-    parent_type_id BIGINT REFERENCES object_types(id),
-    concrete_table_name VARCHAR(255),
+    parent_type_id BIGINT REFERENCES object_types(id) ON DELETE RESTRICT,
+    concrete_table_name VARCHAR(255) UNIQUE,
     description TEXT,
     is_sealed BOOLEAN DEFAULT FALSE,
-    metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW(),
-    CONSTRAINT no_self_parent CHECK (parent_type_id IS NULL OR parent_type_id != id)
-);
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
--- Objects Table
-CREATE TABLE objects (
-    id BIGSERIAL PRIMARY KEY,
-    public_id UUID NOT NULL DEFAULT gen_random_uuid(),
-    object_type_id BIGINT NOT NULL REFERENCES object_types(id),
-    parent_object_id BIGINT REFERENCES objects(id),
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW(),
-    deleted_at TIMESTAMP,
-    version BIGINT DEFAULT 0,
-    created_by VARCHAR(255) DEFAULT 'system',
-    updated_by VARCHAR(255) DEFAULT 'system',
-    metadata JSONB DEFAULT '{}',
-    status VARCHAR(50) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'archived', 'deleted', 'pending')),
-    tags TEXT[] DEFAULT '{}',
-    CONSTRAINT no_self_parent CHECK (parent_object_id IS NULL OR parent_object_id != id)
+    -- Constraints
+    -- Not sure re first constraint - concrecte types not always should have it's own table
+    -- CONSTRAINT valid_concrete_table_name CHECK (
+    --     (parent_type_id IS NULL AND concrete_table_name IS NULL) OR
+    --     (parent_type_id IS NOT NULL AND concrete_table_name IS NOT NULL)
+    -- ),
+    CONSTRAINT no_self_parent CHECK (parent_type_id IS NULL OR parent_type_id != id)
 );
 
 -- Indexes
 CREATE INDEX idx_object_types_parent ON object_types(parent_type_id);
 CREATE INDEX idx_object_types_name ON object_types(name);
+CREATE INDEX idx_object_types_sealed ON object_types(is_sealed) WHERE is_sealed = TRUE;
+
+-- Objects Table
+CREATE TABLE objects (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    public_id UUID NOT NULL DEFAULT gen_random_uuid(), -- make sure it's v5 UUID
+    object_type_id BIGINT NOT NULL REFERENCES object_types(id) ON DELETE RESTRICT,
+    parent_object_id BIGINT REFERENCES objects(id) ON DELETE SET NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+
+    -- Audit
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP,
+    version BIGINT DEFAULT 0,
+    created_by VARCHAR(255) DEFAULT 'system',
+    updated_by VARCHAR(255) DEFAULT 'system',
+ 
+    -- Metadata and labels
+    metadata JSONB DEFAULT '{}'::jsonb,
+    tags TEXT[] DEFAULT '{}',
+
+    status VARCHAR(50) DEFAULT 'active' CHECK (
+      status IN ('active', 'inactive', 'archived', 'deleted', 'pending')
+    ),
+    CONSTRAINT no_self_parent CHECK (parent_object_id IS NULL OR parent_object_id != id),
+     -- Unique constraint on external ID
+    CONSTRAINT objects_public_id_uniq UNIQUE (public_id)
+);
+
+-- Indexes
 CREATE INDEX idx_objects_type_id ON objects(object_type_id);
+CREATE INDEX idx_objects_type_status ON objects(object_type_id, status);
+CREATE INDEX idx_objects_status ON objects(status);
 CREATE INDEX idx_objects_parent_id ON objects(parent_object_id);
 CREATE INDEX idx_objects_public_id ON objects(public_id);
-CREATE INDEX idx_objects_status ON objects(status);
-CREATE INDEX idx_objects_metadata ON objects USING GIN (metadata);
-CREATE INDEX idx_objects_tags ON objects USING GIN (tags);
-CREATE INDEX idx_objects_created_at ON objects(created_at);
-CREATE INDEX idx_objects_updated_at ON objects(updated_at);
+CREATE INDEX idx_objects_metadata_gin ON objects USING GIN (metadata);
+CREATE INDEX idx_objects_tags_gin ON objects USING GIN (tags);
+CREATE INDEX idx_objects_created_at ON objects(created_at DESC);
+CREATE INDEX idx_objects_updated_at ON objects(updated_at DESC);
+CREATE INDEX idx_objects_deleted_at ON objects(deleted_at) WHERE deleted_at IS NOT NULL;
 
 -- Triggers for updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -121,14 +142,17 @@ DROP FUNCTION IF EXISTS update_updated_at_column();
 -- Drop indexes
 DROP INDEX IF EXISTS idx_object_types_parent;
 DROP INDEX IF EXISTS idx_object_types_name;
+
 DROP INDEX IF EXISTS idx_objects_type_id;
+DROP INDEX IF EXISTS idx_objects_type_status;
 DROP INDEX IF EXISTS idx_objects_parent_id;
 DROP INDEX IF EXISTS idx_objects_public_id;
 DROP INDEX IF EXISTS idx_objects_status;
-DROP INDEX IF EXISTS idx_objects_metadata;
-DROP INDEX IF EXISTS idx_objects_tags;
+DROP INDEX IF EXISTS idx_objects_metadata_gin;
+DROP INDEX IF EXISTS idx_objects_tags_gin;
 DROP INDEX IF EXISTS idx_objects_created_at;
 DROP INDEX IF EXISTS idx_objects_updated_at;
+DROP INDEX IF EXISTS idx_objects_deleted_at;
 
 -- Drop tables
 DROP TABLE IF EXISTS objects;
