@@ -15,8 +15,9 @@ This document provides an index and overview of all implementation phases. Each 
 | [Phase 7](phase-07-test-data.md) | Development Test Data | 1 hour | ⬜ Not Started |
 | [Phase 8](phase-08-tests.md) | Tests | 4 hours | ⬜ Not Started |
 | [Phase 9](phase-09-documentation.md) | Documentation | 2 hours | ⬜ Not Started |
+| [Phase 10](phase-10-class-table-inheritance.md) | Class Table Inheritance (Future) | 8-10 hours | ⬜ Not Started |
 
-**Total Estimated Time**: ~24.5 hours
+**Total Estimated Time**: ~32.5-34.5 hours (with Phase 10)
 
 ## Prerequisites
 

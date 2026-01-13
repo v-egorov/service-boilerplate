@@ -21,8 +21,9 @@ Track the progress of the objects-service refactoring implementation.
 | [Phase 7](phase-07-test-data.md) | Development Test Data | 1 hour | ⬜ Not Started | - | 0% |
 | [Phase 8](phase-08-tests.md) | Tests | 4 hours | ⬜ Not Started | - | 0% |
 | [Phase 9](phase-09-documentation.md) | Documentation | 2 hours | ⬜ Not Started | - | 0% |
+| [Phase 10](phase-10-class-table-inheritance.md) | CTI Pattern (Future) | 8-10 hours | ⬜ Not Started | - | 0% |
 
-**Overall Progress**: 0/9 phases (0%)
+**Overall Progress**: 0/10 phases (0%)
 
 ## Detailed Progress
 
@@ -170,6 +171,30 @@ Track the progress of the objects-service refactoring implementation.
 **Notes**:
 -
 
+### Phase 10: Class Table Inheritance (Future Enhancement)
+**Estimated Time**: 8-10 hours
+**Status**: ⬜ Not Started
+
+- [ ] Create `migrations/000010_create_concrete_tables_registry.up.sql`
+- [ ] Create `internal/models/concrete_objects.go`
+- [ ] Create `internal/repository/concrete_table_repository.go`
+- [ ] Update `internal/repository/object_repository.go` with CTI methods
+- [ ] Update `internal/services/object_service.go` with concrete field support
+- [ ] Update `internal/handlers/object_handler.go` with concrete endpoints
+- [ ] Create example concrete table migration (products table)
+- [ ] Add CTI query builder/reflection utilities
+- [ ] Write migration tool: JSONB → CTI
+- [ ] Update documentation with CTI pattern
+- [ ] Create decision criteria document
+- [ ] Add tests for CTI queries
+- [ ] Add tests for JSONB → CTI migration
+- [ ] Update progress.md
+
+**Notes**:
+This is a future enhancement that can be implemented when specific types need complex schemas, performance optimization, or SQL-level type safety.
+
+See [phase-10-class-table-inheritance.md](phase-10-class-table-inheritance.md) for details.
+
 ## Design Questions Status
 
 Review [design-questions.md](design-questions.md) for the complete list of questions.
@@ -257,6 +282,7 @@ Target test coverage: 80%+
 | Test data loaded | End of Phase 7 | ⬜ Pending | - |
 | Tests passing with coverage | End of Phase 8 | ⬜ Pending | - |
 | Documentation complete | End of Phase 9 | ⬜ Pending | - |
+| CTI pattern research | Phase 10 - Research | ⬜ Pending | - |
 
 ## Time Tracking
 
@@ -271,7 +297,8 @@ Target test coverage: 80%+
 | Phase 7: Test Data | 1 hour | - | - |
 | Phase 8: Tests | 4 hours | - | - |
 | Phase 9: Documentation | 2 hours | - | - |
-| **Total** | **24.5 hours** | **-** | **-** |
+| Phase 10: CTI Pattern (Future) | 8-10 hours | - | - |
+| **Total** | **32.5-34.5 hours** (with Phase 10) | **-** | **-** |
 
 ## Issues and Blockers
 

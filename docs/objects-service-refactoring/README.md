@@ -128,6 +128,42 @@ This folder contains the following documents:
 3. **phases.md** - Detailed 9-phase implementation plan with steps
 4. **progress.md** - Progress tracking checklist
 5. **database-pattern-updates.md** - Database pattern updates for pgx/v5 alignment
+6. **phase-10-class-table-inheritance.md** - Future enhancement: Class Table Inheritance (CTI) pattern
+
+## Future Enhancements
+
+The current refactoring provides a solid foundation that can be extended with advanced patterns:
+
+### Class Table Inheritance (CTI) - Phase 10
+
+When objects service has specific types that need:
+- 5+ type-specific fields
+- Complex queries on those fields
+- SQL-level constraints
+- Performance optimization
+
+Use CTI pattern where:
+- Generic `objects` table contains shared fields
+- Concrete tables (e.g., `products`, `articles`) share same PK as FK
+- CTEs query both tables for generic + type-specific fields
+
+See [phase-10-class-table-inheritance.md](phase-10-class-table-inheritance.md) for details.
+
+### Decision Criteria for CTI
+
+Migrate to CTI when:
+- Type has 5+ type-specific fields
+- Need complex queries on specific fields
+- Need SQL-level constraints on specific fields
+- Performance is critical on specific field queries
+- Schema is stable (low evolution rate)
+
+Stay with JSONB metadata when:
+- Type has <5 type-specific fields
+- Schema rapidly evolving
+- Simple use cases
+- Low data volume
+- MVP/early development
 
 ## Risk Assessment
 
@@ -146,8 +182,10 @@ The objects-service has not been deployed to production or development environme
 - Phase 7 (Test Data): 1 hour
 - Phase 8 (Tests): 4 hours
 - Phase 9 (Documentation): 2 hours
+- Phase 10 (CTI Pattern): 8-10 hours (future enhancement)
 
-**Total: ~24.5 hours**
+**Total (Current): ~24.5 hours**
+**Total (With CTI): ~32.5-34.5 hours**
 
 ## Getting Started
 
