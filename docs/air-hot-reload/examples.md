@@ -573,7 +573,7 @@ service-boilerplate/
 .PHONY: dev
 dev:
 	@echo "Starting development environment..."
-	@docker-compose -f docker/docker-compose.yml -f docker/docker-compose.override.yml up
+	@$(DOCKER_COMPOSE) -f docker/docker-compose.yml -f docker/docker-compose.override.yml up
 
 .PHONY: test
 test:
@@ -602,7 +602,7 @@ clean-all:
 .PHONY: clean-docker
 clean-docker:
 	@echo "Removing Docker containers and images..."
-	@docker-compose down
+	@$(DOCKER_COMPOSE) down
 	@docker rmi $$(docker images "service-boilerplate*" -q) 2>/dev/null || true
 
 .PHONY: clean-volumes
@@ -755,5 +755,3 @@ The Air hot reload documentation is now fully comprehensive, covering:
 - ✅ **Examples** - Real-world usage scenarios
 
 The documentation provides everything needed for developers to effectively use Air hot reload in this project, from basic setup to advanced customization and production deployment.
-
-Would you like me to make any adjustments to the documentation or add any additional sections?

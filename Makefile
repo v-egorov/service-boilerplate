@@ -23,7 +23,7 @@ GOVET := $(GO) vet
 
 # Docker variables
 DOCKER := docker
-DOCKER_COMPOSE := docker-compose
+DOCKER_COMPOSE := docker compose
 
 # Environment-specific configuration
 APP_ENV ?= development
@@ -386,18 +386,18 @@ DATABASE_URL := postgres://$(DATABASE_USER):$(DATABASE_PASSWORD)@$(DATABASE_HOST
 .PHONY: db-connect
 db-connect: ## Connect to database shell
 	@echo "🔌 Connecting to database..."
-	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME)
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME)
 
 .PHONY: db-status
 db-status: ## Show database status and connections
 	@echo "📊 Database Status:"
-	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT version();" 2>/dev/null || echo "❌ Database not accessible"
-	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT count(*) as active_connections FROM pg_stat_activity;" 2>/dev/null || echo "❌ Cannot query connections"
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT version();" 2>/dev/null || echo "❌ Database not accessible"
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT count(*) as active_connections FROM pg_stat_activity;" 2>/dev/null || echo "❌ Cannot query connections"
 
 .PHONY: db-health
 db-health: ## Check database health and connectivity
 	@echo "🏥 Database Health Check:"
-	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres pg_isready -U $(DATABASE_USER) -d $(DATABASE_NAME) -h $(DATABASE_HOST) -p $(DATABASE_PORT)
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres pg_isready -U $(DATABASE_USER) -d $(DATABASE_NAME) -h $(DATABASE_HOST) -p $(DATABASE_PORT)
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database is healthy and accepting connections"; \
 	else \
@@ -408,7 +408,7 @@ db-health: ## Check database health and connectivity
 .PHONY: db-create
 db-create: ## Create database if it doesn't exist
 	@echo "🆕 Creating database $(DATABASE_NAME)..."
-	@docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U postgres -c "CREATE DATABASE $(DATABASE_NAME);" 2>/dev/null || echo "ℹ️  Database $(DATABASE_NAME) already exists or creation failed"
+	@$(DOCKER_COMPOSE) --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U postgres -c "CREATE DATABASE $(DATABASE_NAME);" 2>/dev/null || echo "ℹ️  Database $(DATABASE_NAME) already exists or creation failed"
 
 .PHONY: db-drop
 db-drop: ## Drop database (with confirmation)
@@ -621,7 +621,7 @@ build-migration-orchestrator: ## Build migration orchestrator Docker image
 .PHONY: db-seed
 db-seed: ## Seed database with test data
 	@echo "🌱 Seeding database with test data..."
-	@cat scripts/seed.sql | docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null
+	@cat scripts/seed.sql | $(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database seeded with 5 test users"; \
 	else \
@@ -667,7 +667,7 @@ db-backup: ## Create timestamped database backup
 .PHONY: db-dump
 db-dump: ## Create database dump
 	@echo "💾 Creating database dump..."
-	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres pg_dump -U $(DATABASE_USER) -d $(DATABASE_NAME) --no-owner --no-privileges > db_dump_$(shell date +%Y%m%d_%H%M%S).sql 2>/dev/null
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres pg_dump -U $(DATABASE_USER) -d $(DATABASE_NAME) --no-owner --no-privileges > db_dump_$(shell date +%Y%m%d_%H%M%S).sql 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database dump created: db_dump_$(shell date +%Y%m%d_%H%M%S).sql"; \
 	else \
@@ -686,7 +686,7 @@ db-restore: ## Restore database from dump (usage: make db-restore FILE=dump.sql)
 		echo "❌ Error: File $(FILE) not found"; \
 		exit 1; \
 	fi
-	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) < $(FILE) 2>/dev/null
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) < $(FILE) 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database restored from $(FILE)"; \
 	else \
@@ -707,10 +707,10 @@ db-clean: ## Clean all data from tables (keep schema)
 .PHONY: db-schema
 db-schema: ## Show database schema and tables
 	@echo "📋 Database Schema:"
-	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\dt" 2>/dev/null || echo "❌ Cannot access database schema"
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\dt" 2>/dev/null || echo "❌ Cannot access database schema"
 	@echo ""
 	@echo "📊 Indexes:"
-	@docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\di" 2>/dev/null || echo "❌ Cannot access indexes"
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\di" 2>/dev/null || echo "❌ Cannot access indexes"
 
 .PHONY: db-tables
 db-tables: ## List all tables and their structure
@@ -830,7 +830,7 @@ safe-remove-image:
 .PHONY: clean-docker-smart
 clean-docker-smart: ## Smart Docker cleanup with safety checks
 	@echo "🧠 Smart cleaning of project Docker artifacts..."
-	@docker-compose --env-file .env down --volumes --remove-orphans 2>/dev/null || true
+	@$(DOCKER_COMPOSE) --env-file .env down --volumes --remove-orphans 2>/dev/null || true
 	@echo "🗂️  Removing service containers..."
 	@for container in $(SERVICE_CONTAINERS) $(POSTGRES_CONTAINER); do \
 		if [ -n "$$container" ]; then \
@@ -882,7 +882,7 @@ clean-docker-smart: ## Smart Docker cleanup with safety checks
 .PHONY: clean-docker-conservative
 clean-docker-conservative: ## Conservative Docker cleanup (keeps base images)
 	@echo "🐳 Conservative cleaning of project Docker artifacts..."
-	@docker-compose --env-file $(ENV_FILE) down --volumes --remove-orphans 2>/dev/null || true
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) down --volumes --remove-orphans 2>/dev/null || true
 	@echo "🗂️  Removing service containers..."
 	@for container in $(SERVICE_CONTAINERS) $(POSTGRES_CONTAINER); do \
 		if [ -n "$$container" ]; then \
@@ -932,7 +932,7 @@ clean-docker-conservative: ## Conservative Docker cleanup (keeps base images)
 .PHONY: clean-docker-aggressive
 clean-docker-aggressive: ## Aggressive Docker cleanup (removes all project images)
 	@echo "💥 Aggressive cleaning of project Docker artifacts..."
-	@docker-compose --env-file .env down --volumes --remove-orphans 2>/dev/null || true
+	@$(DOCKER_COMPOSE) --env-file .env down --volumes --remove-orphans 2>/dev/null || true
 	@echo "🗂️  Removing service containers..."
 	@for container in $(SERVICE_CONTAINERS) $(POSTGRES_CONTAINER); do \
 		if [ -n "$$container" ]; then \
@@ -996,7 +996,7 @@ clean-docker: ## Clean project Docker artifacts (mode: $(DOCKER_CLEANUP_MODE))
 .PHONY: clean-volumes
 clean-volumes: ## Clean Docker volumes and persistent data
 	@echo "💾 Cleaning Docker volumes..."
-	@docker-compose --env-file $(ENV_FILE) --file $(DOCKER_COMPOSE_FILE) --file $(DOCKER_COMPOSE_OVERRIDE_FILE) down --volumes
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) --file $(DOCKER_COMPOSE_FILE) --file $(DOCKER_COMPOSE_OVERRIDE_FILE) down --volumes
 	@echo "🔧 Cleaning volume data using Docker containers..."
 	@mkdir -p docker/volumes  # Ensure parent directory exists with correct ownership
 	@echo "📁 Removing postgres volume..."
