@@ -196,3 +196,4 @@ cli/boilerplate-cli
 # Agents prompts work-in-progress
 prompt*.md
 .ai-ignore
+ignore/

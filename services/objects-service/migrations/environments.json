@@ -2,7 +2,7 @@
   "environments": {
     "development": {
       "description": "Development environment with test data and debug features",
-      "migrations": ["development/000003_dev_test_data.up.sql"],
+      "migrations": ["development/000002_dev_tax_test_data.up.sql"],
       "seed_files": [],
       "config": {
         "allow_destructive_operations": true,

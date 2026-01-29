@@ -32,7 +32,7 @@ func newDownCmd() *cobra.Command {
 				steps = parsedSteps
 			}
 
-			logger.Info("⬇️  Rolling back", steps, "migrations for service:", serviceName)
+			logger.Info("⬇️ Rolling back ", steps, " migrations for service:", serviceName)
 
 			// Create orchestrator
 			orch, err := orchestrator.NewOrchestrator(db, logger, serviceName)

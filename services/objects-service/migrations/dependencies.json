@@ -1,25 +1,27 @@
 {
   "migrations": {
     "000001": {
-      "description": "Create objects_service schema, migration tracking table, and entities table",
+      "description": "Create objects_service schema with object_types and objects tables for hierarchical taxonomy system",
       "depends_on": [],
       "affects_tables": [
-        "objects_service.entities",
+        "objects_service.object_types",
+        "objects_service.objects",
         "objects_service.migration_executions"
       ],
-      "estimated_duration": "45s",
-      "risk_level": "low",
+      "estimated_duration": "2m",
+      "risk_level": "medium",
       "rollback_safe": true
     },
-    "000003": {
-      "description": "Add development test data",
+    "000002": {
+      "description": "Add development test data for taxonomy system (object_types and objects)",
       "depends_on": [
         "000001"
       ],
       "affects_tables": [
-        "objects_service.entities"
+        "objects_service.object_types",
+        "objects_service.objects"
       ],
-      "estimated_duration": "15s",
+      "estimated_duration": "30s",
       "risk_level": "low",
       "rollback_safe": true,
       "environment": "development"
