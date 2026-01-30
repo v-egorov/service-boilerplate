@@ -4,50 +4,46 @@ import (
 	"time"
 )
 
-// Entity represents a generic entity that can be customized for different object types
+// Entity represents a legacy entity model for backward compatibility
+// This will be replaced with ObjectType and Object models in Phase 3+
 type Entity struct {
 	ID          int64     `json:"id" db:"id"`
 	Name        string    `json:"name" db:"name"`
 	Description string    `json:"description" db:"description"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
-	// Add more fields as needed for specific entity types
 }
 
-// TableName returns the table name for the Entity model
+// TableName returns table name for Entity model
 func (Entity) TableName() string {
-	return "entities" // This will be replaced with the actual table name
+	return "entities"
 }
 
-// CreateEntityRequest represents the request payload for creating an entity
+// CreateEntityRequest represents the legacy request payload for creating an entity
 type CreateEntityRequest struct {
 	Name        string `json:"name" validate:"required,min=1,max=100"`
 	Description string `json:"description" validate:"max=500"`
-	// Add more fields as needed for specific entity types
 }
 
-// ReplaceEntityRequest represents the request payload for replacing an entity
+// ReplaceEntityRequest represents the legacy request payload for replacing an entity
 type ReplaceEntityRequest struct {
 	Name        string `json:"name" binding:"required" validate:"required,min=1,max=100"`
 	Description string `json:"description" validate:"max=500"`
-	// Add more fields as needed for specific entity types
 }
 
-// UpdateEntityRequest represents the request payload for updating an entity
+// UpdateEntityRequest represents the legacy request payload for updating an entity
 type UpdateEntityRequest struct {
 	Name        *string `json:"name,omitempty" validate:"omitempty,min=1,max=100"`
 	Description *string `json:"description,omitempty" validate:"omitempty,max=500"`
-	// Add more fields as needed for specific entity types
 }
 
-// EntityResponse represents the response payload for entity operations
+// EntityResponse represents the legacy response payload for entity operations
 type EntityResponse struct {
 	ID          int64  `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	CreatedAt   string `json:"created_at"`
 	UpdatedAt   string `json:"updated_at"`
-	// Add more fields as needed for specific entity types
 }
 
 // ToResponse converts an Entity model to EntityResponse
