@@ -15,29 +15,42 @@ CREATE TABLE objects_service.object_types (
     metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    -- Constraints
+    -- Not sure re first constraint - concrecte types not always should have it's own table
+    -- CONSTRAINT valid_concrete_table_name CHECK (
+    --     (parent_type_id IS NULL AND concrete_table_name IS NULL) OR
+    --     (parent_type_id IS NOT NULL AND concrete_table_name IS NOT NULL)
+    -- ),
     CONSTRAINT no_self_parent CHECK (parent_type_id IS NULL OR parent_type_id != id)
 );
 
 -- Objects Table
 CREATE TABLE objects_service.objects (
-    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    public_id UUID NOT NULL DEFAULT gen_random_uuid(),
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,       -- internal PK/FK
+    public_id UUID NOT NULL DEFAULT gen_random_uuid(),        -- external API ID
+
     object_type_id BIGINT NOT NULL REFERENCES objects_service.object_types(id) ON DELETE RESTRICT,
     parent_object_id BIGINT REFERENCES objects_service.objects(id) ON DELETE SET NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
+
+    -- Audit
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP WITH TIME ZONE,
     version BIGINT DEFAULT 0,
     created_by VARCHAR(255) DEFAULT 'system',
     updated_by VARCHAR(255) DEFAULT 'system',
+
+    -- Metadata and labels
     metadata JSONB DEFAULT '{}'::jsonb,
     tags TEXT[] DEFAULT '{}',
+
     status VARCHAR(50) DEFAULT 'active' CHECK (
         status IN ('active', 'inactive', 'archived', 'deleted', 'pending')
     ),
     CONSTRAINT no_self_parent CHECK (parent_object_id IS NULL OR parent_object_id != id),
+     -- Unique constraint on external ID
     CONSTRAINT objects_public_id_uniq UNIQUE (public_id)
 );
 
