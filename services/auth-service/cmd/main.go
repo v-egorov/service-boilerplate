@@ -100,6 +100,13 @@ func main() {
 			logger.Fatal("Failed to initialize JWT utils", err)
 		}
 
+		// Start periodic key refresher to handle rotation synchronization
+		if jwtUtils != nil {
+			// Refresh keys every 5 minutes to ensure synchronization
+			jwtUtils.StartKeyRefresher(context.Background(), 5*time.Minute)
+			logger.Info("JWT key refresher started - checking database for key changes every 5 minutes")
+		}
+
 		// Initialize key rotation manager
 		rotationConfig := services.RotationConfig{
 			Enabled:        true,

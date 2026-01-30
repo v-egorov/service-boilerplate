@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -41,6 +42,7 @@ type JWTKey struct {
 }
 
 type JWTUtils struct {
+	mu         sync.RWMutex
 	privateKey *rsa.PrivateKey
 	publicKey  *rsa.PublicKey
 	keyID      string
@@ -120,6 +122,9 @@ func (j *JWTUtils) generateAndStoreNewKey(ctx context.Context) (*JWTUtils, error
 }
 
 func (j *JWTUtils) GenerateAccessToken(userID uuid.UUID, email string, roles []string, expiration time.Duration) (string, error) {
+	j.mu.RLock()
+	defer j.mu.RUnlock()
+
 	now := time.Now()
 	claims := JWTClaims{
 		UserID:    userID,
@@ -210,7 +215,59 @@ func (j *JWTUtils) GetPublicKey() *rsa.PublicKey {
 }
 
 func (j *JWTUtils) GetKeyID() string {
+	j.mu.RLock()
+	defer j.mu.RUnlock()
 	return j.keyID
+}
+
+// RefreshActiveKey refreshes the active key from database if it has changed
+func (j *JWTUtils) RefreshActiveKey(ctx context.Context) error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+
+	// Load current active key from database
+	activeKey, err := j.loadActiveKey(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to refresh active key: %w", err)
+	}
+
+	// If no active key or key has changed, update in-memory instance
+	if activeKey != nil && activeKey.KeyID != j.keyID {
+		privateKey, err := j.parsePrivateKeyPEM(activeKey.PrivateKeyPEM)
+		if err != nil {
+			return fmt.Errorf("failed to parse refreshed key: %w", err)
+		}
+
+		j.mu.Lock()
+		defer j.mu.Unlock()
+
+		j.privateKey = privateKey
+		j.publicKey = &privateKey.PublicKey
+		j.keyID = activeKey.KeyID
+		return fmt.Errorf("JWT key refreshed from database - key_id changed from %s to %s", j.keyID, activeKey.KeyID)
+	}
+
+	return nil
+}
+
+// StartKeyRefresher starts a background goroutine to periodically refresh JWT keys
+func (j *JWTUtils) StartKeyRefresher(ctx context.Context, interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := j.RefreshActiveKey(ctx); err != nil {
+					// Log error but continue refreshing
+					continue
+				}
+			}
+		}
+	}()
 }
 
 // RotateKeys generates a new RSA key pair and replaces the current active key
