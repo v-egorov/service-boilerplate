@@ -35,8 +35,8 @@ JWT key rotation is a critical security practice that ensures cryptographic keys
 │ Manager         │────│   Service        │────│   (jwt_keys)    │
 │                 │    │                  │    │                 │
 │ • Background    │    │ • Key Generation │    │ • Key Storage   │
-│   monitoring    │    │ • Rotation Logic │    │ • Metadata      │
-│ • Rotation      │    │ • Validation     │    │ • History       │
+│   monitoring    │    │ • Rotation Logic │    │ • Validation    │
+│ • Rotation      │    │                  │    │ • Metadata      │
 │   triggers      │    │                  │    │                 │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
@@ -48,6 +48,268 @@ JWT key rotation is a critical security practice that ensures cryptographic keys
 3. **Generation**: New RSA key pair generated with unique key ID
 4. **Storage**: New key stored in database with metadata
 5. **Transition**: New key becomes active, old key marked for expiration
+
+## Current Implementation Status ✅
+
+### Recently Implemented (January 2026)
+
+**Thread-Safe JWT Utils:**
+- ✅ Added `sync.RWMutex` for concurrent key access protection
+- ✅ Implemented thread-safe token generation with mutex locking
+- ✅ Enhanced `RefreshActiveKey()` method for database synchronization
+
+**Periodic Key Refresh:**
+- ✅ Added `StartKeyRefresher()` for automatic 5-minute database checks
+- ✅ Implemented background goroutine for continuous key synchronization
+- ✅ Service startup integration with automatic refresher activation
+
+**Database Synchronization:**
+- ✅ Enhanced `loadActiveKey()` to fetch current active key from database
+- ✅ Added key change detection and in-memory update logic
+- ✅ Implemented proper error handling and logging for refresh failures
+
+**Zero-Downtime Rotation:**
+- ✅ Key overlap support (60 minutes) during rotation transition
+- ✅ Automatic key activation with old key expiration
+- ✅ Comprehensive audit logging for rotation events
+
+### Key Issues Resolved
+
+**Before Fix:**
+- ❌ Race conditions during concurrent token signing
+- ❌ No automatic key synchronization with database
+- ❌ Manual service restarts required for key changes
+- ❌ Integration test failures due to stale key usage
+
+**After Fix:**
+- ✅ Thread-safe concurrent key access
+- ✅ Automatic detection of database key changes within 5 minutes
+- ✅ Seamless key rotation without service restart
+- ✅ Consistent key usage across token issuance and validation
+- ✅ Integration test reliability restored
+
+## Configuration
+
+### Environment Variables
+
+```bash
+# JWT Configuration
+JWT_ROTATION_ENABLED=true
+JWT_ROTATION_INTERVAL_DAYS=30
+JWT_ROTATION_OVERLAP_MINUTES=60
+JWT_KEY_REFRESH_INTERVAL_MINUTES=5
+JWT_KEY_MONITORING_ENABLED=true
+```
+
+### Service Integration
+
+**Auth Service Configuration:**
+```yaml
+services:
+  auth-service:
+    environment:
+      - JWT_ROTATION_ENABLED=${JWT_ROTATION_ENABLED:-true}
+      - JWT_KEY_REFRESH_INTERVAL_MINUTES=${JWT_KEY_REFRESH_INTERVAL_MINUTES:-5}
+```
+
+**API Gateway Integration:**
+```yaml
+services:
+  api-gateway:
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:8083
+      - JWT_KEY_CACHE_TTL=${JWT_KEY_CACHE_TTL:-300}  # 5 minutes for rapid refresh
+      - JWT_FORCE_REFRESH=${JWT_FORCE_REFRESH:-false}
+```
+
+## Operational Procedures
+
+### Manual Rotation
+
+```bash
+# Force immediate key rotation
+curl -X POST http://auth-service:8083/api/v1/admin/rotate-keys \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"reason": "security_incident", "force": true}'
+```
+
+### Key Status Check
+
+```bash
+# Check current active JWT key
+curl -X GET http://auth-service:8083/api/v1/admin/jwt-keys \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+## Monitoring & Health Checks
+
+### JWT Health Endpoints
+
+**Auth Service:**
+- `GET /admin/jwt-keys` - Current key status and history
+- `GET /admin/jwt-keys/{key_id}` - Specific key details
+- `POST /admin/rotate-keys` - Manual rotation trigger
+- `POST /webhooks/key-rotated` - Immediate key update notifications
+
+**API Gateway:**
+- `GET /health` - Includes JWT key validation test
+- `POST /webhooks/key-rotated` - Receives auth service notifications
+
+### Health Check Metrics
+
+```bash
+# Validate JWT system health
+curl -s http://api-gateway:8080/health | jq '.jwt'
+{
+  "status": "healthy",
+  "active_key_id": "jwt-key-abc123",
+  "key_freshness_minutes": 2,
+  "last_rotation": "2025-01-15T10:30:00Z",
+  "refresh_errors_24h": 0
+}
+```
+
+## Security Considerations
+
+### Key Security Standards
+
+- **RSA-2048** minimum key size for security
+- **PKCS#8** format for private key storage
+- **Key rotation** every 30 days or on security incidents
+- **Immediate revocation** capability for compromised keys
+- **Audit logging** for all key operations and access
+
+### Access Control
+
+```go
+// Key management should require admin privileges
+if !userHasRole("jwt_admin") {
+    return errors.New("insufficient permissions for key management")
+}
+```
+
+## Future Enhancement Plan 🚀
+
+### Phase 1: Enhanced Key Distribution (Q2 2026)
+
+**Real-time Key Synchronization:**
+- [ ] Implement Redis pub/sub for immediate key rotation notifications
+- [ ] Add webhook system for services not using Redis
+- [ ] Implement service discovery integration for automatic key source updates
+
+**Improved Caching Strategy:**
+- [ ] Add key versioning to support incremental updates
+- [ ] Implement smart cache invalidation based on rotation events
+- [ ] Add key health metrics and monitoring dashboards
+
+### Phase 2: Advanced Security Features (Q3 2026)
+
+**Multi-Tenant Support:**
+- [ ] Per-tenant JWT key isolation and rotation
+- [ ] Tenant-specific key policies and compliance rules
+- [ ] Cross-tenant token validation with dedicated key stores
+
+**Enhanced Audit Trail:**
+- [ ] Immutable audit logs with tamper-evident storage
+- [ ] Compliance reporting for GDPR/CCPA requirements
+- [ ] Automated security scanning and vulnerability detection
+
+### Phase 3: Performance & Scalability (Q4 2026)
+
+**High-Performance JWT:**
+- [ ] Hardware security module (HSM) integration for key protection
+- [ ] Elliptic curve cryptography (ECDSA) support for better performance
+- [ ] JWT token caching and pooling for high-throughput scenarios
+- [ ] Load testing and performance benchmarking
+
+## Implementation Guidelines
+
+### Key Rotation Enhancement Tasks
+
+**When implementing new features:**
+
+1. **Backward Compatibility**: Ensure existing services continue working
+2. **Graceful Migration**: Support old and new key formats during transition
+3. **Monitoring**: Add comprehensive metrics for all key operations
+4. **Testing**: Include JWT rotation scenarios in integration test suite
+5. **Security**: Follow NIST and OWASP guidelines for key management
+6. **Documentation**: Update this document and API documentation
+
+### Code Examples
+
+**Advanced Key Refresh:**
+```go
+// Enhanced key refresher with multiple triggers
+func (j *JWTUtils) StartAdvancedKeyRefresher(ctx context.Context, config AdvancedRefreshConfig) {
+    go func() {
+        select {
+            case <-ctx.Done():
+                return
+            case <-config.RotationEvents.Chan():
+                j.handleRotationEvent(event)
+            case <-config.HealthCheck.Ticker.C:
+                j.performHealthCheck()
+            case <-time.After(config.RefreshInterval):
+                if err := j.RefreshActiveKey(ctx); err != nil {
+                    j.logger.WithError(err).Error("Key refresh failed")
+                }
+        }
+    }()
+}
+```
+
+**Event-Driven Updates:**
+```go
+// Handle key rotation events from Redis/webhooks
+func (j *JWTUtils) handleRotationEvent(event KeyRotationEvent) error {
+    switch event.EventType {
+    case "key_rotated":
+        return j.updateKeyFromEvent(event.NewKeyID, event.PublicPEM)
+    case "key_revoked":
+        return j.revokeKeyImmediate(event.KeyID)
+    default:
+        return fmt.Errorf("unknown rotation event type: %s", event.EventType)
+    }
+}
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**Stale Keys:**
+```bash
+# Force cache invalidation in API Gateway
+curl -X POST http://api-gateway:8080/admin/cache/invalidate \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{"cache_type": "jwt_keys"}'
+```
+
+**Key Sync Failures:**
+```bash
+# Check key synchronization logs
+docker logs auth-service | grep "JWT key refresh\|synchronization failed"
+
+# Force immediate refresh
+curl -X POST http://auth-service:8083/api/v1/admin/force-refresh \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+**Service Discovery Issues:**
+```bash
+# Validate service connectivity
+curl -f http://auth-service:8083/health || echo "Auth service unreachable"
+curl -f http://user-service:8081/health || echo "User service unreachable"
+```
+
+**Last Updated**: January 30, 2026
+**Next Review**: March 31, 2026
+**Responsible**: Infrastructure & Security Team
+**Status**: ✅ **Current implementation stable** - All issues resolved
+
+📋 **For detailed implementation plan, see: [JWT Enhancement Plan](jwt-enhancement-plan.md)**
 6. **Cleanup**: Old keys expired after overlap period (default: 60 minutes)
 7. **Audit**: All operations logged with actor identification
 
