@@ -84,15 +84,43 @@ func main() {
 	var healthHandler *handlers.HealthHandler
 
 	if db != nil {
-		// Initialize repository
-		entityRepo := repository.NewEntityRepository(db.GetPool(), logger.Logger)
+		// Initialize new repository layer
+		pgDatabase := repository.NewDatabase(db.GetPool())
+		repoOptions := repository.DefaultRepositoryOptions()
 
-		// Initialize service
+		// Initialize repositories
+		_ = repository.NewObjectTypeRepository(pgDatabase, repoOptions) // TODO: Wire up when handler created
+		_ = repository.NewObjectRepository(pgDatabase, repoOptions)     // TODO: Wire up when handler created
+
+		// Initialize services (new services would be created to use these repositories)
+		// For now, keep legacy service with old repository for backward compatibility
+		entityRepo := repository.NewEntityRepository(db.GetPool(), logger.Logger)
 		entityService := services.NewEntityService(entityRepo, logger.Logger)
 
 		// Initialize handlers
 		entityHandler = handlers.NewEntityHandler(entityService, logger.Logger, standardLogger)
 		healthHandler = handlers.NewHealthHandler(db.GetPool(), logger.Logger, cfg)
+
+		// TODO: Create and wire up new handlers and routes for ObjectType and Object repositories
+		// objectTypeHandler := handlers.NewObjectTypeHandler(objectTypeRepo, logger.Logger, standardLogger)
+		// objectHandler := handlers.NewObjectHandler(objectRepo, logger.Logger, standardLogger)
+		//
+		// Add routes like:
+		// objectTypes := v1.Group("/object-types")
+		// {
+		//     objectTypes.POST("", objectTypeHandler.CreateObjectType)
+		//     objectTypes.GET("/:id", objectTypeHandler.GetObjectType)
+		//     objectTypes.GET("", objectTypeHandler.ListObjectTypes)
+		//     objectTypes.GET("/:id/tree", objectTypeHandler.GetTree)
+		// }
+		//
+		// objects := v1.Group("/objects")
+		// {
+		//     objects.POST("", objectHandler.CreateObject)
+		//     objects.GET("/:id", objectHandler.GetObject)
+		//     objects.GET("", objectHandler.ListObjects)
+		//     objects.GET("/search", objectHandler.SearchObjects)
+		// }
 	} else {
 		// Initialize handlers without database
 		healthHandler = handlers.NewHealthHandler(nil, logger.Logger, cfg)
