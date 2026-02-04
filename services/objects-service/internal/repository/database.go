@@ -2,178 +2,56 @@ package repository
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgx/v5/stdlib"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 )
 
-// PGDatabase implements the Database interface using pgx/v5
+// PGDatabase implements DBInterface using pgx/v5
 type PGDatabase struct {
-	pool   *pgxpool.Pool
-	logger interface{} // Using interface{} to avoid dependency issues for now
-	tracer trace.Tracer
+	pool *pgxpool.Pool
 }
 
-// NewDatabase creates a new Database instance
-func NewDatabase(pool *pgxpool.Pool) Database {
-	return &PGDatabase{
-		pool:   pool,
-		tracer: otel.Tracer("repository/database"),
-	}
+// NewPGDatabase creates a new PGDatabase instance
+func NewPGDatabase(pool *pgxpool.Pool) *PGDatabase {
+	return &PGDatabase{pool: pool}
 }
 
-// Begin starts a new transaction
-func (db *PGDatabase) Begin(ctx context.Context) (Transaction, error) {
-	ctx, span := db.tracer.Start(ctx, "database.Begin")
-	defer span.End()
-
-	tx, err := db.pool.Begin(ctx)
-	if err != nil {
-		span.RecordError(err)
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-
-	return &PGTransaction{
-		tx:     tx,
-		ctx:    ctx,
-		tracer: db.tracer,
-	}, nil
+// Query implements DBInterface
+func (db *PGDatabase) Query(ctx context.Context, sql string, args ...any) (Rows, error) {
+	return db.pool.Query(ctx, sql, args...)
 }
 
-// Close closes the database pool
-func (db *PGDatabase) Close() {
-	db.pool.Close()
+// QueryRow implements DBInterface
+func (db *PGDatabase) QueryRow(ctx context.Context, sql string, args ...any) Row {
+	return db.pool.QueryRow(ctx, sql, args...)
 }
 
-// Ping checks database connectivity
-func (db *PGDatabase) Ping(ctx context.Context) error {
-	ctx, span := db.tracer.Start(ctx, "database.Ping")
-	defer span.End()
+// Exec implements DBInterface
+func (db *PGDatabase) Exec(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+	return db.pool.Exec(ctx, sql, args...)
+}
 
+// BeginTx starts a new transaction (not part of DBInterface, but available for advanced use)
+func (db *PGDatabase) BeginTx(ctx context.Context) (pgx.Tx, error) {
+	return db.pool.Begin(ctx)
+}
+
+// Health checks database connectivity
+func (db *PGDatabase) Health(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 	return db.pool.Ping(ctx)
 }
 
-// Pool returns the underlying pgxpool
-func (db *PGDatabase) Pool() *pgxpool.Pool {
-	return db.pool
-}
-
-// Healthy performs a comprehensive health check
-func (db *PGDatabase) Healthy(ctx context.Context) error {
-	ctx, span := db.tracer.Start(ctx, "database.Healthy")
-	defer span.End()
-
-	// Basic connectivity check
-	if err := db.Ping(ctx); err != nil {
-		span.RecordError(err)
-		return fmt.Errorf("database connectivity failed: %w", err)
-	}
-
-	// Check pool statistics
-	stats := db.pool.Stat()
-	if stats.TotalConns() == 0 {
-		return fmt.Errorf("no available connections in pool")
-	}
-
-	return nil
-}
-
-// PGTransaction implements the Transaction interface using pgx/v5
-type PGTransaction struct {
-	tx     pgx.Tx
-	ctx    context.Context
-	tracer trace.Tracer
-}
-
-// Commit commits the transaction
-func (pgtx *PGTransaction) Commit(ctx context.Context) error {
-	ctx, span := pgtx.tracer.Start(ctx, "transaction.Commit")
-	defer span.End()
-
-	if err := pgtx.tx.Commit(ctx); err != nil {
-		span.RecordError(err)
-		return fmt.Errorf("failed to commit transaction: %w", err)
-	}
-
-	return nil
-}
-
-// Rollback rolls back the transaction
-func (pgtx *PGTransaction) Rollback(ctx context.Context) error {
-	ctx, span := pgtx.tracer.Start(ctx, "transaction.Rollback")
-	defer span.End()
-
-	if err := pgtx.tx.Rollback(ctx); err != nil {
-		span.RecordError(err)
-		return fmt.Errorf("failed to rollback transaction: %w", err)
-	}
-
-	return nil
-}
-
-// Exec executes a query that doesn't return rows
-func (pgtx *PGTransaction) Exec(ctx context.Context, sql string, arguments ...interface{}) (interface{}, error) {
-	ctx, span := pgtx.tracer.Start(ctx, "transaction.Exec")
-	defer span.End()
-
-	result, err := pgtx.tx.Exec(ctx, sql, arguments...)
-	if err != nil {
-		span.RecordError(err)
-		return nil, fmt.Errorf("exec failed: %w", err)
-	}
-
-	return result, nil
-}
-
-// Query executes a query that returns rows
-func (pgtx *PGTransaction) Query(ctx context.Context, sql string, args ...interface{}) (interface{}, error) {
-	ctx, span := pgtx.tracer.Start(ctx, "transaction.Query")
-	defer span.End()
-
-	rows, err := pgtx.tx.Query(ctx, sql, args...)
-	if err != nil {
-		span.RecordError(err)
-		return nil, fmt.Errorf("query failed: %w", err)
-	}
-
-	return rows, nil
-}
-
-// QueryRow executes a query that returns a single row
-func (pgtx *PGTransaction) QueryRow(ctx context.Context, sql string, args ...interface{}) interface{} {
-	ctx, span := pgtx.tracer.Start(ctx, "transaction.QueryRow")
-	defer span.End()
-
-	return pgtx.tx.QueryRow(ctx, sql, args...)
-}
-
-// Ctx returns the transaction context
-func (pgtx *PGTransaction) Ctx() context.Context {
-	return pgtx.ctx
-}
-
-// QueryBuilder implements a simple SQL query builder
+// QueryBuilder provides a simple interface for building SQL queries
 type QueryBuilder struct {
-	selectClause  string
-	fromClause    string
-	whereClause   string
-	joinClause    string
-	groupByClause string
-	havingClause  string
-	orderClause   string
-	limitClause   string
-	offsetClause  string
-	args          []interface{}
-	argIndex      int
+	query    string
+	args     []interface{}
+	argIndex int
 }
 
-// NewQueryBuilder creates a new query builder instance
 func NewQueryBuilder() *QueryBuilder {
 	return &QueryBuilder{
 		args:     make([]interface{}, 0),
@@ -181,212 +59,155 @@ func NewQueryBuilder() *QueryBuilder {
 	}
 }
 
-// Select adds columns to the SELECT clause
 func (qb *QueryBuilder) Select(columns ...string) *QueryBuilder {
-	if len(columns) == 0 {
-		qb.selectClause = "*"
-	} else {
-		qb.selectClause = fmt.Sprintf("%s", fmt.Sprintf("%s", columns))
-	}
+	qb.query += "SELECT " + joinStrings(columns, ", ") + " "
 	return qb
 }
 
-// From sets the FROM clause
 func (qb *QueryBuilder) From(table string) *QueryBuilder {
-	qb.fromClause = table
+	qb.query += "FROM " + table + " "
 	return qb
 }
 
-// Where adds a WHERE condition
 func (qb *QueryBuilder) Where(condition string, args ...interface{}) *QueryBuilder {
-	if qb.whereClause == "" {
-		qb.whereClause = fmt.Sprintf("WHERE %s", condition)
+	if qb.query == "" || !contains(qb.query, "WHERE") {
+		qb.query += "WHERE " + condition + " "
 	} else {
-		qb.whereClause += fmt.Sprintf(" AND %s", condition)
+		qb.query += "AND " + condition + " "
 	}
 	qb.args = append(qb.args, args...)
+	qb.argIndex += len(args)
 	return qb
 }
 
-// WhereIn adds a WHERE IN condition
 func (qb *QueryBuilder) WhereIn(condition string, args []interface{}) *QueryBuilder {
 	placeholders := make([]string, len(args))
 	for i := range args {
-		placeholders[i] = fmt.Sprintf("$%d", qb.argIndex)
-		qb.argIndex++
+		placeholders[i] = "$" + itoa(qb.argIndex+i)
 	}
+	qb.argIndex += len(args)
+	qb.query += "WHERE " + condition + " IN (" + joinStrings(placeholders, ", ") + ") "
 	qb.args = append(qb.args, args...)
-
-	inCondition := fmt.Sprintf("%s IN (%s)", condition, fmt.Sprintf("%s", placeholders))
-
-	if qb.whereClause == "" {
-		qb.whereClause = fmt.Sprintf("WHERE %s", inCondition)
-	} else {
-		qb.whereClause += fmt.Sprintf(" AND %s", inCondition)
-	}
-
 	return qb
 }
 
-// WhereJsonContains adds a JSON contains condition
-func (qb *QueryBuilder) WhereJsonContains(path string, value interface{}) *QueryBuilder {
-	condition := fmt.Sprintf("%s::jsonb @> $%d::jsonb", path, qb.argIndex)
-	qb.argIndex++
-	qb.args = append(qb.args, value)
-
-	if qb.whereClause == "" {
-		qb.whereClause = fmt.Sprintf("WHERE %s", condition)
-	} else {
-		qb.whereClause += fmt.Sprintf(" AND %s", condition)
-	}
-
-	return qb
-}
-
-// WhereTagsContain adds a tags array contains condition
 func (qb *QueryBuilder) WhereTagsContain(tags []string) *QueryBuilder {
-	for _, tag := range tags {
-		condition := fmt.Sprintf("$%d = ANY(tags)", qb.argIndex)
-		qb.argIndex++
-		qb.args = append(qb.args, tag)
-
-		if qb.whereClause == "" {
-			qb.whereClause = fmt.Sprintf("WHERE %s", condition)
+	for i, tag := range tags {
+		if i == 0 {
+			qb.query += "AND ($" + itoa(qb.argIndex+i) + " = ANY(tags)) "
 		} else {
-			qb.whereClause += fmt.Sprintf(" AND %s", condition)
+			qb.query += "AND ($" + itoa(qb.argIndex+i) + " = ANY(tags)) "
 		}
+		qb.args = append(qb.args, tag)
+		qb.argIndex += len(tags)
 	}
-
 	return qb
 }
 
-// WhereDateRange adds a date range condition
+func (qb *QueryBuilder) WhereJsonContains(path string, value interface{}) *QueryBuilder {
+	qb.query += "AND " + path + "::jsonb @> $" + itoa(qb.argIndex) + "::jsonb "
+	qb.args = append(qb.args, value)
+	qb.argIndex++
+	return qb
+}
+
 func (qb *QueryBuilder) WhereDateRange(column string, start, end time.Time) *QueryBuilder {
 	if !start.IsZero() {
-		qb.Where(fmt.Sprintf("%s >= $%d", column, qb.argIndex), start)
+		qb.query += "AND " + column + " >= $" + itoa(qb.argIndex) + " "
+		qb.args = append(qb.args, start)
 		qb.argIndex++
 	}
 	if !end.IsZero() {
-		qb.Where(fmt.Sprintf("%s <= $%d", column, qb.argIndex), end)
+		qb.query += "AND " + column + " <= $" + itoa(qb.argIndex) + " "
+		qb.args = append(qb.args, end)
 		qb.argIndex++
 	}
 	return qb
 }
 
-// Join adds a JOIN clause
-func (qb *QueryBuilder) Join(table string, condition string) *QueryBuilder {
-	if qb.joinClause == "" {
-		qb.joinClause = fmt.Sprintf("JOIN %s ON %s", table, condition)
-	} else {
-		qb.joinClause += fmt.Sprintf(" JOIN %s ON %s", table, condition)
-	}
-	return qb
-}
-
-// OrderBy adds ORDER BY columns
 func (qb *QueryBuilder) OrderBy(columns ...string) *QueryBuilder {
-	if len(columns) > 0 {
-		qb.orderClause = fmt.Sprintf("ORDER BY %s", fmt.Sprintf("%s", columns))
-	}
+	qb.query += "ORDER BY " + joinStrings(columns, ", ") + " "
 	return qb
 }
 
-// OrderByDesc adds ORDER BY DESC
 func (qb *QueryBuilder) OrderByDesc(column string) *QueryBuilder {
-	qb.orderClause = fmt.Sprintf("ORDER BY %s DESC", column)
+	qb.query += "ORDER BY " + column + " DESC "
 	return qb
 }
 
-// Limit adds a LIMIT clause
 func (qb *QueryBuilder) Limit(limit int) *QueryBuilder {
-	qb.limitClause = fmt.Sprintf("LIMIT %d", limit)
+	qb.query += "LIMIT " + itoa(limit) + " "
 	return qb
 }
 
-// Offset adds an OFFSET clause
 func (qb *QueryBuilder) Offset(offset int) *QueryBuilder {
-	qb.offsetClause = fmt.Sprintf("OFFSET %d", offset)
+	qb.query += "OFFSET " + itoa(offset) + " "
 	return qb
 }
 
-// GroupBy adds GROUP BY columns
-func (qb *QueryBuilder) GroupBy(columns ...string) *QueryBuilder {
-	if len(columns) > 0 {
-		qb.groupByClause = fmt.Sprintf("GROUP BY %s", fmt.Sprintf("%s", columns))
-	}
-	return qb
-}
-
-// Having adds a HAVING condition
-func (qb *QueryBuilder) Having(condition string, args ...interface{}) *QueryBuilder {
-	qb.havingClause = fmt.Sprintf("HAVING %s", condition)
-	qb.args = append(qb.args, args...)
-	return qb
-}
-
-// Build constructs the final query
 func (qb *QueryBuilder) Build() (string, []interface{}) {
-	query := ""
-
-	if qb.selectClause != "" {
-		query += qb.selectClause + " "
-	}
-
-	if qb.fromClause != "" {
-		query += "FROM " + qb.fromClause + " "
-	}
-
-	if qb.joinClause != "" {
-		query += qb.joinClause + " "
-	}
-
-	if qb.whereClause != "" {
-		query += qb.whereClause + " "
-	}
-
-	if qb.groupByClause != "" {
-		query += qb.groupByClause + " "
-	}
-
-	if qb.havingClause != "" {
-		query += qb.havingClause + " "
-	}
-
-	if qb.orderClause != "" {
-		query += qb.orderClause + " "
-	}
-
-	if qb.limitClause != "" {
-		query += qb.limitClause + " "
-	}
-
-	if qb.offsetClause != "" {
-		query += qb.offsetClause + " "
-	}
-
-	return query, qb.args
+	return qb.query, qb.args
 }
 
-// BuildCount constructs a COUNT query
 func (qb *QueryBuilder) BuildCount() (string, []interface{}) {
-	query := "SELECT COUNT(*) "
-
-	if qb.fromClause != "" {
-		query += "FROM " + qb.fromClause + " "
-	}
-
-	if qb.joinClause != "" {
-		query += qb.joinClause + " "
-	}
-
-	if qb.whereClause != "" {
-		query += qb.whereClause + " "
-	}
-
-	return query, qb.args
+	return "SELECT COUNT(*) FROM " + extractTable(qb.query), qb.args
 }
 
-// ToStdDB converts pgx pool to standard SQL DB for compatibility
-func ToStdDB(pool *pgxpool.Pool) *sql.DB {
-	return stdlib.OpenDBFromPool(pool)
+// Helper functions
+func joinStrings(strs []string, sep string) string {
+	if len(strs) == 0 {
+		return ""
+	}
+	result := strs[0]
+	for i := 1; i < len(strs); i++ {
+		result += sep + strs[i]
+	}
+	return result
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
+}
+
+func containsHelper(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	negative := n < 0
+	if negative {
+		n = -n
+	}
+	result := ""
+	for n > 0 {
+		result = string(rune('0'+n%10)) + result
+		n /= 10
+	}
+	if negative {
+		result = "-" + result
+	}
+	return result
+}
+
+func extractTable(query string) string {
+	// Simple extraction - looks for "FROM table"
+	for i := 0; i < len(query)-5; i++ {
+		if query[i:i+5] == "FROM " {
+			// Find the end of the table name
+			end := i + 5
+			for end < len(query) && query[end] != ' ' && query[end] != 'W' && query[end] != 'G' && query[end] != 'O' && query[end] != 'L' {
+				end++
+			}
+			return query[i+5 : end]
+		}
+	}
+	return ""
 }

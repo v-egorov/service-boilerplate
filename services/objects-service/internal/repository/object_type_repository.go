@@ -8,12 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/models"
 )
 
+// TODO: OpenTelemetry has been removed - need to return it back later on
+//
 // ObjectTypeRepository defines operations for object type hierarchical data
 type ObjectTypeRepository interface {
 	Repository
@@ -45,14 +44,13 @@ type ObjectTypeRepository interface {
 
 // objectTypeRepository implements ObjectTypeRepository
 type objectTypeRepository struct {
-	db      Database
+	db      DBInterface
 	options *RepositoryOptions
 	metrics *RepositoryMetrics
-	tracer  trace.Tracer
 }
 
 // NewObjectTypeRepository creates a new ObjectTypeRepository instance
-func NewObjectTypeRepository(db Database, options *RepositoryOptions) ObjectTypeRepository {
+func NewObjectTypeRepository(db DBInterface, options *RepositoryOptions) ObjectTypeRepository {
 	if options == nil {
 		options = DefaultRepositoryOptions()
 	}
@@ -61,12 +59,11 @@ func NewObjectTypeRepository(db Database, options *RepositoryOptions) ObjectType
 		db:      db,
 		options: options,
 		metrics: &RepositoryMetrics{LastResetAt: time.Now()},
-		tracer:  otel.Tracer("repository/object_type"),
 	}
 }
 
 // DB implements Repository interface
-func (r *objectTypeRepository) DB() Database {
+func (r *objectTypeRepository) DB() DBInterface {
 	return r.db
 }
 
@@ -87,14 +84,11 @@ func (r *objectTypeRepository) ResetMetrics() {
 
 // Healthy implements Repository interface
 func (r *objectTypeRepository) Healthy(ctx context.Context) error {
-	return r.db.Healthy(ctx)
+	return nil // TODO: Implement health check
 }
 
 // Create creates a new object type
 func (r *objectTypeRepository) Create(ctx context.Context, input *models.CreateObjectTypeRequest) (*models.ObjectType, error) {
-	ctx, span := r.tracer.Start(ctx, "object_type_repository.Create")
-	defer span.End()
-
 	r.metrics.QueryCount++
 
 	// Validate parent if specified
@@ -133,14 +127,12 @@ func (r *objectTypeRepository) Create(ctx context.Context, input *models.CreateO
 		}
 	}
 
-	err := r.db.Pool().QueryRow(ctx, query,
+	err := r.db.QueryRow(ctx, query,
 		objectType.Name, objectType.ParentTypeID, objectType.ConcreteTableName,
 		objectType.Description, objectType.IsSealed, objectType.Metadata,
 	).Scan(&objectType.ID, &objectType.CreatedAt, &objectType.UpdatedAt)
-
 	if err != nil {
 		r.metrics.ErrorCount++
-		span.RecordError(err)
 		return nil, fmt.Errorf("failed to create object type: %w", err)
 	}
 
@@ -157,9 +149,6 @@ func (r *objectTypeRepository) Create(ctx context.Context, input *models.CreateO
 
 // GetByID retrieves an object type by ID with eager loading
 func (r *objectTypeRepository) GetByID(ctx context.Context, id int64) (*models.ObjectType, error) {
-	ctx, span := r.tracer.Start(ctx, "object_type_repository.GetByID")
-	defer span.End()
-
 	r.metrics.QueryCount++
 
 	query := `
@@ -170,15 +159,13 @@ func (r *objectTypeRepository) GetByID(ctx context.Context, id int64) (*models.O
 	var objectType models.ObjectType
 	var parentID sql.NullInt64
 
-	err := r.db.Pool().QueryRow(ctx, query, id).Scan(
+	err := r.db.QueryRow(ctx, query, id).Scan(
 		&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
 		&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
 		&objectType.CreatedAt, &objectType.UpdatedAt,
 	)
-
 	if err != nil {
 		r.metrics.ErrorCount++
-		span.RecordError(err)
 		return nil, fmt.Errorf("failed to get object type: %w", err)
 	}
 
@@ -210,9 +197,6 @@ func (r *objectTypeRepository) GetByID(ctx context.Context, id int64) (*models.O
 
 // GetByName retrieves an object type by name with eager loading
 func (r *objectTypeRepository) GetByName(ctx context.Context, name string) (*models.ObjectType, error) {
-	ctx, span := r.tracer.Start(ctx, "object_type_repository.GetByName")
-	defer span.End()
-
 	r.metrics.QueryCount++
 
 	query := `
@@ -223,15 +207,13 @@ func (r *objectTypeRepository) GetByName(ctx context.Context, name string) (*mod
 	var objectType models.ObjectType
 	var parentID sql.NullInt64
 
-	err := r.db.Pool().QueryRow(ctx, query, name).Scan(
+	err := r.db.QueryRow(ctx, query, name).Scan(
 		&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
 		&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
 		&objectType.CreatedAt, &objectType.UpdatedAt,
 	)
-
 	if err != nil {
 		r.metrics.ErrorCount++
-		span.RecordError(err)
 		return nil, fmt.Errorf("failed to get object type by name: %w", err)
 	}
 
@@ -251,9 +233,6 @@ func (r *objectTypeRepository) GetByName(ctx context.Context, name string) (*mod
 
 // Update updates an existing object type
 func (r *objectTypeRepository) Update(ctx context.Context, id int64, input *models.UpdateObjectTypeRequest) (*models.ObjectType, error) {
-	ctx, span := r.tracer.Start(ctx, "object_type_repository.Update")
-	defer span.End()
-
 	r.metrics.QueryCount++
 
 	// Get current object type for versioning and validation
@@ -339,10 +318,9 @@ func (r *objectTypeRepository) Update(ctx context.Context, id int64, input *mode
 	args = append(args, id)
 
 	var updatedAt sql.NullTime
-	err = r.db.Pool().QueryRow(ctx, query, args...).Scan(&updatedAt)
+	err = r.db.QueryRow(ctx, query, args...).Scan(&updatedAt)
 	if err != nil {
 		r.metrics.ErrorCount++
-		span.RecordError(err)
 		return nil, fmt.Errorf("failed to update object type: %w", err)
 	}
 
@@ -352,9 +330,6 @@ func (r *objectTypeRepository) Update(ctx context.Context, id int64, input *mode
 
 // Delete soft-deletes an object type
 func (r *objectTypeRepository) Delete(ctx context.Context, id int64) error {
-	ctx, span := r.tracer.Start(ctx, "object_type_repository.Delete")
-	defer span.End()
-
 	r.metrics.QueryCount++
 
 	// Check if can delete
@@ -369,11 +344,9 @@ func (r *objectTypeRepository) Delete(ctx context.Context, id int64) error {
 
 	// For simplicity, we'll do a hard delete since the current schema doesn't have soft delete
 	query := `DELETE FROM object_types WHERE id = $1`
-	_, err = r.db.Pool().Exec(ctx, query, id)
-
+	_, err = r.db.Exec(ctx, query, id)
 	if err != nil {
 		r.metrics.ErrorCount++
-		span.RecordError(err)
 		return fmt.Errorf("failed to delete object type: %w", err)
 	}
 
@@ -382,9 +355,6 @@ func (r *objectTypeRepository) Delete(ctx context.Context, id int64) error {
 
 // GetTree retrieves the complete tree starting from root (or all roots if rootID is nil)
 func (r *objectTypeRepository) GetTree(ctx context.Context, rootID *int64) ([]*models.ObjectType, error) {
-	ctx, span := r.tracer.Start(ctx, "object_type_repository.GetTree")
-	defer span.End()
-
 	r.metrics.QueryCount++
 
 	// Use recursive CTE for efficient tree fetching
@@ -408,10 +378,9 @@ func (r *objectTypeRepository) GetTree(ctx context.Context, rootID *int64) ([]*m
 		)
 		SELECT * FROM object_tree ORDER BY name;`
 
-	rows, err := r.db.Pool().Query(ctx, query, rootID)
+	rows, err := r.db.Query(ctx, query, rootID)
 	if err != nil {
 		r.metrics.ErrorCount++
-		span.RecordError(err)
 		return nil, fmt.Errorf("failed to get object tree: %w", err)
 	}
 	defer rows.Close()
@@ -460,9 +429,6 @@ func (r *objectTypeRepository) GetTree(ctx context.Context, rootID *int64) ([]*m
 
 // GetChildren retrieves direct children of an object type
 func (r *objectTypeRepository) GetChildren(ctx context.Context, parentID int64) ([]*models.ObjectType, error) {
-	ctx, span := r.tracer.Start(ctx, "object_type_repository.GetChildren")
-	defer span.End()
-
 	r.metrics.QueryCount++
 
 	query := `
@@ -471,10 +437,9 @@ func (r *objectTypeRepository) GetChildren(ctx context.Context, parentID int64) 
 		WHERE parent_type_id = $1
 		ORDER BY name ASC`
 
-	rows, err := r.db.Pool().Query(ctx, query, parentID)
+	rows, err := r.db.Query(ctx, query, parentID)
 	if err != nil {
 		r.metrics.ErrorCount++
-		span.RecordError(err)
 		return nil, fmt.Errorf("failed to get children: %w", err)
 	}
 	defer rows.Close()
@@ -510,7 +475,7 @@ func (r *objectTypeRepository) GetChildren(ctx context.Context, parentID int64) 
 func (r *objectTypeRepository) validateParentExists(ctx context.Context, parentID int64) error {
 	query := `SELECT COUNT(*) FROM object_types WHERE id = $1`
 	var count int64
-	err := r.db.Pool().QueryRow(ctx, query, parentID).Scan(&count)
+	err := r.db.QueryRow(ctx, query, parentID).Scan(&count)
 	if err != nil {
 		return fmt.Errorf("failed to validate parent: %w", err)
 	}
@@ -533,7 +498,7 @@ func (r *objectTypeRepository) ValidateParentChild(ctx context.Context, parentID
 		SELECT COUNT(*) FROM descendants WHERE id = $2`
 
 	var count int64
-	err := r.db.Pool().QueryRow(ctx, query, parentID, childID).Scan(&count)
+	err := r.db.QueryRow(ctx, query, parentID, childID).Scan(&count)
 	if err != nil {
 		return fmt.Errorf("failed to validate parent-child relationship: %w", err)
 	}
@@ -549,7 +514,7 @@ func (r *objectTypeRepository) CanDelete(ctx context.Context, id int64) (bool, e
 	// Check if has children
 	query := `SELECT COUNT(*) FROM object_types WHERE parent_type_id = $1`
 	var childCount int64
-	err := r.db.Pool().QueryRow(ctx, query, id).Scan(&childCount)
+	err := r.db.QueryRow(ctx, query, id).Scan(&childCount)
 	if err != nil {
 		return false, fmt.Errorf("failed to check children: %w", err)
 	}
@@ -561,7 +526,7 @@ func (r *objectTypeRepository) CanDelete(ctx context.Context, id int64) (bool, e
 	// Check if has objects (assuming objects table exists)
 	query = `SELECT COUNT(*) FROM objects WHERE object_type_id = $1 AND deleted_at IS NULL`
 	var objectCount int64
-	err = r.db.Pool().QueryRow(ctx, query, id).Scan(&objectCount)
+	err = r.db.QueryRow(ctx, query, id).Scan(&objectCount)
 	if err != nil {
 		// If objects table doesn't exist, assume no objects
 		return true, nil
@@ -572,30 +537,37 @@ func (r *objectTypeRepository) CanDelete(ctx context.Context, id int64) (bool, e
 
 // Placeholder methods to be implemented
 
+// TODO: Implement GetDescendants - hierarchical query with maxDepth parameter using recursive CTE
 func (r *objectTypeRepository) GetDescendants(ctx context.Context, rootID int64, maxDepth *int) ([]*models.ObjectType, error) {
 	return nil, fmt.Errorf("GetDescendants not implemented yet")
 }
 
+// TODO: Implement GetAncestors - hierarchical query moving up the tree
 func (r *objectTypeRepository) GetAncestors(ctx context.Context, id int64) ([]*models.ObjectType, error) {
 	return nil, fmt.Errorf("GetAncestors not implemented yet")
 }
 
+// TODO: Implement GetPath - hierarchical query getting full path from root to node
 func (r *objectTypeRepository) GetPath(ctx context.Context, id int64) ([]*models.ObjectType, error) {
 	return nil, fmt.Errorf("GetPath not implemented yet")
 }
 
+// TODO: Implement List - filtered listing with pagination
 func (r *objectTypeRepository) List(ctx context.Context, filter *models.ObjectTypeFilter) ([]*models.ObjectType, error) {
 	return nil, fmt.Errorf("List not implemented yet")
 }
 
+// TODO: Implement Search - text search across object types
 func (r *objectTypeRepository) Search(ctx context.Context, query string, limit int) ([]*models.ObjectType, error) {
 	return nil, fmt.Errorf("Search not implemented yet")
 }
 
+// TODO: Implement ValidateMove - validate moving an object type to a new parent
 func (r *objectTypeRepository) ValidateMove(ctx context.Context, id int64, newParentID *int64) error {
 	return fmt.Errorf("ValidateMove not implemented yet")
 }
 
+// TODO: Implement GetSubtreeObjectCount - count all objects in a subtree
 func (r *objectTypeRepository) GetSubtreeObjectCount(ctx context.Context, id int64) (int64, error) {
 	return 0, fmt.Errorf("GetSubtreeObjectCount not implemented yet")
 }

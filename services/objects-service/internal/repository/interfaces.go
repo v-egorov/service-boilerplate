@@ -4,37 +4,32 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Database interface for dependency injection and testing
-type Database interface {
-	// Connection management
-	Begin(ctx context.Context) (Transaction, error)
-	Close()
-	Ping(ctx context.Context) error
-
-	// Pool access (for testing purposes mainly)
-	Pool() *pgxpool.Pool
-
-	// Health check
-	Healthy(ctx context.Context) error
+// DBInterface defines the minimal database operations needed for testing (user-service pattern)
+type DBInterface interface {
+	Query(ctx context.Context, sql string, args ...any) (Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) Row
+	Exec(ctx context.Context, sql string, args ...any) (CommandTag, error)
 }
 
-// Transaction interface for database transactions
-type Transaction interface {
-	// Standard transaction operations
-	Commit(ctx context.Context) error
-	Rollback(ctx context.Context) error
+// CommandTag represents the result of an Exec operation
+// TODO: - this is a different pattern compared with users-service: CommandTag in user-service
+// is a 'real' pgconn.CommandTag. There were issues when pgconn was imported here - need to resolve
+// and make it a ptoper type instead of generic interface
+type CommandTag interface{}
 
-	// Query execution (mirrors pgxpool.Pool interface)
-	Exec(ctx context.Context, sql string, arguments ...interface{}) (interface{}, error)
-	Query(ctx context.Context, sql string, args ...interface{}) (interface{}, error)
-	QueryRow(ctx context.Context, sql string, args ...interface{}) interface{}
+// Row represents a single row returned from QueryRow
+type Row interface {
+	Scan(dest ...any) error
+}
 
-	// Transaction context
-	Ctx() context.Context
+// Rows represents multiple rows returned from Query
+type Rows interface {
+	Close()
+	Next() bool
+	Scan(dest ...any) error
+	Err() error
 }
 
 // RepositoryOptions for configuring repository behavior
@@ -66,11 +61,11 @@ func DefaultRepositoryOptions() *RepositoryOptions {
 		MaxPageSize:             1000,
 		EnableSoftDelete:        true,
 		EnableVersioning:        true,
-		EnableQueryCache:        false, // Disabled by default for consistency
+		EnableQueryCache:        false,
 		EnableConnectionPooling: true,
 		QueryTimeout:            30 * time.Second,
 		EnableTracing:           true,
-		TracingSampleRate:       0.1, // 10% sampling
+		TracingSampleRate:       0.1,
 		LogSlowQueries:          true,
 		SlowQueryThreshold:      100 * time.Millisecond,
 	}
@@ -107,7 +102,7 @@ func (m *RepositoryMetrics) Reset() {
 	m.LastResetAt = time.Now()
 }
 
-// UpdateAverageQueryTime recalculates the average query time
+// UpdateAverageQueryTime recalculates average query time
 func (m *RepositoryMetrics) UpdateAverageQueryTime() {
 	if m.QueryCount > 0 {
 		m.AverageQueryTime = time.Duration(int64(m.TotalQueryTime) / m.QueryCount)
@@ -117,7 +112,7 @@ func (m *RepositoryMetrics) UpdateAverageQueryTime() {
 // Repository base interface
 type Repository interface {
 	// Database access
-	DB() Database
+	DB() DBInterface
 	Options() *RepositoryOptions
 
 	// Metrics

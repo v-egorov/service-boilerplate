@@ -18,7 +18,6 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/tracing"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/handlers"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/repository"
-	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/services"
 )
 
 func main() {
@@ -77,33 +76,26 @@ func main() {
 	serviceLogger := logging.NewServiceRequestLogger(logger.Logger, cfg.App.Name)
 
 	// Initialize standard logger for structured operation logging
-	standardLogger := logging.NewStandardLogger(logger.Logger, cfg.App.Name)
+	// standardLogger := logging.NewStandardLogger(logger.Logger, cfg.App.Name)
 
 	// Initialize repository and service only if database is available
-	var entityHandler *handlers.EntityHandler
 	var healthHandler *handlers.HealthHandler
 
 	if db != nil {
 		// Initialize new repository layer
-		pgDatabase := repository.NewDatabase(db.GetPool())
+		pgDatabase := repository.NewPGDatabase(db.GetPool())
 		repoOptions := repository.DefaultRepositoryOptions()
 
 		// Initialize repositories
-		_ = repository.NewObjectTypeRepository(pgDatabase, repoOptions) // TODO: Wire up when handler created
-		_ = repository.NewObjectRepository(pgDatabase, repoOptions)     // TODO: Wire up when handler created
+		objectTypeRepo := repository.NewObjectTypeRepository(pgDatabase, repoOptions)
+		objectRepo := repository.NewObjectRepository(pgDatabase, repoOptions)
 
-		// Initialize services (new services would be created to use these repositories)
-		// For now, keep legacy service with old repository for backward compatibility
-		entityRepo := repository.NewEntityRepository(db.GetPool(), logger.Logger)
-		entityService := services.NewEntityService(entityRepo, logger.Logger)
-
-		// Initialize handlers
-		entityHandler = handlers.NewEntityHandler(entityService, logger.Logger, standardLogger)
+		// Initialize health handler
 		healthHandler = handlers.NewHealthHandler(db.GetPool(), logger.Logger, cfg)
 
 		// TODO: Create and wire up new handlers and routes for ObjectType and Object repositories
-		// objectTypeHandler := handlers.NewObjectTypeHandler(objectTypeRepo, logger.Logger, standardLogger)
-		// objectHandler := handlers.NewObjectHandler(objectRepo, logger.Logger, standardLogger)
+		// objectTypeHandler := handlers.NewObjectTypeHandler(objectTypeRepo, logger, standardLogger)
+		// objectHandler := handlers.NewObjectHandler(objectRepo, logger, standardLogger)
 		//
 		// Add routes like:
 		// objectTypes := v1.Group("/object-types")
@@ -121,10 +113,11 @@ func main() {
 		//     objects.GET("", objectHandler.ListObjects)
 		//     objects.GET("/search", objectHandler.SearchObjects)
 		// }
+		_ = objectTypeRepo
+		_ = objectRepo
 	} else {
 		// Initialize handlers without database
 		healthHandler = handlers.NewHealthHandler(nil, logger.Logger, cfg)
-		entityHandler = nil // Entity operations won't work without database
 	}
 
 	// Initialize alert manager
@@ -186,18 +179,22 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"alerts": alerts})
 		})
 
-		// Entity endpoints (only if database is available)
-		if entityHandler != nil {
-			entities := v1.Group("/entities")
-			{
-				entities.POST("", entityHandler.CreateEntity)
-				entities.GET("/:id", entityHandler.GetEntity)
-				entities.PUT("/:id", entityHandler.ReplaceEntity)  // Full resource replacement
-				entities.PATCH("/:id", entityHandler.UpdateEntity) // Partial resource update
-				entities.DELETE("/:id", entityHandler.DeleteEntity)
-				entities.GET("", entityHandler.ListEntities)
-			}
-		}
+		// TODO: Add new ObjectType and Object endpoints when handlers are created
+		// objectTypes := v1.Group("/object-types")
+		// {
+		//     objectTypes.POST("", objectTypeHandler.CreateObjectType)
+		//     objectTypes.GET("/:id", objectTypeHandler.GetObjectType)
+		//     objectTypes.GET("", objectTypeHandler.ListObjectTypes)
+		//     objectTypes.GET("/:id/tree", objectTypeHandler.GetTree)
+		// }
+		//
+		// objects := v1.Group("/objects")
+		// {
+		//     objects.POST("", objectHandler.CreateObject)
+		//     objects.GET("/:id", objectHandler.GetObject)
+		//     objects.GET("", objectHandler.ListObjects)
+		//     objects.GET("/search", objectHandler.SearchObjects)
+		// }
 	}
 
 	// Start server

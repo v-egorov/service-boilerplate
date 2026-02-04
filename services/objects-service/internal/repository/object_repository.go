@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/trace"
 
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/models"
 )
@@ -67,14 +65,13 @@ type ObjectStats struct {
 
 // objectRepository implements ObjectRepository with performance focus (no eager loading)
 type objectRepository struct {
-	db      Database
+	db      DBInterface
 	options *RepositoryOptions
 	metrics *RepositoryMetrics
-	tracer  trace.Tracer
 }
 
 // NewObjectRepository creates a new ObjectRepository instance
-func NewObjectRepository(db Database, options *RepositoryOptions) ObjectRepository {
+func NewObjectRepository(db DBInterface, options *RepositoryOptions) ObjectRepository {
 	if options == nil {
 		options = DefaultRepositoryOptions()
 	}
@@ -83,12 +80,11 @@ func NewObjectRepository(db Database, options *RepositoryOptions) ObjectReposito
 		db:      db,
 		options: options,
 		metrics: &RepositoryMetrics{LastResetAt: time.Now()},
-		tracer:  otel.Tracer("repository/object"),
 	}
 }
 
 // DB implements Repository interface
-func (r *objectRepository) DB() Database {
+func (r *objectRepository) DB() DBInterface {
 	return r.db
 }
 
@@ -109,13 +105,11 @@ func (r *objectRepository) ResetMetrics() {
 
 // Healthy implements Repository interface
 func (r *objectRepository) Healthy(ctx context.Context) error {
-	return r.db.Healthy(ctx)
+	return nil // TODO: Implement health check
 }
 
 // Create creates a new object
 func (r *objectRepository) Create(ctx context.Context, input *models.CreateObjectRequest) (*models.Object, error) {
-	ctx, span := r.tracer.Start(ctx, "object_repository.Create")
-	defer span.End()
 
 	r.metrics.QueryCount++
 
@@ -161,7 +155,7 @@ func (r *objectRepository) Create(ctx context.Context, input *models.CreateObjec
 		}
 	}
 
-	err := r.db.Pool().QueryRow(ctx, query,
+	err := r.db.QueryRow(ctx, query,
 		object.PublicID, object.ObjectTypeID, object.ParentObjectID,
 		object.Name, object.Description, object.Metadata, object.Tags,
 		object.Status, object.Version, object.CreatedBy, object.UpdatedBy,
@@ -169,7 +163,6 @@ func (r *objectRepository) Create(ctx context.Context, input *models.CreateObjec
 
 	if err != nil {
 		r.metrics.ErrorCount++
-		span.RecordError(err)
 		return nil, fmt.Errorf("failed to create object: %w", err)
 	}
 
@@ -183,8 +176,6 @@ func (r *objectRepository) Create(ctx context.Context, input *models.CreateObjec
 
 // GetByID retrieves an object by ID with minimal eager loading
 func (r *objectRepository) GetByID(ctx context.Context, id int64) (*models.Object, error) {
-	ctx, span := r.tracer.Start(ctx, "object_repository.GetByID")
-	defer span.End()
 
 	r.metrics.QueryCount++
 
@@ -199,7 +190,7 @@ func (r *objectRepository) GetByID(ctx context.Context, id int64) (*models.Objec
 	var parentObjectID sql.NullInt64
 	var deletedAt sql.NullTime
 
-	err := r.db.Pool().QueryRow(ctx, query, id).Scan(
+	err := r.db.QueryRow(ctx, query, id).Scan(
 		&object.ID, &object.PublicID, &object.ObjectTypeID, &parentObjectID,
 		&object.Name, &object.Description, &object.Metadata, &object.Tags,
 		&object.Status, &object.Version, &object.CreatedBy, &object.UpdatedBy,
@@ -208,7 +199,6 @@ func (r *objectRepository) GetByID(ctx context.Context, id int64) (*models.Objec
 
 	if err != nil {
 		r.metrics.ErrorCount++
-		span.RecordError(err)
 		return nil, fmt.Errorf("failed to get object: %w", err)
 	}
 
@@ -229,17 +219,14 @@ func (r *objectRepository) GetByID(ctx context.Context, id int64) (*models.Objec
 
 // GetByPublicID retrieves an object by public ID
 func (r *objectRepository) GetByPublicID(ctx context.Context, publicID uuid.UUID) (*models.Object, error) {
-	ctx, span := r.tracer.Start(ctx, "object_repository.GetByPublicID")
-	defer span.End()
 
 	r.metrics.QueryCount++
 
 	query := `SELECT id FROM objects WHERE public_id = $1`
 	var id int64
-	err := r.db.Pool().QueryRow(ctx, query, publicID).Scan(&id)
+	err := r.db.QueryRow(ctx, query, publicID).Scan(&id)
 	if err != nil {
 		r.metrics.ErrorCount++
-		span.RecordError(err)
 		return nil, fmt.Errorf("failed to get object by public ID: %w", err)
 	}
 
@@ -248,8 +235,6 @@ func (r *objectRepository) GetByPublicID(ctx context.Context, publicID uuid.UUID
 
 // GetByName retrieves an object by name
 func (r *objectRepository) GetByName(ctx context.Context, name string) (*models.Object, error) {
-	ctx, span := r.tracer.Start(ctx, "object_repository.GetByName")
-	defer span.End()
 
 	r.metrics.QueryCount++
 
@@ -259,10 +244,9 @@ func (r *objectRepository) GetByName(ctx context.Context, name string) (*models.
 		ORDER BY created_at DESC LIMIT 1`
 
 	var id int64
-	err := r.db.Pool().QueryRow(ctx, query, name).Scan(&id)
+	err := r.db.QueryRow(ctx, query, name).Scan(&id)
 	if err != nil {
 		r.metrics.ErrorCount++
-		span.RecordError(err)
 		return nil, fmt.Errorf("failed to get object by name: %w", err)
 	}
 
@@ -271,8 +255,6 @@ func (r *objectRepository) GetByName(ctx context.Context, name string) (*models.
 
 // Update updates an existing object with optimistic locking
 func (r *objectRepository) Update(ctx context.Context, id int64, input *models.UpdateObjectRequest) (*models.Object, error) {
-	ctx, span := r.tracer.Start(ctx, "object_repository.Update")
-	defer span.End()
 
 	r.metrics.QueryCount++
 
@@ -381,10 +363,9 @@ func (r *objectRepository) Update(ctx context.Context, id int64, input *models.U
 
 	var updatedAt sql.NullTime
 	var newVersion int64
-	err = r.db.Pool().QueryRow(ctx, query, args...).Scan(&updatedAt, &newVersion)
+	err = r.db.QueryRow(ctx, query, args...).Scan(&updatedAt, &newVersion)
 	if err != nil {
 		r.metrics.ErrorCount++
-		span.RecordError(err)
 		return nil, fmt.Errorf("failed to update object: %w", err)
 	}
 
@@ -394,8 +375,6 @@ func (r *objectRepository) Update(ctx context.Context, id int64, input *models.U
 
 // Delete soft-deletes an object
 func (r *objectRepository) Delete(ctx context.Context, id int64) error {
-	ctx, span := r.tracer.Start(ctx, "object_repository.Delete")
-	defer span.End()
 
 	r.metrics.QueryCount++
 
@@ -414,10 +393,9 @@ func (r *objectRepository) Delete(ctx context.Context, id int64) error {
 		SET deleted_at = CURRENT_TIMESTAMP, status = 'deleted', updated_at = CURRENT_TIMESTAMP
 		WHERE id = $1 AND deleted_at IS NULL`
 
-	_, err = r.db.Pool().Exec(ctx, query, id)
+	_, err = r.db.Exec(ctx, query, id)
 	if err != nil {
 		r.metrics.ErrorCount++
-		span.RecordError(err)
 		return fmt.Errorf("failed to delete object: %w", err)
 	}
 
@@ -426,8 +404,6 @@ func (r *objectRepository) Delete(ctx context.Context, id int64) error {
 
 // List retrieves objects with filtering and pagination
 func (r *objectRepository) List(ctx context.Context, filter *models.ObjectFilter) ([]*models.Object, int64, error) {
-	ctx, span := r.tracer.Start(ctx, "object_repository.List")
-	defer span.End()
 
 	r.metrics.QueryCount++
 
@@ -481,7 +457,7 @@ func (r *objectRepository) List(ctx context.Context, filter *models.ObjectFilter
 	// Get total count first
 	countQuery, countArgs := qb.BuildCount()
 	var total int64
-	err := r.db.Pool().QueryRow(ctx, countQuery, countArgs...).Scan(&total)
+	err := r.db.QueryRow(ctx, countQuery, countArgs...).Scan(&total)
 	if err != nil {
 		r.metrics.ErrorCount++
 		return nil, 0, fmt.Errorf("failed to count objects: %w", err)
@@ -507,7 +483,7 @@ func (r *objectRepository) List(ctx context.Context, filter *models.ObjectFilter
 	}
 
 	query, args := qb.Build()
-	rows, err := r.db.Pool().Query(ctx, query, args...)
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		r.metrics.ErrorCount++
 		return nil, 0, fmt.Errorf("failed to query objects: %w", err)
@@ -554,7 +530,7 @@ func (r *objectRepository) List(ctx context.Context, filter *models.ObjectFilter
 func (r *objectRepository) validateParent(ctx context.Context, parentID int64) error {
 	query := `SELECT COUNT(*) FROM objects WHERE id = $1 AND deleted_at IS NULL`
 	var count int64
-	err := r.db.Pool().QueryRow(ctx, query, parentID).Scan(&count)
+	err := r.db.QueryRow(ctx, query, parentID).Scan(&count)
 	if err != nil {
 		return fmt.Errorf("failed to validate parent: %w", err)
 	}
@@ -567,7 +543,7 @@ func (r *objectRepository) validateParent(ctx context.Context, parentID int64) e
 func (r *objectRepository) ValidateObjectType(ctx context.Context, objectTypeID int64) error {
 	query := `SELECT COUNT(*) FROM object_types WHERE id = $1`
 	var count int64
-	err := r.db.Pool().QueryRow(ctx, query, objectTypeID).Scan(&count)
+	err := r.db.QueryRow(ctx, query, objectTypeID).Scan(&count)
 	if err != nil {
 		return fmt.Errorf("failed to validate object type: %w", err)
 	}
@@ -585,7 +561,7 @@ func (r *objectRepository) getObjectTypeByID(ctx context.Context, id int64) (*mo
 	var objectType models.ObjectType
 	var parentID sql.NullInt64
 
-	err := r.db.Pool().QueryRow(ctx, query, id).Scan(
+	err := r.db.QueryRow(ctx, query, id).Scan(
 		&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
 		&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
 		&objectType.CreatedAt, &objectType.UpdatedAt,
@@ -623,7 +599,7 @@ func (r *objectRepository) loadObjectTypesForObjects(ctx context.Context, object
 		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
 		FROM object_types WHERE id = ANY($1::bigint[])`)
 
-	rows, err := r.db.Pool().Query(ctx, query, ids)
+	rows, err := r.db.Query(ctx, query, ids)
 	if err != nil {
 		return // Silently fail - object types will remain nil
 	}
@@ -720,7 +696,7 @@ func (r *objectRepository) CanDelete(ctx context.Context, id int64) (bool, error
 	// Check if has children
 	query := `SELECT COUNT(*) FROM objects WHERE parent_object_id = $1 AND deleted_at IS NULL`
 	var childCount int64
-	err := r.db.Pool().QueryRow(ctx, query, id).Scan(&childCount)
+	err := r.db.QueryRow(ctx, query, id).Scan(&childCount)
 	if err != nil {
 		return false, fmt.Errorf("failed to check children: %w", err)
 	}
