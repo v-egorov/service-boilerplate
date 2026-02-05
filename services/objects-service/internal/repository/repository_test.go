@@ -190,6 +190,72 @@ func TestObjectRepository_Creation(t *testing.T) {
 	assert.NotNil(t, repo.Options())
 }
 
+// TestObjectRepository_UpdateMetadata tests metadata update functionality
+func TestObjectRepository_UpdateMetadata(t *testing.T) {
+	mockDB := &MockDBPool{
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return nil, nil
+		},
+	}
+
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	metadata := map[string]interface{}{
+		"key1": "value1",
+		"key2": 123,
+	}
+
+	err := repo.UpdateMetadata(context.Background(), 1, metadata)
+	assert.NoError(t, err)
+}
+
+// TestObjectRepository_AddTags tests adding tags to an object
+func TestObjectRepository_AddTags(t *testing.T) {
+	mockDB := &MockDBPool{
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return nil, nil
+		},
+	}
+
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	tags := []string{"tag1", "tag2", "tag3"}
+
+	err := repo.AddTags(context.Background(), 1, tags)
+	assert.NoError(t, err)
+}
+
+// TestObjectRepository_AddTags_Empty tests adding empty tags
+func TestObjectRepository_AddTags_Empty(t *testing.T) {
+	mockDB := &MockDBPool{}
+
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	err := repo.AddTags(context.Background(), 1, []string{})
+	assert.NoError(t, err)
+}
+
+// TestObjectRepository_RemoveTags tests removing tags from an object
+func TestObjectRepository_RemoveTags(t *testing.T) {
+	mockDB := &MockDBPool{
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return nil, nil
+		},
+	}
+
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	tags := []string{"tag1", "tag2"}
+
+	err := repo.RemoveTags(context.Background(), 1, tags)
+	assert.NoError(t, err)
+}
+
+// TestObjectRepository_RemoveTags_Empty tests removing empty tags
+func TestObjectRepository_RemoveTags_Empty(t *testing.T) {
+	mockDB := &MockDBPool{}
+
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	err := repo.RemoveTags(context.Background(), 1, []string{})
+	assert.NoError(t, err)
+}
+
 // TestRepositoryMetrics tests metrics functionality
 func TestRepositoryMetrics(t *testing.T) {
 	metrics := &RepositoryMetrics{LastResetAt: time.Now()}

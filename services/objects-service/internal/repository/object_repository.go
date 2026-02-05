@@ -822,18 +822,69 @@ func (r *objectRepository) FindByTags(ctx context.Context, tags []string, matchA
 	return objects, nil
 }
 
-// Placeholder methods to be implemented
-
 func (r *objectRepository) UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}) error {
-	return fmt.Errorf("UpdateMetadata not implemented yet")
+	r.metrics.QueryCount++
+
+	metadataJSON, err := json.Marshal(metadata)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
+
+	query := `
+		UPDATE objects
+		SET metadata = $1, updated_at = CURRENT_TIMESTAMP, updated_by = 'system'
+		WHERE id = $2 AND deleted_at IS NULL`
+
+	_, err = r.db.Exec(ctx, query, metadataJSON, id)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return fmt.Errorf("failed to update metadata: %w", err)
+	}
+
+	return nil
 }
 
 func (r *objectRepository) AddTags(ctx context.Context, id int64, tags []string) error {
-	return fmt.Errorf("AddTags not implemented yet")
+	r.metrics.QueryCount++
+
+	if len(tags) == 0 {
+		return nil
+	}
+
+	query := `
+		UPDATE objects
+		SET tags = tags || $1::text[], updated_at = CURRENT_TIMESTAMP, updated_by = 'system'
+		WHERE id = $2 AND deleted_at IS NULL`
+
+	_, err := r.db.Exec(ctx, query, tags, id)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return fmt.Errorf("failed to add tags: %w", err)
+	}
+
+	return nil
 }
 
 func (r *objectRepository) RemoveTags(ctx context.Context, id int64, tags []string) error {
-	return fmt.Errorf("RemoveTags not implemented yet")
+	r.metrics.QueryCount++
+
+	if len(tags) == 0 {
+		return nil
+	}
+
+	query := `
+		UPDATE objects
+		SET tags = tags - $1::text[], updated_at = CURRENT_TIMESTAMP, updated_by = 'system'
+		WHERE id = $2 AND deleted_at IS NULL`
+
+	_, err := r.db.Exec(ctx, query, tags, id)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return fmt.Errorf("failed to remove tags: %w", err)
+	}
+
+	return nil
 }
 
 func (r *objectRepository) GetChildren(ctx context.Context, parentID int64) ([]*models.Object, error) {
