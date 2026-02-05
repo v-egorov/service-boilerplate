@@ -130,14 +130,21 @@ func TestObjectTypeRepository_GetByID(t *testing.T) {
 
 // TestObjectTypeRepository_List tests basic list functionality
 func TestObjectTypeRepository_List(t *testing.T) {
-	mockDB := &MockDBPool{}
+	mockDB := &MockDBPool{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			rows := &MockRows{
+				NextFunc: func() bool {
+					return false
+				},
+			}
+			return rows, nil
+		},
+	}
 
 	repo := NewObjectTypeRepository(mockDB, DefaultRepositoryOptions())
 	result, err := repo.List(context.Background(), &models.ObjectTypeFilter{})
-	// This method is not implemented yet
-	assert.Error(t, err)
+	assert.NoError(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "not implemented")
 }
 
 // TestObjectTypeRepository_ValidateParentChild tests validation

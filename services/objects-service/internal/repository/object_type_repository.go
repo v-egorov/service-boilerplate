@@ -537,29 +537,313 @@ func (r *objectTypeRepository) CanDelete(ctx context.Context, id int64) (bool, e
 
 // Placeholder methods to be implemented
 
-// TODO: Implement GetDescendants - hierarchical query with maxDepth parameter using recursive CTE
+// GetDescendants retrieves all descendants of an object type with optional depth limit
 func (r *objectTypeRepository) GetDescendants(ctx context.Context, rootID int64, maxDepth *int) ([]*models.ObjectType, error) {
-	return nil, fmt.Errorf("GetDescendants not implemented yet")
+	r.metrics.QueryCount++
+
+	query := `
+		WITH RECURSIVE descendants AS (
+			-- Base case: the root node itself
+			SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at, 1 as depth
+			FROM object_types WHERE id = $1
+
+			UNION ALL
+
+			-- Recursive case: children of current nodes
+			SELECT ot.id, ot.name, ot.parent_type_id, ot.concrete_table_name, ot.description, ot.is_sealed, ot.metadata, ot.created_at, ot.updated_at, d.depth + 1
+			FROM object_types ot
+			INNER JOIN descendants d ON ot.parent_type_id = d.id
+		)
+		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
+		FROM descendants`
+
+	args := []interface{}{rootID}
+
+	if maxDepth != nil {
+		query += " WHERE depth <= $2"
+		args = append(args, *maxDepth)
+	}
+
+	query += " ORDER BY depth, name"
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to get descendants: %w", err)
+	}
+	defer rows.Close()
+
+	var objectTypes []*models.ObjectType
+	depthMap := make(map[int64]int)
+
+	for rows.Next() {
+		var objectType models.ObjectType
+		var parentID sql.NullInt64
+		var depth int
+
+		err := rows.Scan(
+			&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
+			&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
+			&objectType.CreatedAt, &objectType.UpdatedAt,
+		)
+		if err != nil {
+			r.metrics.ErrorCount++
+			return nil, fmt.Errorf("failed to scan descendant row: %w", err)
+		}
+
+		if parentID.Valid {
+			objectType.ParentTypeID = &parentID.Int64
+		}
+
+		objectType.Children = []models.ObjectType{}
+		objectTypes = append(objectTypes, &objectType)
+		depthMap[objectType.ID] = depth
+	}
+
+	return objectTypes, nil
 }
 
-// TODO: Implement GetAncestors - hierarchical query moving up the tree
+// GetAncestors retrieves all ancestors of an object type moving up the tree
 func (r *objectTypeRepository) GetAncestors(ctx context.Context, id int64) ([]*models.ObjectType, error) {
-	return nil, fmt.Errorf("GetAncestors not implemented yet")
+	r.metrics.QueryCount++
+
+	query := `
+		WITH RECURSIVE ancestors AS (
+			-- Base case: the node itself
+			SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at, 1 as level
+			FROM object_types WHERE id = $1
+
+			UNION ALL
+
+			-- Recursive case: parent of current node
+			SELECT ot.id, ot.name, ot.parent_type_id, ot.concrete_table_name, ot.description, ot.is_sealed, ot.metadata, ot.created_at, ot.updated_at, a.level + 1
+			FROM object_types ot
+			INNER JOIN ancestors a ON ot.id = a.parent_type_id
+		)
+		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
+		FROM ancestors
+		WHERE id != $1
+		ORDER BY level DESC`
+
+	rows, err := r.db.Query(ctx, query, id)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to get ancestors: %w", err)
+	}
+	defer rows.Close()
+
+	var ancestors []*models.ObjectType
+	for rows.Next() {
+		var objectType models.ObjectType
+		var parentID sql.NullInt64
+
+		err := rows.Scan(
+			&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
+			&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
+			&objectType.CreatedAt, &objectType.UpdatedAt,
+		)
+		if err != nil {
+			r.metrics.ErrorCount++
+			return nil, fmt.Errorf("failed to scan ancestor row: %w", err)
+		}
+
+		if parentID.Valid {
+			objectType.ParentTypeID = &parentID.Int64
+		}
+
+		objectType.Children = []models.ObjectType{}
+		ancestors = append(ancestors, &objectType)
+	}
+
+	return ancestors, nil
 }
 
-// TODO: Implement GetPath - hierarchical query getting full path from root to node
+// GetPath retrieves the full path from root to the specified object type
 func (r *objectTypeRepository) GetPath(ctx context.Context, id int64) ([]*models.ObjectType, error) {
-	return nil, fmt.Errorf("GetPath not implemented yet")
+	r.metrics.QueryCount++
+
+	query := `
+		WITH RECURSIVE path AS (
+			-- Base case: the target node
+			SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at, 1 as level
+			FROM object_types WHERE id = $1
+
+			UNION ALL
+
+			-- Recursive case: parent of current node
+			SELECT ot.id, ot.name, ot.parent_type_id, ot.concrete_table_name, ot.description, ot.is_sealed, ot.metadata, ot.created_at, ot.updated_at, p.level + 1
+			FROM object_types ot
+			INNER JOIN path p ON ot.id = p.parent_type_id
+		)
+		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
+		FROM path
+		ORDER BY level DESC`
+
+	rows, err := r.db.Query(ctx, query, id)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to get path: %w", err)
+	}
+	defer rows.Close()
+
+	var path []*models.ObjectType
+	for rows.Next() {
+		var objectType models.ObjectType
+		var parentID sql.NullInt64
+
+		err := rows.Scan(
+			&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
+			&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
+			&objectType.CreatedAt, &objectType.UpdatedAt,
+		)
+		if err != nil {
+			r.metrics.ErrorCount++
+			return nil, fmt.Errorf("failed to scan path row: %w", err)
+		}
+
+		if parentID.Valid {
+			objectType.ParentTypeID = &parentID.Int64
+		}
+
+		objectType.Children = []models.ObjectType{}
+		path = append(path, &objectType)
+	}
+
+	return path, nil
 }
 
-// TODO: Implement List - filtered listing with pagination
+// List retrieves object types with filtering and pagination
 func (r *objectTypeRepository) List(ctx context.Context, filter *models.ObjectTypeFilter) ([]*models.ObjectType, error) {
-	return nil, fmt.Errorf("List not implemented yet")
+	r.metrics.QueryCount++
+
+	if filter == nil {
+		filter = &models.ObjectTypeFilter{}
+	}
+
+	query := `
+		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
+		FROM object_types`
+	whereClauses := []string{}
+	args := []interface{}{}
+	argIndex := 1
+
+	if filter.Name != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("name ILIKE $%d", argIndex))
+		args = append(args, fmt.Sprintf("%%%s%%", filter.Name))
+		argIndex++
+	}
+
+	if filter.ParentID != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("parent_type_id = $%d", argIndex))
+		args = append(args, *filter.ParentID)
+		argIndex++
+	}
+
+	if filter.IsSealed != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("is_sealed = $%d", argIndex))
+		args = append(args, *filter.IsSealed)
+		argIndex++
+	}
+
+	if len(whereClauses) > 0 {
+		query += " WHERE " + strings.Join(whereClauses, " AND ")
+	}
+
+	query += " ORDER BY name"
+
+	if filter.Limit > 0 {
+		query += fmt.Sprintf(" LIMIT $%d", argIndex)
+		args = append(args, filter.Limit)
+		argIndex++
+	}
+
+	if filter.Offset > 0 {
+		query += fmt.Sprintf(" OFFSET $%d", argIndex)
+		args = append(args, filter.Offset)
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to list object types: %w", err)
+	}
+	defer rows.Close()
+
+	var objectTypes []*models.ObjectType
+	for rows.Next() {
+		var objectType models.ObjectType
+		var parentID sql.NullInt64
+
+		err := rows.Scan(
+			&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
+			&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
+			&objectType.CreatedAt, &objectType.UpdatedAt,
+		)
+		if err != nil {
+			r.metrics.ErrorCount++
+			return nil, fmt.Errorf("failed to scan object type row: %w", err)
+		}
+
+		if parentID.Valid {
+			objectType.ParentTypeID = &parentID.Int64
+		}
+
+		objectType.Children = []models.ObjectType{}
+		objectTypes = append(objectTypes, &objectType)
+	}
+
+	return objectTypes, nil
 }
 
-// TODO: Implement Search - text search across object types
+// Search performs text search across object types
 func (r *objectTypeRepository) Search(ctx context.Context, query string, limit int) ([]*models.ObjectType, error) {
-	return nil, fmt.Errorf("Search not implemented yet")
+	r.metrics.QueryCount++
+
+	if limit <= 0 {
+		limit = 50
+	}
+
+	searchQuery := `
+		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
+		FROM object_types
+		WHERE name ILIKE $1 OR description ILIKE $1
+		ORDER BY
+			CASE WHEN name ILIKE $1 THEN 0 ELSE 1 END,
+			name
+		LIMIT $2`
+
+	pattern := fmt.Sprintf("%%%s%%", query)
+	rows, err := r.db.Query(ctx, searchQuery, pattern, limit)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to search object types: %w", err)
+	}
+	defer rows.Close()
+
+	var objectTypes []*models.ObjectType
+	for rows.Next() {
+		var objectType models.ObjectType
+		var parentID sql.NullInt64
+
+		err := rows.Scan(
+			&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
+			&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
+			&objectType.CreatedAt, &objectType.UpdatedAt,
+		)
+		if err != nil {
+			r.metrics.ErrorCount++
+			return nil, fmt.Errorf("failed to scan search result: %w", err)
+		}
+
+		if parentID.Valid {
+			objectType.ParentTypeID = &parentID.Int64
+		}
+
+		objectType.Children = []models.ObjectType{}
+		objectTypes = append(objectTypes, &objectType)
+	}
+
+	return objectTypes, nil
 }
 
 // TODO: Implement ValidateMove - validate moving an object type to a new parent

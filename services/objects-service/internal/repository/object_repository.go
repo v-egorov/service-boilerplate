@@ -634,19 +634,195 @@ func (r *objectRepository) loadObjectTypesForObjects(ctx context.Context, object
 	}
 }
 
-// Placeholder methods to be implemented
+func (r *objectRepository) Search(ctx context.Context, searchQuery string, limit int) ([]*models.Object, error) {
+	r.metrics.QueryCount++
 
-func (r *objectRepository) Search(ctx context.Context, query string, limit int) ([]*models.Object, error) {
-	return nil, fmt.Errorf("Search not implemented yet")
+	if limit <= 0 {
+		limit = 50
+	}
+
+	query := `
+		SELECT id, public_id, object_type_id, parent_object_id, name, description,
+			   metadata, tags, status, version, created_by, updated_by,
+			   created_at, updated_at, deleted_at
+		FROM objects
+		WHERE deleted_at IS NULL
+		  AND (name ILIKE $1 OR description ILIKE $1 OR tags @> $2::text[])
+		ORDER BY
+			CASE WHEN name ILIKE $1 THEN 0 ELSE 1 END,
+			created_at DESC
+		LIMIT $3`
+
+	pattern := fmt.Sprintf("%%%s%%", searchQuery)
+	rows, err := r.db.Query(ctx, query, pattern, []string{searchQuery}, limit)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to search objects: %w", err)
+	}
+	defer rows.Close()
+
+	var objects []*models.Object
+	for rows.Next() {
+		var object models.Object
+		var parentObjectID sql.NullInt64
+		var deletedAt sql.NullTime
+
+		err := rows.Scan(
+			&object.ID, &object.PublicID, &object.ObjectTypeID, &parentObjectID,
+			&object.Name, &object.Description, &object.Metadata, &object.Tags,
+			&object.Status, &object.Version, &object.CreatedBy, &object.UpdatedBy,
+			&object.CreatedAt, &object.UpdatedAt, &deletedAt,
+		)
+		if err != nil {
+			r.metrics.ErrorCount++
+			return nil, fmt.Errorf("failed to scan object row: %w", err)
+		}
+
+		if parentObjectID.Valid {
+			object.ParentObjectID = &parentObjectID.Int64
+		}
+		if deletedAt.Valid {
+			object.DeletedAt = &deletedAt.Time
+		}
+
+		objects = append(objects, &object)
+	}
+
+	if len(objects) > 0 {
+		r.loadObjectTypesForObjects(ctx, objects)
+	}
+
+	return objects, nil
 }
 
 func (r *objectRepository) FindByMetadata(ctx context.Context, key, value string) ([]*models.Object, error) {
-	return nil, fmt.Errorf("FindByMetadata not implemented yet")
+	r.metrics.QueryCount++
+
+	query := `
+		SELECT id, public_id, object_type_id, parent_object_id, name, description,
+			   metadata, tags, status, version, created_by, updated_by,
+			   created_at, updated_at, deleted_at
+		FROM objects
+		WHERE deleted_at IS NULL
+		  AND metadata @> $1::jsonb
+		ORDER BY created_at DESC`
+
+	metadataFilter := map[string]interface{}{
+		key: value,
+	}
+	metadataJSON, _ := json.Marshal(metadataFilter)
+
+	rows, err := r.db.Query(ctx, query, metadataJSON)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to find by metadata: %w", err)
+	}
+	defer rows.Close()
+
+	var objects []*models.Object
+	for rows.Next() {
+		var object models.Object
+		var parentObjectID sql.NullInt64
+		var deletedAt sql.NullTime
+
+		err := rows.Scan(
+			&object.ID, &object.PublicID, &object.ObjectTypeID, &parentObjectID,
+			&object.Name, &object.Description, &object.Metadata, &object.Tags,
+			&object.Status, &object.Version, &object.CreatedBy, &object.UpdatedBy,
+			&object.CreatedAt, &object.UpdatedAt, &deletedAt,
+		)
+		if err != nil {
+			r.metrics.ErrorCount++
+			return nil, fmt.Errorf("failed to scan object row: %w", err)
+		}
+
+		if parentObjectID.Valid {
+			object.ParentObjectID = &parentObjectID.Int64
+		}
+		if deletedAt.Valid {
+			object.DeletedAt = &deletedAt.Time
+		}
+
+		objects = append(objects, &object)
+	}
+
+	if len(objects) > 0 {
+		r.loadObjectTypesForObjects(ctx, objects)
+	}
+
+	return objects, nil
 }
 
 func (r *objectRepository) FindByTags(ctx context.Context, tags []string, matchAll bool) ([]*models.Object, error) {
-	return nil, fmt.Errorf("FindByTags not implemented yet")
+	r.metrics.QueryCount++
+
+	var query string
+	var args []interface{}
+
+	if matchAll {
+		query = `
+			SELECT id, public_id, object_type_id, parent_object_id, name, description,
+				   metadata, tags, status, version, created_by, updated_by,
+				   created_at, updated_at, deleted_at
+			FROM objects
+			WHERE deleted_at IS NULL
+			  AND tags @> $1::text[]
+			ORDER BY created_at DESC`
+		args = append(args, tags)
+	} else {
+		query = `
+			SELECT id, public_id, object_type_id, parent_object_id, name, description,
+				   metadata, tags, status, version, created_by, updated_by,
+				   created_at, updated_at, deleted_at
+			FROM objects
+			WHERE deleted_at IS NULL
+			  AND tags && $1::text[]
+			ORDER BY created_at DESC`
+		args = append(args, tags)
+	}
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to find by tags: %w", err)
+	}
+	defer rows.Close()
+
+	var objects []*models.Object
+	for rows.Next() {
+		var object models.Object
+		var parentObjectID sql.NullInt64
+		var deletedAt sql.NullTime
+
+		err := rows.Scan(
+			&object.ID, &object.PublicID, &object.ObjectTypeID, &parentObjectID,
+			&object.Name, &object.Description, &object.Metadata, &object.Tags,
+			&object.Status, &object.Version, &object.CreatedBy, &object.UpdatedBy,
+			&object.CreatedAt, &object.UpdatedAt, &deletedAt,
+		)
+		if err != nil {
+			r.metrics.ErrorCount++
+			return nil, fmt.Errorf("failed to scan object row: %w", err)
+		}
+
+		if parentObjectID.Valid {
+			object.ParentObjectID = &parentObjectID.Int64
+		}
+		if deletedAt.Valid {
+			object.DeletedAt = &deletedAt.Time
+		}
+
+		objects = append(objects, &object)
+	}
+
+	if len(objects) > 0 {
+		r.loadObjectTypesForObjects(ctx, objects)
+	}
+
+	return objects, nil
 }
+
+// Placeholder methods to be implemented
 
 func (r *objectRepository) UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}) error {
 	return fmt.Errorf("UpdateMetadata not implemented yet")
@@ -661,7 +837,55 @@ func (r *objectRepository) RemoveTags(ctx context.Context, id int64, tags []stri
 }
 
 func (r *objectRepository) GetChildren(ctx context.Context, parentID int64) ([]*models.Object, error) {
-	return nil, fmt.Errorf("GetChildren not implemented yet")
+	r.metrics.QueryCount++
+
+	query := `
+		SELECT id, public_id, object_type_id, parent_object_id, name, description,
+			   metadata, tags, status, version, created_by, updated_by,
+			   created_at, updated_at, deleted_at
+		FROM objects
+		WHERE parent_object_id = $1 AND deleted_at IS NULL
+		ORDER BY name ASC`
+
+	rows, err := r.db.Query(ctx, query, parentID)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to get children: %w", err)
+	}
+	defer rows.Close()
+
+	var objects []*models.Object
+	for rows.Next() {
+		var object models.Object
+		var parentObjectID sql.NullInt64
+		var deletedAt sql.NullTime
+
+		err := rows.Scan(
+			&object.ID, &object.PublicID, &object.ObjectTypeID, &parentObjectID,
+			&object.Name, &object.Description, &object.Metadata, &object.Tags,
+			&object.Status, &object.Version, &object.CreatedBy, &object.UpdatedBy,
+			&object.CreatedAt, &object.UpdatedAt, &deletedAt,
+		)
+		if err != nil {
+			r.metrics.ErrorCount++
+			return nil, fmt.Errorf("failed to scan child row: %w", err)
+		}
+
+		if parentObjectID.Valid {
+			object.ParentObjectID = &parentObjectID.Int64
+		}
+		if deletedAt.Valid {
+			object.DeletedAt = &deletedAt.Time
+		}
+
+		objects = append(objects, &object)
+	}
+
+	if len(objects) > 0 {
+		r.loadObjectTypesForObjects(ctx, objects)
+	}
+
+	return objects, nil
 }
 
 func (r *objectRepository) GetDescendants(ctx context.Context, rootID int64, maxDepth *int) ([]*models.Object, error) {
@@ -676,8 +900,77 @@ func (r *objectRepository) GetPath(ctx context.Context, id int64) ([]*models.Obj
 	return nil, fmt.Errorf("GetPath not implemented yet")
 }
 
-func (r *objectRepository) BulkCreate(ctx context.Context, objects []*models.CreateObjectRequest) ([]*models.Object, error) {
-	return nil, fmt.Errorf("BulkCreate not implemented yet")
+func (r *objectRepository) BulkCreate(ctx context.Context, inputs []*models.CreateObjectRequest) ([]*models.Object, error) {
+	r.metrics.QueryCount++
+
+	if len(inputs) == 0 {
+		return []*models.Object{}, nil
+	}
+
+	query := `
+		INSERT INTO objects (
+			public_id, object_type_id, parent_object_id, name, description,
+			metadata, tags, status, version, created_by, updated_by
+		) VALUES`
+
+	valueStrings := []string{}
+	valueArgs := []interface{}{}
+	for i, input := range inputs {
+		offset := i * 11
+		valueStrings = append(valueStrings, fmt.Sprintf("($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
+			offset+1, offset+2, offset+3, offset+4, offset+5, offset+6, offset+7, offset+8, offset+9, offset+10, offset+11))
+
+		publicID := uuid.New()
+		tags := input.Tags
+		status := models.StatusActive
+		version := 1
+		createdBy := "system"
+		updatedBy := "system"
+
+		valueArgs = append(valueArgs,
+			publicID, input.ObjectTypeID, input.ParentObjectID, input.Name, input.Description,
+			input.Metadata, tags, status, version, createdBy, updatedBy)
+	}
+
+	query += strings.Join(valueStrings, ", ")
+	query += ` RETURNING id, public_id, object_type_id, parent_object_id, name, description,
+					metadata, tags, status, version, created_by, updated_by, created_at, updated_at`
+
+	rows, err := r.db.Query(ctx, query, valueArgs...)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to bulk create objects: %w", err)
+	}
+	defer rows.Close()
+
+	var objects []*models.Object
+	for rows.Next() {
+		var object models.Object
+		var parentObjectID sql.NullInt64
+
+		err := rows.Scan(
+			&object.ID, &object.PublicID, &object.ObjectTypeID, &parentObjectID,
+			&object.Name, &object.Description, &object.Metadata, &object.Tags,
+			&object.Status, &object.Version, &object.CreatedBy, &object.UpdatedBy,
+			&object.CreatedAt, &object.UpdatedAt,
+		)
+		if err != nil {
+			r.metrics.ErrorCount++
+			return nil, fmt.Errorf("failed to scan bulk create result: %w", err)
+		}
+
+		if parentObjectID.Valid {
+			object.ParentObjectID = &parentObjectID.Int64
+		}
+
+		objects = append(objects, &object)
+	}
+
+	if len(objects) > 0 {
+		r.loadObjectTypesForObjects(ctx, objects)
+	}
+
+	return objects, nil
 }
 
 func (r *objectRepository) BulkUpdate(ctx context.Context, ids []int64, updates *models.UpdateObjectRequest) ([]*models.Object, error) {
