@@ -846,12 +846,54 @@ func (r *objectTypeRepository) Search(ctx context.Context, query string, limit i
 	return objectTypes, nil
 }
 
-// TODO: Implement ValidateMove - validate moving an object type to a new parent
+// ValidateMove validates moving an object type to a new parent
 func (r *objectTypeRepository) ValidateMove(ctx context.Context, id int64, newParentID *int64) error {
-	return fmt.Errorf("ValidateMove not implemented yet")
+	r.metrics.QueryCount++
+
+	if newParentID == nil {
+		return nil
+	}
+
+	if *newParentID == id {
+		return fmt.Errorf("object type cannot be moved to itself")
+	}
+
+	ancestors, err := r.GetAncestors(ctx, id)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return fmt.Errorf("failed to get ancestors: %w", err)
+	}
+
+	for _, ancestor := range ancestors {
+		if ancestor.ID == *newParentID {
+			return fmt.Errorf("circular dependency: cannot move object type under its own descendant")
+		}
+	}
+
+	return nil
 }
 
-// TODO: Implement GetSubtreeObjectCount - count all objects in a subtree
+// GetSubtreeObjectCount counts all objects in a subtree
 func (r *objectTypeRepository) GetSubtreeObjectCount(ctx context.Context, id int64) (int64, error) {
-	return 0, fmt.Errorf("GetSubtreeObjectCount not implemented yet")
+	r.metrics.QueryCount++
+
+	query := `
+		WITH RECURSIVE subtree AS (
+			SELECT id FROM object_types WHERE id = $1
+			UNION ALL
+			SELECT ot.id FROM object_types ot
+			INNER JOIN subtree t ON ot.parent_type_id = t.id
+		)
+		SELECT COUNT(*) FROM objects o
+		WHERE o.object_type_id IN (SELECT id FROM subtree)
+		  AND o.deleted_at IS NULL`
+
+	var count int64
+	err := r.db.QueryRow(ctx, query, id).Scan(&count)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return 0, fmt.Errorf("failed to count subtree objects: %w", err)
+	}
+
+	return count, nil
 }

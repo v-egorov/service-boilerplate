@@ -940,15 +940,209 @@ func (r *objectRepository) GetChildren(ctx context.Context, parentID int64) ([]*
 }
 
 func (r *objectRepository) GetDescendants(ctx context.Context, rootID int64, maxDepth *int) ([]*models.Object, error) {
-	return nil, fmt.Errorf("GetDescendants not implemented yet")
+	r.metrics.QueryCount++
+
+	query := `
+		WITH RECURSIVE descendants AS (
+			SELECT id, public_id, object_type_id, parent_object_id, name, description,
+				   metadata, tags, status, version, created_by, updated_by,
+				   created_at, updated_at, deleted_at, 1 as depth
+			FROM objects WHERE id = $1 AND deleted_at IS NULL
+
+			UNION ALL
+
+			SELECT o.id, o.public_id, o.object_type_id, o.parent_object_id, o.name, o.description,
+				   o.metadata, o.tags, o.status, o.version, o.created_by, o.updated_by,
+				   o.created_at, o.updated_at, o.deleted_at, d.depth + 1
+			FROM objects o
+			INNER JOIN descendants d ON o.parent_object_id = d.id
+			WHERE o.deleted_at IS NULL
+		)
+		SELECT id, public_id, object_type_id, parent_object_id, name, description,
+			   metadata, tags, status, version, created_by, updated_by,
+			   created_at, updated_at, deleted_at
+		FROM descendants`
+
+	args := []interface{}{rootID}
+	if maxDepth != nil {
+		query += " WHERE depth <= $2"
+		args = append(args, *maxDepth)
+	}
+
+	query += " ORDER BY depth, name"
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to get descendants: %w", err)
+	}
+	defer rows.Close()
+
+	var objects []*models.Object
+	for rows.Next() {
+		var object models.Object
+		var parentObjectID sql.NullInt64
+		var deletedAt sql.NullTime
+
+		err := rows.Scan(
+			&object.ID, &object.PublicID, &object.ObjectTypeID, &parentObjectID,
+			&object.Name, &object.Description, &object.Metadata, &object.Tags,
+			&object.Status, &object.Version, &object.CreatedBy, &object.UpdatedBy,
+			&object.CreatedAt, &object.UpdatedAt, &deletedAt,
+		)
+		if err != nil {
+			r.metrics.ErrorCount++
+			return nil, fmt.Errorf("failed to scan descendant row: %w", err)
+		}
+
+		if parentObjectID.Valid {
+			object.ParentObjectID = &parentObjectID.Int64
+		}
+		if deletedAt.Valid {
+			object.DeletedAt = &deletedAt.Time
+		}
+
+		objects = append(objects, &object)
+	}
+
+	if len(objects) > 0 {
+		r.loadObjectTypesForObjects(ctx, objects)
+	}
+
+	return objects, nil
 }
 
 func (r *objectRepository) GetAncestors(ctx context.Context, id int64) ([]*models.Object, error) {
-	return nil, fmt.Errorf("GetAncestors not implemented yet")
+	r.metrics.QueryCount++
+
+	query := `
+		WITH RECURSIVE ancestors AS (
+			SELECT id, public_id, object_type_id, parent_object_id, name, description,
+				   metadata, tags, status, version, created_by, updated_by,
+				   created_at, updated_at, deleted_at, 1 as level
+			FROM objects WHERE id = $1 AND deleted_at IS NULL
+
+			UNION ALL
+
+			SELECT o.id, o.public_id, o.object_type_id, o.parent_object_id, o.name, o.description,
+				   o.metadata, o.tags, o.status, o.version, o.created_by, o.updated_by,
+				   o.created_at, o.updated_at, o.deleted_at, a.level + 1
+			FROM objects o
+			INNER JOIN ancestors a ON o.id = a.parent_object_id
+			WHERE o.deleted_at IS NULL
+		)
+		SELECT id, public_id, object_type_id, parent_object_id, name, description,
+			   metadata, tags, status, version, created_by, updated_by,
+			   created_at, updated_at, deleted_at
+		FROM ancestors
+		WHERE id != $1
+		ORDER BY level DESC`
+
+	rows, err := r.db.Query(ctx, query, id)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to get ancestors: %w", err)
+	}
+	defer rows.Close()
+
+	var objects []*models.Object
+	for rows.Next() {
+		var object models.Object
+		var parentObjectID sql.NullInt64
+		var deletedAt sql.NullTime
+
+		err := rows.Scan(
+			&object.ID, &object.PublicID, &object.ObjectTypeID, &parentObjectID,
+			&object.Name, &object.Description, &object.Metadata, &object.Tags,
+			&object.Status, &object.Version, &object.CreatedBy, &object.UpdatedBy,
+			&object.CreatedAt, &object.UpdatedAt, &deletedAt,
+		)
+		if err != nil {
+			r.metrics.ErrorCount++
+			return nil, fmt.Errorf("failed to scan ancestor row: %w", err)
+		}
+
+		if parentObjectID.Valid {
+			object.ParentObjectID = &parentObjectID.Int64
+		}
+		if deletedAt.Valid {
+			object.DeletedAt = &deletedAt.Time
+		}
+
+		objects = append(objects, &object)
+	}
+
+	if len(objects) > 0 {
+		r.loadObjectTypesForObjects(ctx, objects)
+	}
+
+	return objects, nil
 }
 
 func (r *objectRepository) GetPath(ctx context.Context, id int64) ([]*models.Object, error) {
-	return nil, fmt.Errorf("GetPath not implemented yet")
+	r.metrics.QueryCount++
+
+	query := `
+		WITH RECURSIVE path AS (
+			SELECT id, public_id, object_type_id, parent_object_id, name, description,
+				   metadata, tags, status, version, created_by, updated_by,
+				   created_at, updated_at, deleted_at, 1 as level
+			FROM objects WHERE id = $1 AND deleted_at IS NULL
+
+			UNION ALL
+
+			SELECT o.id, o.public_id, o.object_type_id, o.parent_object_id, o.name, o.description,
+				   o.metadata, o.tags, o.status, o.version, o.created_by, o.updated_by,
+				   o.created_at, o.updated_at, o.deleted_at, p.level + 1
+			FROM objects o
+			INNER JOIN path p ON o.id = p.parent_object_id
+			WHERE o.deleted_at IS NULL
+		)
+		SELECT id, public_id, object_type_id, parent_object_id, name, description,
+			   metadata, tags, status, version, created_by, updated_by,
+			   created_at, updated_at, deleted_at
+		FROM path
+		ORDER BY level DESC`
+
+	rows, err := r.db.Query(ctx, query, id)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to get path: %w", err)
+	}
+	defer rows.Close()
+
+	var objects []*models.Object
+	for rows.Next() {
+		var object models.Object
+		var parentObjectID sql.NullInt64
+		var deletedAt sql.NullTime
+
+		err := rows.Scan(
+			&object.ID, &object.PublicID, &object.ObjectTypeID, &parentObjectID,
+			&object.Name, &object.Description, &object.Metadata, &object.Tags,
+			&object.Status, &object.Version, &object.CreatedBy, &object.UpdatedBy,
+			&object.CreatedAt, &object.UpdatedAt, &deletedAt,
+		)
+		if err != nil {
+			r.metrics.ErrorCount++
+			return nil, fmt.Errorf("failed to scan path row: %w", err)
+		}
+
+		if parentObjectID.Valid {
+			object.ParentObjectID = &parentObjectID.Int64
+		}
+		if deletedAt.Valid {
+			object.DeletedAt = &deletedAt.Time
+		}
+
+		objects = append(objects, &object)
+	}
+
+	if len(objects) > 0 {
+		r.loadObjectTypesForObjects(ctx, objects)
+	}
+
+	return objects, nil
 }
 
 func (r *objectRepository) BulkCreate(ctx context.Context, inputs []*models.CreateObjectRequest) ([]*models.Object, error) {
@@ -1025,15 +1219,171 @@ func (r *objectRepository) BulkCreate(ctx context.Context, inputs []*models.Crea
 }
 
 func (r *objectRepository) BulkUpdate(ctx context.Context, ids []int64, updates *models.UpdateObjectRequest) ([]*models.Object, error) {
-	return nil, fmt.Errorf("BulkUpdate not implemented yet")
+	r.metrics.QueryCount++
+
+	if len(ids) == 0 {
+		return []*models.Object{}, nil
+	}
+
+	if updates == nil {
+		return nil, fmt.Errorf("updates cannot be nil")
+	}
+
+	setClauses := []string{}
+	args := []interface{}{}
+	argIndex := 1
+
+	if updates.Name != nil {
+		setClauses = append(setClauses, fmt.Sprintf("name = $%d", argIndex))
+		args = append(args, *updates.Name)
+		argIndex++
+	}
+
+	if updates.Description != nil {
+		setClauses = append(setClauses, fmt.Sprintf("description = $%d", argIndex))
+		args = append(args, *updates.Description)
+		argIndex++
+	}
+
+	if updates.Status != nil {
+		setClauses = append(setClauses, fmt.Sprintf("status = $%d", argIndex))
+		args = append(args, *updates.Status)
+		argIndex++
+	}
+
+	if updates.Metadata != nil {
+		metadataBytes, err := json.Marshal(*updates.Metadata)
+		if err != nil {
+			r.metrics.ErrorCount++
+			return nil, fmt.Errorf("failed to marshal metadata: %w", err)
+		}
+		setClauses = append(setClauses, fmt.Sprintf("metadata = $%d", argIndex))
+		args = append(args, metadataBytes)
+		argIndex++
+	}
+
+	if updates.Tags != nil {
+		setClauses = append(setClauses, fmt.Sprintf("tags = $%d", argIndex))
+		args = append(args, *updates.Tags)
+		argIndex++
+	}
+
+	if len(setClauses) == 0 {
+		return []*models.Object{}, nil
+	}
+
+	setClauses = append(setClauses, fmt.Sprintf("version = version + 1"))
+	setClauses = append(setClauses, "updated_at = CURRENT_TIMESTAMP")
+	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", argIndex))
+	args = append(args, "system")
+	argIndex++
+
+	idArray := fmt.Sprintf("$%d", argIndex)
+	args = append(args, ids)
+
+	query := fmt.Sprintf(`
+		UPDATE objects
+		SET %s
+		WHERE id = ANY(%s::bigint[]) AND deleted_at IS NULL
+		RETURNING id, public_id, object_type_id, parent_object_id, name, description,
+				  metadata, tags, status, version, created_by, updated_by,
+				  created_at, updated_at, deleted_at`,
+		strings.Join(setClauses, ", "),
+		idArray,
+	)
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to bulk update objects: %w", err)
+	}
+	defer rows.Close()
+
+	var objects []*models.Object
+	for rows.Next() {
+		var object models.Object
+		var parentObjectID sql.NullInt64
+		var deletedAt sql.NullTime
+
+		err := rows.Scan(
+			&object.ID, &object.PublicID, &object.ObjectTypeID, &parentObjectID,
+			&object.Name, &object.Description, &object.Metadata, &object.Tags,
+			&object.Status, &object.Version, &object.CreatedBy, &object.UpdatedBy,
+			&object.CreatedAt, &object.UpdatedAt, &deletedAt,
+		)
+		if err != nil {
+			r.metrics.ErrorCount++
+			return nil, fmt.Errorf("failed to scan bulk update result: %w", err)
+		}
+
+		if parentObjectID.Valid {
+			object.ParentObjectID = &parentObjectID.Int64
+		}
+		if deletedAt.Valid {
+			object.DeletedAt = &deletedAt.Time
+		}
+
+		objects = append(objects, &object)
+	}
+
+	if len(objects) > 0 {
+		r.loadObjectTypesForObjects(ctx, objects)
+	}
+
+	return objects, nil
 }
 
 func (r *objectRepository) BulkDelete(ctx context.Context, ids []int64) error {
-	return fmt.Errorf("BulkDelete not implemented yet")
+	r.metrics.QueryCount++
+
+	if len(ids) == 0 {
+		return nil
+	}
+
+	idArray := fmt.Sprintf("$1::bigint[]")
+	query := fmt.Sprintf(`
+		UPDATE objects
+		SET deleted_at = CURRENT_TIMESTAMP, status = 'deleted', updated_at = CURRENT_TIMESTAMP
+		WHERE id = ANY(%s) AND deleted_at IS NULL`, idArray)
+
+	_, err := r.db.Exec(ctx, query, ids)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return fmt.Errorf("failed to bulk delete objects: %w", err)
+	}
+
+	return nil
 }
 
 func (r *objectRepository) ValidateParentChild(ctx context.Context, parentID, childID int64) error {
-	return fmt.Errorf("ValidateParentChild not implemented yet")
+	r.metrics.QueryCount++
+
+	if parentID == childID {
+		return fmt.Errorf("object cannot be its own parent")
+	}
+
+	query := `
+		WITH RECURSIVE descendants AS (
+			SELECT id, parent_object_id FROM objects WHERE id = $1 AND deleted_at IS NULL
+			UNION ALL
+			SELECT o.id, o.parent_object_id
+			FROM objects o
+			INNER JOIN descendants d ON o.parent_object_id = d.id
+			WHERE o.deleted_at IS NULL
+		)
+		SELECT COUNT(*) FROM descendants WHERE id = $2`
+
+	var count int64
+	err := r.db.QueryRow(ctx, query, parentID, childID).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("failed to validate parent-child: %w", err)
+	}
+
+	if count > 0 {
+		return fmt.Errorf("circular dependency detected")
+	}
+
+	return nil
 }
 
 func (r *objectRepository) CanDelete(ctx context.Context, id int64) (bool, error) {
@@ -1053,5 +1403,98 @@ func (r *objectRepository) CanDelete(ctx context.Context, id int64) (bool, error
 }
 
 func (r *objectRepository) GetObjectStats(ctx context.Context, filter *models.ObjectFilter) (*ObjectStats, error) {
-	return nil, fmt.Errorf("GetObjectStats not implemented yet")
+	r.metrics.QueryCount++
+
+	stats := &ObjectStats{
+		ByStatus: make(map[string]int64),
+		ByType:   make(map[int64]int64),
+		ByTags:   make(map[string]int64),
+	}
+
+	baseQuery := "FROM objects"
+	whereClauses := []string{}
+	if filter == nil || filter.Status != models.StatusDeleted {
+		whereClauses = append(whereClauses, "deleted_at IS NULL")
+	}
+
+	if filter != nil && filter.ObjectTypeID != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("object_type_id = $1"))
+	}
+
+	whereSQL := ""
+	if len(whereClauses) > 0 {
+		whereSQL = "WHERE " + strings.Join(whereClauses, " AND ")
+	}
+
+	totalQuery := fmt.Sprintf("SELECT COUNT(*) %s %s", baseQuery, whereSQL)
+	args := []interface{}{}
+	if filter != nil && filter.ObjectTypeID != nil {
+		args = append(args, *filter.ObjectTypeID)
+	}
+
+	var total int64
+	err := r.db.QueryRow(ctx, totalQuery, args...).Scan(&total)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to count total objects: %w", err)
+	}
+	stats.Total = total
+
+	statusQuery := fmt.Sprintf(`
+		SELECT status, COUNT(*)
+		FROM objects
+		WHERE deleted_at IS NULL
+		GROUP BY status`)
+
+	rows, err := r.db.Query(ctx, statusQuery)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to get status stats: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var status string
+		var count int64
+		if err := rows.Scan(&status, &count); err != nil {
+			continue
+		}
+		stats.ByStatus[status] = count
+	}
+
+	typeQuery := fmt.Sprintf(`
+		SELECT object_type_id, COUNT(*)
+		FROM objects
+		WHERE deleted_at IS NULL
+		GROUP BY object_type_id`)
+
+	rows, err = r.db.Query(ctx, typeQuery)
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to get type stats: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var typeID int64
+		var count int64
+		if err := rows.Scan(&typeID, &count); err != nil {
+			continue
+		}
+		stats.ByType[typeID] = count
+	}
+
+	recentQuery := `
+		SELECT COUNT(*)
+		FROM objects
+		WHERE deleted_at IS NULL
+		  AND created_at > CURRENT_TIMESTAMP - INTERVAL '30 days'`
+
+	var recent int64
+	err = r.db.QueryRow(ctx, recentQuery).Scan(&recent)
+	if err == nil {
+		stats.Recent = recent
+	}
+
+	return stats, nil
 }

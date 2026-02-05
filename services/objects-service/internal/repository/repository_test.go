@@ -285,6 +285,227 @@ func TestQueryBuilder(t *testing.T) {
 	assert.Len(t, args, 1)
 }
 
+// TestObjectTypeRepository_ValidateMove tests move validation
+func TestObjectTypeRepository_ValidateMove(t *testing.T) {
+	mockDB := &MockDBPool{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			rows := &MockRows{
+				NextFunc: func() bool {
+					return false
+				},
+			}
+			return rows, nil
+		},
+	}
+
+	repo := NewObjectTypeRepository(mockDB, DefaultRepositoryOptions())
+
+	newParentID := int64(2)
+	err := repo.ValidateMove(context.Background(), 1, &newParentID)
+	assert.NoError(t, err)
+}
+
+// TestObjectTypeRepository_ValidateMove_ToSelf tests moving to self
+func TestObjectTypeRepository_ValidateMove_ToSelf(t *testing.T) {
+	mockDB := &MockDBPool{}
+
+	repo := NewObjectTypeRepository(mockDB, DefaultRepositoryOptions())
+
+	newParentID := int64(1)
+	err := repo.ValidateMove(context.Background(), 1, &newParentID)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot be moved to itself")
+}
+
+// TestObjectTypeRepository_ValidateMove_NilParent tests moving to root
+func TestObjectTypeRepository_ValidateMove_NilParent(t *testing.T) {
+	mockDB := &MockDBPool{}
+
+	repo := NewObjectTypeRepository(mockDB, DefaultRepositoryOptions())
+
+	err := repo.ValidateMove(context.Background(), 1, nil)
+	assert.NoError(t, err)
+}
+
+// TestObjectTypeRepository_GetSubtreeObjectCount tests counting subtree objects
+func TestObjectTypeRepository_GetSubtreeObjectCount(t *testing.T) {
+	mockDB := &MockDBPool{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return &MockRow{}
+		},
+	}
+
+	repo := NewObjectTypeRepository(mockDB, DefaultRepositoryOptions())
+
+	count, err := repo.GetSubtreeObjectCount(context.Background(), 1)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), count)
+}
+
+// TestObjectRepository_GetDescendants tests getting descendants
+func TestObjectRepository_GetDescendants(t *testing.T) {
+	mockDB := &MockDBPool{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			rows := &MockRows{
+				NextFunc: func() bool {
+					return false
+				},
+			}
+			return rows, nil
+		},
+	}
+
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	result, err := repo.GetDescendants(context.Background(), 1, nil)
+	assert.NoError(t, err)
+	assert.Nil(t, result)
+}
+
+// TestObjectRepository_GetAncestors tests getting ancestors
+func TestObjectRepository_GetAncestors(t *testing.T) {
+	mockDB := &MockDBPool{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			rows := &MockRows{
+				NextFunc: func() bool {
+					return false
+				},
+			}
+			return rows, nil
+		},
+	}
+
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	result, err := repo.GetAncestors(context.Background(), 1)
+	assert.NoError(t, err)
+	assert.Nil(t, result)
+}
+
+// TestObjectRepository_GetPath tests getting path to root
+func TestObjectRepository_GetPath(t *testing.T) {
+	mockDB := &MockDBPool{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			rows := &MockRows{
+				NextFunc: func() bool {
+					return false
+				},
+			}
+			return rows, nil
+		},
+	}
+
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	result, err := repo.GetPath(context.Background(), 1)
+	assert.NoError(t, err)
+	assert.Nil(t, result)
+}
+
+// TestObjectRepository_BulkUpdate tests bulk updating objects
+func TestObjectRepository_BulkUpdate(t *testing.T) {
+	mockDB := &MockDBPool{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			rows := &MockRows{
+				NextFunc: func() bool {
+					return false
+				},
+			}
+			return rows, nil
+		},
+	}
+
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	ids := []int64{1, 2, 3}
+	name := "updated-name"
+	updates := &models.UpdateObjectRequest{
+		Name: &name,
+	}
+
+	result, err := repo.BulkUpdate(context.Background(), ids, updates)
+	assert.NoError(t, err)
+	assert.Nil(t, result)
+}
+
+// TestObjectRepository_BulkUpdate_EmptyIds tests with empty ids
+func TestObjectRepository_BulkUpdate_EmptyIds(t *testing.T) {
+	mockDB := &MockDBPool{}
+
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	updates := &models.UpdateObjectRequest{}
+
+	result, err := repo.BulkUpdate(context.Background(), []int64{}, updates)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Len(t, result, 0)
+}
+
+// TestObjectRepository_BulkDelete tests bulk deleting objects
+func TestObjectRepository_BulkDelete(t *testing.T) {
+	mockDB := &MockDBPool{
+		ExecFunc: func(ctx context.Context, sql string, args ...any) (CommandTag, error) {
+			return nil, nil
+		},
+	}
+
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	ids := []int64{1, 2, 3}
+
+	err := repo.BulkDelete(context.Background(), ids)
+	assert.NoError(t, err)
+}
+
+// TestObjectRepository_BulkDelete_EmptyIds tests bulk delete with empty ids
+func TestObjectRepository_BulkDelete_EmptyIds(t *testing.T) {
+	mockDB := &MockDBPool{}
+
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	err := repo.BulkDelete(context.Background(), []int64{})
+	assert.NoError(t, err)
+}
+
+// TestObjectRepository_ValidateParentChild tests parent-child validation
+func TestObjectRepository_ValidateParentChild(t *testing.T) {
+	mockDB := &MockDBPool{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return &MockRow{}
+		},
+	}
+
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	err := repo.ValidateParentChild(context.Background(), 1, 2)
+	assert.NoError(t, err)
+}
+
+// TestObjectRepository_ValidateParentChild_Self tests self-parent validation
+func TestObjectRepository_ValidateParentChild_Self(t *testing.T) {
+	mockDB := &MockDBPool{}
+
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	err := repo.ValidateParentChild(context.Background(), 1, 1)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot be its own parent")
+}
+
+// TestObjectRepository_GetObjectStats tests getting object statistics
+func TestObjectRepository_GetObjectStats(t *testing.T) {
+	mockDB := &MockDBPool{
+		QueryRowFunc: func(ctx context.Context, sql string, args ...any) Row {
+			return &MockRow{}
+		},
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			rows := &MockRows{
+				NextFunc: func() bool {
+					return false
+				},
+			}
+			return rows, nil
+		},
+	}
+
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	stats, err := repo.GetObjectStats(context.Background(), nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, stats)
+}
+
 // TestPGDatabaseCreation tests that PGDatabase can be created
 func TestPGDatabaseCreation(t *testing.T) {
 	// This test just verifies the type can be instantiated
