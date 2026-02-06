@@ -18,6 +18,7 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/tracing"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/handlers"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/repository"
+	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/services"
 )
 
 func main() {
@@ -79,6 +80,8 @@ func main() {
 	// standardLogger := logging.NewStandardLogger(logger.Logger, cfg.App.Name)
 
 	// Initialize repository and service only if database is available
+	var objectTypeHandler *handlers.ObjectTypeHandler
+	var objectHandler *handlers.ObjectHandler
 	var healthHandler *handlers.HealthHandler
 
 	if db != nil {
@@ -90,31 +93,14 @@ func main() {
 		objectTypeRepo := repository.NewObjectTypeRepository(pgDatabase, repoOptions)
 		objectRepo := repository.NewObjectRepository(pgDatabase, repoOptions)
 
-		// Initialize health handler
-		healthHandler = handlers.NewHealthHandler(db.GetPool(), logger.Logger, cfg)
+		// Initialize services
+		objectTypeService := services.NewObjectTypeService(objectTypeRepo)
+		objectService := services.NewObjectService(objectRepo, objectTypeRepo)
 
-		// TODO: Create and wire up new handlers and routes for ObjectType and Object repositories
-		// objectTypeHandler := handlers.NewObjectTypeHandler(objectTypeRepo, logger, standardLogger)
-		// objectHandler := handlers.NewObjectHandler(objectRepo, logger, standardLogger)
-		//
-		// Add routes like:
-		// objectTypes := v1.Group("/object-types")
-		// {
-		//     objectTypes.POST("", objectTypeHandler.CreateObjectType)
-		//     objectTypes.GET("/:id", objectTypeHandler.GetObjectType)
-		//     objectTypes.GET("", objectTypeHandler.ListObjectTypes)
-		//     objectTypes.GET("/:id/tree", objectTypeHandler.GetTree)
-		// }
-		//
-		// objects := v1.Group("/objects")
-		// {
-		//     objects.POST("", objectHandler.CreateObject)
-		//     objects.GET("/:id", objectHandler.GetObject)
-		//     objects.GET("", objectHandler.ListObjects)
-		//     objects.GET("/search", objectHandler.SearchObjects)
-		// }
-		_ = objectTypeRepo
-		_ = objectRepo
+		// Initialize handlers
+		objectTypeHandler = handlers.NewObjectTypeHandler(objectTypeService, logger.Logger)
+		objectHandler = handlers.NewObjectHandler(objectService, logger.Logger)
+		healthHandler = handlers.NewHealthHandler(db.GetPool(), logger.Logger, cfg)
 	} else {
 		// Initialize handlers without database
 		healthHandler = handlers.NewHealthHandler(nil, logger.Logger, cfg)
@@ -179,22 +165,52 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"alerts": alerts})
 		})
 
-		// TODO: Add new ObjectType and Object endpoints when handlers are created
-		// objectTypes := v1.Group("/object-types")
-		// {
-		//     objectTypes.POST("", objectTypeHandler.CreateObjectType)
-		//     objectTypes.GET("/:id", objectTypeHandler.GetObjectType)
-		//     objectTypes.GET("", objectTypeHandler.ListObjectTypes)
-		//     objectTypes.GET("/:id/tree", objectTypeHandler.GetTree)
-		// }
-		//
-		// objects := v1.Group("/objects")
-		// {
-		//     objects.POST("", objectHandler.CreateObject)
-		//     objects.GET("/:id", objectHandler.GetObject)
-		//     objects.GET("", objectHandler.ListObjects)
-		//     objects.GET("/search", objectHandler.SearchObjects)
-		// }
+		// Object Type endpoints (only if database is available)
+		if objectTypeHandler != nil {
+			objectTypes := v1.Group("/object-types")
+			{
+				objectTypes.POST("", objectTypeHandler.Create)
+				objectTypes.GET("/:id", objectTypeHandler.GetByID)
+				objectTypes.GET("/name/:name", objectTypeHandler.GetByName)
+				objectTypes.PUT("/:id", objectTypeHandler.Update)
+				objectTypes.DELETE("/:id", objectTypeHandler.Delete)
+				objectTypes.GET("/:id/tree", objectTypeHandler.GetTree)
+				objectTypes.GET("/:id/children", objectTypeHandler.GetChildren)
+				objectTypes.GET("/:id/descendants", objectTypeHandler.GetDescendants)
+				objectTypes.GET("/:id/ancestors", objectTypeHandler.GetAncestors)
+				objectTypes.GET("/:id/path", objectTypeHandler.GetPath)
+				objectTypes.GET("", objectTypeHandler.List)
+				objectTypes.GET("/search", objectTypeHandler.Search)
+				objectTypes.POST("/:id/validate-move", objectTypeHandler.ValidateMove)
+				objectTypes.GET("/:id/subtree-count", objectTypeHandler.GetSubtreeObjectCount)
+			}
+		}
+
+		// Object endpoints (only if database is available)
+		if objectHandler != nil {
+			objects := v1.Group("/objects")
+			{
+				objects.POST("", objectHandler.Create)
+				objects.GET("/:id", objectHandler.GetByID)
+				objects.GET("/public-id/:public_id", objectHandler.GetByPublicID)
+				objects.GET("/name/:name", objectHandler.GetByName)
+				objects.PUT("/:id", objectHandler.Update)
+				objects.DELETE("/:id", objectHandler.Delete)
+				objects.GET("", objectHandler.List)
+				objects.GET("/search", objectHandler.Search)
+				objects.PUT("/:id/metadata", objectHandler.UpdateMetadata)
+				objects.POST("/:id/tags", objectHandler.AddTags)
+				objects.DELETE("/:id/tags", objectHandler.RemoveTags)
+				objects.GET("/:id/children", objectHandler.GetChildren)
+				objects.GET("/:id/descendants", objectHandler.GetDescendants)
+				objects.GET("/:id/ancestors", objectHandler.GetAncestors)
+				objects.GET("/:id/path", objectHandler.GetPath)
+				objects.POST("/bulk", objectHandler.BulkCreate)
+				objects.PUT("/bulk", objectHandler.BulkUpdate)
+				objects.DELETE("/bulk", objectHandler.BulkDelete)
+				objects.GET("/stats", objectHandler.GetStats)
+			}
+		}
 	}
 
 	// Start server
