@@ -15,7 +15,7 @@ Track the progress of the objects-service refactoring implementation.
 | [Phase 1](phase-01-migrations.md) | Database Migrations | 2 hours | ✅ Completed | ✅ | 10% |
 | [Phase 2](phase-02-models.md) | Models Layer | 2.5 hours | ✅ Completed | ✅ | 10% |
 | [Phase 3](phase-03-repositories.md) | Repository Layer | 4 hours | ✅ Completed | ✅ | 100% |
-| [Phase 4](phase-04-services.md) | Service Layer | 4 hours | ⬜ Not Started | - | 0% |
+| [Phase 4](phase-04-services.md) | Service Layer | 4 hours | ✅ Completed | ✅ | 100% |
 | [Phase 5](phase-05-handlers.md) | Handlers Layer | 4 hours | ⬜ Not Started | - | 0% |
 | [Phase 6](phase-06-main.md) | Main Application | 1 hour | ⬜ Not Started | - | 0% |
 | [Phase 7](phase-07-test-data.md) | Development Test Data | 1 hour | ⬜ Not Started | - | 0% |
@@ -23,7 +23,7 @@ Track the progress of the objects-service refactoring implementation.
 | [Phase 9](phase-09-documentation.md) | Documentation | 2 hours | ⬜ Not Started | - | 0% |
 | [Phase 10](phase-10-class-table-inheritance.md) | CTI Pattern (Future) | 8-10 hours | ⬜ Not Started | - | 0% |
 
-**Overall Progress**: 5/10 phases (50%) - Repository Layer 100% Complete
+**Overall Progress**: 6/10 phases (60%) - Service Layer 100% Complete
 
 ### Additional Progress: JWT Infrastructure Enhancements ✅
 
@@ -66,6 +66,38 @@ Track the progress of the objects-service refactoring implementation.
 - ✅ GetObjectStats - get object statistics
 
 **Test Status:** All 29 tests passing (+10 new tests for Object methods)
+
+### Phase 4: Service Layer (100% Complete)
+
+**Created Files:**
+- `internal/services/transactions.go` - Transaction wrapper type with pgx.Tx integration
+- `internal/services/object_type_service.go` - ObjectType business logic (14 methods)
+- `internal/services/object_service.go` - Object business logic (21 methods)
+
+**Transaction Pattern:**
+- Wrapper type pattern (Option B) - explicit transaction boundaries
+- `Transaction` interface with `Commit()` and `Rollback()`
+- `TransactionalDB` helper for beginning transactions
+- `WithinTx` helper for automatic commit/rollback handling
+
+**ObjectTypeService Methods:**
+- CRUD operations with validation
+- Hierarchical queries (Tree, Children, Descendants, Ancestors, Path)
+- Search and List with filtering
+- Move validation with circular dependency detection
+
+**ObjectService Methods:**
+- CRUD operations with object type validation
+- Hierarchical operations
+- Metadata and tags management
+- Bulk operations
+- Statistics and validation
+
+**Key Validations:**
+- Sealed type restrictions
+- Parent-child type compatibility
+- Circular dependency detection
+- ID and name validation
 
 ### Phase 1: Database Migrations
 **Estimated Time**: 2 hours
@@ -133,8 +165,9 @@ Review [design-questions.md](design-questions.md) for the complete list of quest
 | `internal/models/object_request.go` | ✅ Created | Phase 2 |
 | `internal/repository/object_type_repository.go` | ✅ Created | Phase 3 |
 | `internal/repository/object_repository.go` | ✅ Created | Phase 3 |
-| `internal/services/object_type_service.go` | ⬜ Pending | - |
-| `internal/services/object_service.go` | ⬜ Pending | - |
+| `internal/services/transactions.go` | ✅ Created | Phase 4 |
+| `internal/services/object_type_service.go` | ✅ Created | Phase 4 |
+| `internal/services/object_service.go` | ✅ Created | Phase 4 |
 | `internal/handlers/object_type_handler.go` | ⬜ Pending | - |
 | `internal/handlers/object_handler.go` | ⬜ Pending | - |
 | `migrations/development/000002_dev_tax_test_data.up.sql` | ⬜ Pending | - |
@@ -187,14 +220,14 @@ Target test coverage: 80%+
 | Phase 1: Migrations | 2 hours | - | - |
 | Phase 2: Models | 2.5 hours | - | - |
 | Phase 3: Repositories | 4 hours | ~5 hours | 100% complete |
-| Phase 4: Services | 4 hours | - | - |
+| Phase 4: Services | 4 hours | ~2 hours | 100% complete |
 | Phase 5: Handlers | 4 hours | - | - |
 | Phase 6: Main | 1 hour | - | - |
 | Phase 7: Test Data | 1 hour | - | - |
 | Phase 8: Tests | 4 hours | - | - |
 | Phase 9: Documentation | 2 hours | - | - |
 | Phase 10: CTI Pattern (Future) | 8-10 hours | - | - |
-| **Total** | **32.5-34.5 hours** (with Phase 10) | **~9 hours** | **30%** |
+| **Total** | **32.5-34.5 hours** (with Phase 10) | **~16 hours** | **55%** |
 
 ## Issues and Blockers
 
@@ -218,5 +251,5 @@ Target test coverage: 80%+
 
 ---
 
-**Last Updated**: 2026-02-05
-**Next Step**: Phase 3 Complete - Move to Phase 4 (Service Layer)
+**Last Updated**: 2026-02-06
+**Next Step**: Phase 4 Complete - Move to Phase 5 (Handlers Layer)
