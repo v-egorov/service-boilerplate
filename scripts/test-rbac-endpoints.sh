@@ -7,6 +7,7 @@ set -e
 
 # Configuration
 API_GATEWAY_URL="${API_GATEWAY_URL:-http://localhost:8080}"
+AUTH_SERVICE_URL="http://auth-service:8083"
 ADMIN_EMAIL="dev.admin@example.com" # Admin user we set up
 ADMIN_PASSWORD="devadmin123"        # Password we configured
 
@@ -39,12 +40,17 @@ login_admin() {
     if echo "$login_response" | jq -e '.access_token' >/dev/null 2>&1; then
         ADMIN_TOKEN=$(echo "$login_response" | jq -r '.access_token')
         echo -e "${GREEN}✓ Admin login successful${NC}"
+        echo -e "ADMIN_TOKEN: $ADMIN_TOKEN"
         return 0
     else
         echo -e "${RED}✗ Admin login failed${NC}"
         echo "Response: $login_response"
         exit 1
     fi
+}
+
+rotate_keys() {
+    // TODO: keys rotations call to manually rotate keys
 }
 
 # Enhanced make_request function with RBAC-specific features
