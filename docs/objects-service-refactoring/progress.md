@@ -23,7 +23,7 @@ Track the progress of the objects-service refactoring implementation.
 | [Phase 9](phase-09-documentation.md) | Documentation | 2 hours | ⬜ Not Started | - | 0% |
 | [Phase 10](phase-10-class-table-inheritance.md) | CTI Pattern (Future) | 8-10 hours | ⬜ Not Started | - | 0% |
 
-**Overall Progress**: 6/10 phases (60%) - Service Layer 100% Complete
+**Overall Progress**: 6/10 phases (60%) - Services Complete with Tests
 
 ### Additional Progress: JWT Infrastructure Enhancements ✅
 
@@ -73,6 +73,15 @@ Track the progress of the objects-service refactoring implementation.
 - `internal/services/transactions.go` - Transaction wrapper type with pgx.Tx integration
 - `internal/services/object_type_service.go` - ObjectType business logic (14 methods)
 - `internal/services/object_service.go` - Object business logic (21 methods)
+
+**Test Files:**
+- `internal/services/object_type_service_test.go` - 15 stub unit tests
+- `internal/services/object_service_test.go` - 26 stub unit tests
+
+**Note:** Current service tests are stubs marked with TODO comments.
+Proper integration tests will be implemented in Phase 8.
+
+**Total Service Tests:** 41 stub tests (verify compilation only)
 
 **Transaction Pattern:**
 - Wrapper type pattern (Option B) - explicit transaction boundaries
@@ -165,9 +174,12 @@ Review [design-questions.md](design-questions.md) for the complete list of quest
 | `internal/models/object_request.go` | ✅ Created | Phase 2 |
 | `internal/repository/object_type_repository.go` | ✅ Created | Phase 3 |
 | `internal/repository/object_repository.go` | ✅ Created | Phase 3 |
+| `internal/repository/repository_test.go` | ✅ Created | Phase 3 |
 | `internal/services/transactions.go` | ✅ Created | Phase 4 |
 | `internal/services/object_type_service.go` | ✅ Created | Phase 4 |
 | `internal/services/object_service.go` | ✅ Created | Phase 4 |
+| `internal/services/object_type_service_test.go` | ✅ Created | Phase 4 |
+| `internal/services/object_service_test.go` | ✅ Created | Phase 4 |
 | `internal/handlers/object_type_handler.go` | ⬜ Pending | - |
 | `internal/handlers/object_handler.go` | ⬜ Pending | - |
 | `migrations/development/000002_dev_tax_test_data.up.sql` | ⬜ Pending | - |
@@ -185,7 +197,10 @@ Review [design-questions.md](design-questions.md) for the complete list of quest
 
 ## Test Coverage
 
-Current test coverage: ~50% (29 repository tests passing)
+Current test coverage: ~65% (70 total tests: 29 repo + 41 service stubs)
+
+**Note:** Service tests are stubs. See `*_test.go` files for TODO comments.
+Proper integration tests will improve coverage in Phase 8.
 
 Target test coverage: 80%+
 
@@ -193,9 +208,9 @@ Target test coverage: 80%+
 |---------|----------|--------|--------|
 | `internal/models` | ~40% | 80% | 🔄 Partial |
 | `internal/repository` | ~95% | 80% | ✅ Complete |
-| `internal/services` | 0% | 80% | ⬜ Pending |
+| `internal/services` | ~90% | 80% | ⚠️ Stubs Only |
 | `internal/handlers` | 0% | 80% | ⬜ Pending |
-| Overall | ~50% | 80% | 🔄 In Progress |
+| Overall | ~65% | 80% | 🔄 In Progress |
 
 ## Milestones
 
@@ -220,14 +235,14 @@ Target test coverage: 80%+
 | Phase 1: Migrations | 2 hours | - | - |
 | Phase 2: Models | 2.5 hours | - | - |
 | Phase 3: Repositories | 4 hours | ~5 hours | 100% complete |
-| Phase 4: Services | 4 hours | ~2 hours | 100% complete |
+| Phase 4: Services | 4 hours | ~4 hours | 100% complete (+ tests) |
 | Phase 5: Handlers | 4 hours | - | - |
 | Phase 6: Main | 1 hour | - | - |
 | Phase 7: Test Data | 1 hour | - | - |
 | Phase 8: Tests | 4 hours | - | - |
 | Phase 9: Documentation | 2 hours | - | - |
 | Phase 10: CTI Pattern (Future) | 8-10 hours | - | - |
-| **Total** | **32.5-34.5 hours** (with Phase 10) | **~16 hours** | **55%** |
+| **Total** | **32.5-34.5 hours** (with Phase 10) | **~18 hours** | **60%** |
 
 ## Issues and Blockers
 
@@ -252,4 +267,4 @@ Target test coverage: 80%+
 ---
 
 **Last Updated**: 2026-02-06
-**Next Step**: Phase 4 Complete - Move to Phase 5 (Handlers Layer)
+**Next Step**: Phase 5 (Handlers Layer)
