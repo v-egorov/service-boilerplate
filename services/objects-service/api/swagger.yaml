@@ -1,0 +1,1469 @@
+openapi: 3.0.0
+info:
+  title: Objects Service API
+  description: API for managing generic object taxonomies with hierarchical relationships
+  version: 1.0.0
+  contact:
+    name: Objects Service Team
+    email: support@example.com
+
+servers:
+  - url: http://localhost:8085
+    description: Development server
+  - url: https://api.objects-service.example.com
+    description: Production server
+
+tags:
+  - name: Object Types
+    description: Hierarchical object type management
+  - name: Objects
+    description: Object instance management
+  - name: Health
+    description: Service health and status
+  - name: Metrics
+    description: Observability endpoints
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+  schemas:
+    ObjectType:
+      type: object
+      required:
+        - id
+        - name
+        - is_sealed
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: "Product Category"
+        parent_type_id:
+          type: integer
+          format: int64
+          nullable: true
+          example: null
+        description:
+          type: string
+          nullable: true
+          example: "Root category for products"
+        is_sealed:
+          type: boolean
+          example: false
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          example: {"icon": "product", "color": "#FF5722"}
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+
+    CreateObjectTypeRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: "Product Category"
+        parent_type_id:
+          type: integer
+          format: int64
+          nullable: true
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        is_sealed:
+          type: boolean
+          default: false
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    UpdateObjectTypeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        parent_type_id:
+          type: integer
+          format: int64
+          nullable: true
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        is_sealed:
+          type: boolean
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    Object:
+      type: object
+      required:
+        - id
+        - public_id
+        - object_type_id
+        - name
+        - status
+        - version
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        public_id:
+          type: string
+          format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        object_type_id:
+          type: integer
+          format: int64
+          example: 1
+        parent_object_id:
+          type: integer
+          format: int64
+          nullable: true
+          example: null
+        name:
+          type: string
+          example: "Smartphone"
+        description:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          example: {"brand": "Example", "price": 999.99}
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+          example: ["mobile", "electronics"]
+        status:
+          type: string
+          enum: [active, inactive, archived, deleted, pending]
+          example: "active"
+        version:
+          type: integer
+          format: int64
+          example: 0
+        created_by:
+          type: string
+          example: "user123"
+        updated_by:
+          type: string
+          example: "user123"
+        created_at:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2024-01-01T00:00:00Z"
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    CreateObjectRequest:
+      type: object
+      required:
+        - object_type_id
+        - name
+      properties:
+        object_type_id:
+          type: integer
+          format: int64
+          example: 1
+        parent_object_id:
+          type: integer
+          format: int64
+          nullable: true
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: "Smartphone"
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive, archived, deleted, pending]
+          default: "active"
+
+    UpdateObjectRequest:
+      type: object
+      properties:
+        object_type_id:
+          type: integer
+          format: int64
+        parent_object_id:
+          type: integer
+          format: int64
+          nullable: true
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive, archived, deleted, pending]
+        version:
+          type: integer
+          format: int64
+
+    ObjectStats:
+      type: object
+      properties:
+        total:
+          type: integer
+          format: int64
+          example: 100
+        by_status:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+          example: {"active": 80, "archived": 20}
+        by_type:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+          example: {"1": 50, "2": 30}
+        recent:
+          type: integer
+          format: int64
+          example: 25
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ok"
+        timestamp:
+          type: string
+          format: date-time
+        service:
+          type: string
+          example: "objects-service"
+        version:
+          type: string
+          example: "1.0.0"
+
+    StatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "healthy"
+        timestamp:
+          type: string
+          format: date-time
+        service:
+          type: object
+          properties:
+            name:
+              type: string
+            version:
+              type: string
+            environment:
+              type: string
+            uptime:
+              type: string
+        database:
+          type: object
+          properties:
+            status:
+              type: string
+            response_time:
+              type: string
+        checks:
+          type: object
+          properties:
+            total:
+              type: integer
+            passed:
+              type: integer
+            failed:
+              type: integer
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Internal server error"
+        type:
+          type: string
+          example: "internal_error"
+        details:
+          type: string
+          nullable: true
+
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Invalid request format"
+        details:
+          type: string
+        type:
+          type: string
+          example: "validation_error"
+        field:
+          type: string
+          nullable: true
+
+security:
+  - bearerAuth: []
+
+paths:
+  # Health Endpoints
+  /health:
+    get:
+      summary: Service health check
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      summary: Readiness check (includes database)
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /live:
+    get:
+      summary: Liveness check
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ping:
+    get:
+      summary: Simple ping response
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Pong response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  timestamp:
+                    type: string
+                  service:
+                    type: string
+
+  /status:
+    get:
+      summary: Comprehensive service status
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+        '503':
+          description: Service unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+
+  /api/v1/metrics:
+    get:
+      summary: Get service metrics
+      tags:
+        - Metrics
+      responses:
+        '200':
+          description: Metrics response
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /api/v1/alerts:
+    get:
+      summary: Get active alerts
+      tags:
+        - Metrics
+      responses:
+        '200':
+          description: Alerts response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alerts:
+                    type: array
+
+  # Object Types Endpoints
+  /api/v1/object-types:
+    get:
+      summary: List object types
+      tags:
+        - Object Types
+      parameters:
+        - name: parent_type_id
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: is_sealed
+          in: query
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of object types
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ObjectType'
+                  pagination:
+                    type: object
+                    properties:
+                      limit:
+                        type: integer
+                      offset:
+                        type: integer
+                      total:
+                        type: integer
+                      count:
+                        type: integer
+
+    post:
+      summary: Create object type
+      tags:
+        - Object Types
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateObjectTypeRequest'
+      responses:
+        '201':
+          description: Object type created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ObjectType'
+                  message:
+                    type: string
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /api/v1/object-types/{id}:
+    get:
+      summary: Get object type by ID
+      tags:
+        - Object Types
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Object type found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ObjectType'
+        '400':
+          description: Invalid ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '404':
+          description: Object type not found
+
+    put:
+      summary: Update object type
+      tags:
+        - Object Types
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateObjectTypeRequest'
+      responses:
+        '200':
+          description: Object type updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ObjectType'
+                  message:
+                    type: string
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '404':
+          description: Object type not found
+
+    delete:
+      summary: Delete object type
+      tags:
+        - Object Types
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Object type deleted
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '409':
+          description: Cannot delete (has children or objects)
+
+  /api/v1/object-types/name/{name}:
+    get:
+      summary: Get object type by name
+      tags:
+        - Object Types
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Object type found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ObjectType'
+        '404':
+          description: Object type not found
+
+  /api/v1/object-types/{id}/tree:
+    get:
+      summary: Get object type tree
+      tags:
+        - Object Types
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: root_id
+          in: query
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Tree of object types
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ObjectType'
+
+  /api/v1/object-types/{id}/children:
+    get:
+      summary: Get direct children of object type
+      tags:
+        - Object Types
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: List of child types
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ObjectType'
+
+  /api/v1/object-types/{id}/descendants:
+    get:
+      summary: Get all descendants of object type
+      tags:
+        - Object Types
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: max_depth
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of all descendants
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ObjectType'
+
+  /api/v1/object-types/{id}/ancestors:
+    get:
+      summary: Get all ancestors of object type
+      tags:
+        - Object Types
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: List of ancestors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ObjectType'
+
+  /api/v1/object-types/{id}/path:
+    get:
+      summary: Get path from root to object type
+      tags:
+        - Object Types
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Path from root to type
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ObjectType'
+
+  /api/v1/object-types/search:
+    get:
+      summary: Search object types
+      tags:
+        - Object Types
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ObjectType'
+                  query:
+                    type: string
+
+  /api/v1/object-types/{id}/validate-move:
+    post:
+      summary: Validate move operation
+      tags:
+        - Object Types
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: new_parent_id
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Move is valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  message:
+                    type: string
+        '400':
+          description: Move validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/object-types/{id}/subtree-count:
+    get:
+      summary: Count objects in subtree
+      tags:
+        - Object Types
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Object count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    format: int64
+
+  # Objects Endpoints
+  /api/v1/objects:
+    get:
+      summary: List objects
+      tags:
+        - Objects
+      parameters:
+        - name: object_type_id
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: parent_object_id
+          in: query
+          schema:
+            type: integer
+            format: int64
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, archived, deleted, pending]
+        - name: tags
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of objects
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Object'
+                  pagination:
+                    type: object
+
+    post:
+      summary: Create object
+      tags:
+        - Objects
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateObjectRequest'
+      responses:
+        '201':
+          description: Object created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Object'
+                  message:
+                    type: string
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /api/v1/objects/{id}:
+    get:
+      summary: Get object by internal ID
+      tags:
+        - Objects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Object found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Object'
+        '400':
+          description: Invalid ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '404':
+          description: Object not found
+
+    put:
+      summary: Update object
+      tags:
+        - Objects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateObjectRequest'
+      responses:
+        '200':
+          description: Object updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Object'
+                  message:
+                    type: string
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '404':
+          description: Object not found
+        '409':
+          description: Version conflict
+
+    delete:
+      summary: Delete object (soft)
+      tags:
+        - Objects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Object deleted
+        '400':
+          description: Invalid request
+        '404':
+          description: Object not found
+
+  /api/v1/objects/public-id/{public_id}:
+    get:
+      summary: Get object by public UUID
+      tags:
+        - Objects
+      parameters:
+        - name: public_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Object found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Object'
+        '400':
+          description: Invalid UUID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '404':
+          description: Object not found
+
+  /api/v1/objects/name/{name}:
+    get:
+      summary: Get object by name
+      tags:
+        - Objects
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Object found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Object'
+
+  /api/v1/objects/{id}/children:
+    get:
+      summary: Get direct children of object
+      tags:
+        - Objects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: List of child objects
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Object'
+
+  /api/v1/objects/{id}/descendants:
+    get:
+      summary: Get all descendants of object
+      tags:
+        - Objects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: max_depth
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of all descendants
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Object'
+
+  /api/v1/objects/{id}/ancestors:
+    get:
+      summary: Get all ancestors of object
+      tags:
+        - Objects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: List of ancestors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Object'
+
+  /api/v1/objects/{id}/path:
+    get:
+      summary: Get path from root to object
+      tags:
+        - Objects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Path from root to object
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Object'
+
+  /api/v1/objects/{id}/metadata:
+    put:
+      summary: Update object metadata
+      tags:
+        - Objects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Metadata updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /api/v1/objects/{id}/tags:
+    post:
+      summary: Add tags to object
+      tags:
+        - Objects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Tags added
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+    delete:
+      summary: Remove tags from object
+      tags:
+        - Objects
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Tags removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /api/v1/objects/search:
+    get:
+      summary: Search objects
+      tags:
+        - Objects
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Object'
+                  query:
+                    type: string
+
+  /api/v1/objects/bulk:
+    post:
+      summary: Bulk create objects
+      tags:
+        - Objects
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/CreateObjectRequest'
+      responses:
+        '201':
+          description: Objects created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Object'
+                  message:
+                    type: string
+
+    put:
+      summary: Bulk update objects
+      tags:
+        - Objects
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: integer
+                    format: int64
+                updates:
+                  $ref: '#/components/schemas/UpdateObjectRequest'
+      responses:
+        '200':
+          description: Objects updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Object'
+                  message:
+                    type: string
+
+    delete:
+      summary: Bulk delete objects
+      tags:
+        - Objects
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: integer
+                    format: int64
+      responses:
+        '204':
+          description: Objects deleted
+
+  /api/v1/objects/stats:
+    get:
+      summary: Get object statistics
+      tags:
+        - Objects
+      parameters:
+        - name: object_type_id
+          in: query
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Object statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    $ref: '#/components/schemas/ObjectStats'
