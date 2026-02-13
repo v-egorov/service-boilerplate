@@ -7,14 +7,15 @@ import (
 )
 
 type Config struct {
-	App        AppConfig        `mapstructure:"app"`
-	Database   DatabaseConfig   `mapstructure:"database"`
-	Logging    LoggingConfig    `mapstructure:"logging"`
-	Server     ServerConfig     `mapstructure:"server"`
-	Monitoring MonitoringConfig `mapstructure:"monitoring"`
-	Alerting   AlertingConfig   `mapstructure:"alerting"`
-	Tracing    TracingConfig    `mapstructure:"tracing"`
-	JWT        JWTConfig        `mapstructure:"jwt"`
+	App             AppConfig             `mapstructure:"app"`
+	Database        DatabaseConfig        `mapstructure:"database"`
+	Logging         LoggingConfig         `mapstructure:"logging"`
+	Server          ServerConfig          `mapstructure:"server"`
+	Monitoring      MonitoringConfig      `mapstructure:"monitoring"`
+	Alerting        AlertingConfig        `mapstructure:"alerting"`
+	Tracing         TracingConfig         `mapstructure:"tracing"`
+	JWT             JWTConfig             `mapstructure:"jwt"`
+	PermissionCache PermissionCacheConfig `mapstructure:"permission_cache"`
 }
 
 type AppConfig struct {
@@ -71,6 +72,11 @@ type TracingConfig struct {
 
 type JWTConfig struct {
 	PublicKey string `mapstructure:"public_key"`
+}
+
+type PermissionCacheConfig struct {
+	TTL        int `mapstructure:"ttl"`
+	MaxEntries int `mapstructure:"max_entries"`
 }
 
 func Load(configPath string) (*Config, error) {
@@ -174,4 +180,8 @@ func setDefaults() {
 	viper.SetDefault("tracing.service_name", "service-boilerplate")
 	viper.SetDefault("tracing.collector_url", "http://jaeger:4318/v1/traces")
 	viper.SetDefault("tracing.sampling_rate", 1.0)
+
+	// Permission cache defaults
+	viper.SetDefault("permission_cache.ttl", 60)
+	viper.SetDefault("permission_cache.max_entries", 10000)
 }

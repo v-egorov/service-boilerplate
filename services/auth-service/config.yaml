@@ -41,3 +41,7 @@ tracing:
   service_name: "auth-service"
   collector_url: "http://jaeger:4318/v1/traces"
   sampling_rate: 1.0
+
+permission_cache:
+  ttl: 60
+  max_entries: 10000

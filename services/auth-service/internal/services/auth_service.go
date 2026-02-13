@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/cache"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/client"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
 
@@ -26,6 +27,8 @@ type RepositoryInterface interface {
 	RevokeAuthToken(ctx context.Context, tokenID uuid.UUID) error
 	CreateUserSession(ctx context.Context, session *models.UserSession) error
 	GetUserRoles(ctx context.Context, userID uuid.UUID) ([]models.Role, error)
+	GetUserPermissions(ctx context.Context, userID uuid.UUID) ([]models.Permission, error)
+	CheckPermission(ctx context.Context, userID uuid.UUID, resource, action string) (bool, error)
 	GetRoleByName(ctx context.Context, name string) (*models.Role, error)
 	CreateRole(ctx context.Context, role *models.Role) (*models.Role, error)
 	ListRoles(ctx context.Context) ([]models.Role, error)
@@ -92,6 +95,9 @@ type AuthServiceInterface interface {
 	RemoveRoleFromUser(ctx context.Context, userID, roleID uuid.UUID) error
 	GetUserRoles(ctx context.Context, userID uuid.UUID) ([]models.Role, error)
 	UpdateUserRoles(ctx context.Context, userID uuid.UUID, roleIDs []uuid.UUID) error
+	CheckPermission(ctx context.Context, userID, permission string) (bool, error)
+	GetUserPermissions(ctx context.Context, userID string) ([]string, error)
+	GetUserRolesSimple(ctx context.Context, userID string) ([]string, error)
 }
 
 type AuthService struct {
@@ -99,6 +105,7 @@ type AuthService struct {
 	userClient UserClientInterface
 	jwtUtils   JWTUtilsInterface
 	logger     *logrus.Logger
+	cache      cache.PermissionCache
 }
 
 func NewAuthService(repo RepositoryInterface, userClient UserClientInterface, jwtUtils JWTUtilsInterface, logger *logrus.Logger) *AuthService {
@@ -107,6 +114,17 @@ func NewAuthService(repo RepositoryInterface, userClient UserClientInterface, jw
 		userClient: userClient,
 		jwtUtils:   jwtUtils,
 		logger:     logger,
+		cache:      nil,
+	}
+}
+
+func NewAuthServiceWithCache(repo RepositoryInterface, userClient UserClientInterface, jwtUtils JWTUtilsInterface, logger *logrus.Logger, permCache cache.PermissionCache) *AuthService {
+	return &AuthService{
+		repo:       repo,
+		userClient: userClient,
+		jwtUtils:   jwtUtils,
+		logger:     logger,
+		cache:      permCache,
 	}
 }
 
@@ -819,4 +837,85 @@ func (s *AuthService) UpdateUserRoles(ctx context.Context, userID uuid.UUID, rol
 	}).Info("User roles updated successfully")
 
 	return nil
+}
+
+func (s *AuthService) CheckPermission(ctx context.Context, userID, permission string) (bool, error) {
+	if s.cache != nil {
+		if cachedPerms, found := s.cache.GetPermissions(userID); found {
+			return hasPermission(cachedPerms, permission), nil
+		}
+	}
+
+	permissions, err := s.repo.GetUserPermissions(ctx, uuid.MustParse(userID))
+	if err != nil {
+		return false, err
+	}
+
+	permNames := make([]string, len(permissions))
+	for i, p := range permissions {
+		permNames[i] = p.Name
+	}
+
+	if s.cache != nil {
+		s.cache.SetPermissions(userID, permNames)
+	}
+
+	return hasPermission(permNames, permission), nil
+}
+
+func (s *AuthService) GetUserPermissions(ctx context.Context, userID string) ([]string, error) {
+	if s.cache != nil {
+		if cachedPerms, found := s.cache.GetPermissions(userID); found {
+			return cachedPerms, nil
+		}
+	}
+
+	permissions, err := s.repo.GetUserPermissions(ctx, uuid.MustParse(userID))
+	if err != nil {
+		return nil, err
+	}
+
+	permNames := make([]string, len(permissions))
+	for i, p := range permissions {
+		permNames[i] = p.Name
+	}
+
+	if s.cache != nil {
+		s.cache.SetPermissions(userID, permNames)
+	}
+
+	return permNames, nil
+}
+
+func (s *AuthService) GetUserRolesSimple(ctx context.Context, userID string) ([]string, error) {
+	if s.cache != nil {
+		if cachedRoles, found := s.cache.GetRoles(userID); found {
+			return cachedRoles, nil
+		}
+	}
+
+	roles, err := s.repo.GetUserRoles(ctx, uuid.MustParse(userID))
+	if err != nil {
+		return nil, err
+	}
+
+	roleNames := make([]string, len(roles))
+	for i, r := range roles {
+		roleNames[i] = r.Name
+	}
+
+	if s.cache != nil {
+		s.cache.SetRoles(userID, roleNames)
+	}
+
+	return roleNames, nil
+}
+
+func hasPermission(permissions []string, required string) bool {
+	for _, p := range permissions {
+		if p == required {
+			return true
+		}
+	}
+	return false
 }

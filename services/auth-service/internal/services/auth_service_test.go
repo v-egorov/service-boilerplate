@@ -21,6 +21,8 @@ type MockAuthRepository struct {
 	revokeAuthTokenFunc          func(ctx context.Context, tokenID uuid.UUID) error
 	createUserSessionFunc        func(ctx context.Context, session *models.UserSession) error
 	getUserRolesFunc             func(ctx context.Context, userID uuid.UUID) ([]models.Role, error)
+	getUserPermissionsFunc       func(ctx context.Context, userID uuid.UUID) ([]models.Permission, error)
+	checkPermissionFunc          func(ctx context.Context, userID uuid.UUID, resource, action string) (bool, error)
 	getRoleByNameFunc            func(ctx context.Context, name string) (*models.Role, error)
 	createRoleFunc               func(ctx context.Context, role *models.Role) (*models.Role, error)
 	listRolesFunc                func(ctx context.Context) ([]models.Role, error)
@@ -75,6 +77,20 @@ func (m *MockAuthRepository) GetUserRoles(ctx context.Context, userID uuid.UUID)
 		return m.getUserRolesFunc(ctx, userID)
 	}
 	return []models.Role{}, nil
+}
+
+func (m *MockAuthRepository) GetUserPermissions(ctx context.Context, userID uuid.UUID) ([]models.Permission, error) {
+	if m.getUserPermissionsFunc != nil {
+		return m.getUserPermissionsFunc(ctx, userID)
+	}
+	return []models.Permission{}, nil
+}
+
+func (m *MockAuthRepository) CheckPermission(ctx context.Context, userID uuid.UUID, resource, action string) (bool, error) {
+	if m.checkPermissionFunc != nil {
+		return m.checkPermissionFunc(ctx, userID, resource, action)
+	}
+	return false, nil
 }
 
 func (m *MockAuthRepository) GetRoleByName(ctx context.Context, name string) (*models.Role, error) {
@@ -487,18 +503,18 @@ func TestAuthService_GetUserRoles(t *testing.T) {
 
 func TestAuthService_Login(t *testing.T) {
 	tests := []struct {
-		name           string
-		request        *models.LoginRequest
-		ipAddress      string
-		userAgent      string
-		mockUserLogin  *client.UserLoginResponse
-		mockUserError  error
-		mockAccessToken string
+		name             string
+		request          *models.LoginRequest
+		ipAddress        string
+		userAgent        string
+		mockUserLogin    *client.UserLoginResponse
+		mockUserError    error
+		mockAccessToken  string
 		mockRefreshToken string
-		mockTokenError error
-		mockRepoError  error
-		expectedError  string
-		expectTokens   bool
+		mockTokenError   error
+		mockRepoError    error
+		expectedError    string
+		expectTokens     bool
 	}{
 		{
 			name: "successful login",
@@ -515,13 +531,13 @@ func TestAuthService_Login(t *testing.T) {
 				},
 				PasswordHash: "$2a$10$oolyJReLQIIPPeH4XPtEhukeV9D115vs.XbyNQfw/zlTsF4/q8nly",
 			},
-			mockUserError:   nil,
-			mockAccessToken: "access.jwt.token",
+			mockUserError:    nil,
+			mockAccessToken:  "access.jwt.token",
 			mockRefreshToken: "refresh.jwt.token",
-			mockTokenError:  nil,
-			mockRepoError:   nil,
-			expectedError:  "",
-			expectTokens:   true,
+			mockTokenError:   nil,
+			mockRepoError:    nil,
+			expectedError:    "",
+			expectTokens:     true,
 		},
 		{
 			name: "user not found",
@@ -551,9 +567,9 @@ func TestAuthService_Login(t *testing.T) {
 				},
 				PasswordHash: "$2a$10$oolyJReLQIIPPeH4XPtEhukeV9D115vs.XbyNQfw/zlTsF4/q8nly",
 			},
-			mockUserError:  nil,
-			expectedError:  "invalid credentials",
-			expectTokens:   false,
+			mockUserError: nil,
+			expectedError: "invalid credentials",
+			expectTokens:  false,
 		},
 		{
 			name: "token generation failure",
@@ -570,12 +586,12 @@ func TestAuthService_Login(t *testing.T) {
 				},
 				PasswordHash: "$2a$10$oolyJReLQIIPPeH4XPtEhukeV9D115vs.XbyNQfw/zlTsF4/q8nly",
 			},
-			mockUserError:   nil,
-			mockAccessToken: "",
+			mockUserError:    nil,
+			mockAccessToken:  "",
 			mockRefreshToken: "",
-			mockTokenError:  errors.New("token generation failed"),
-			expectedError:   "failed to generate access token: token generation failed",
-			expectTokens:    false,
+			mockTokenError:   errors.New("token generation failed"),
+			expectedError:    "failed to generate access token: token generation failed",
+			expectTokens:     false,
 		},
 	}
 
@@ -644,15 +660,15 @@ func TestAuthService_Login(t *testing.T) {
 
 func TestAuthService_Register(t *testing.T) {
 	tests := []struct {
-		name         string
-		request      *models.RegisterRequest
-		mockUserData *client.UserData
-		mockUserError error
-		mockRole     *models.Role
-		mockRoleError error
+		name            string
+		request         *models.RegisterRequest
+		mockUserData    *client.UserData
+		mockUserError   error
+		mockRole        *models.Role
+		mockRoleError   error
 		mockAssignError error
-		expectedError string
-		expectUser   bool
+		expectedError   string
+		expectUser      bool
 	}{
 		{
 			name: "successful registration",
@@ -675,8 +691,8 @@ func TestAuthService_Register(t *testing.T) {
 			},
 			mockRoleError:   nil,
 			mockAssignError: nil,
-			expectedError:  "",
-			expectUser:    true,
+			expectedError:   "",
+			expectUser:      true,
 		},
 		{
 			name: "user creation failure",
@@ -686,7 +702,7 @@ func TestAuthService_Register(t *testing.T) {
 				FirstName: "Jane",
 				LastName:  "Doe",
 			},
-			mockUserData:   nil,
+			mockUserData:  nil,
 			mockUserError: errors.New("user already exists"),
 			expectedError: "user already exists",
 			expectUser:    false,
@@ -765,29 +781,29 @@ func TestAuthService_Register(t *testing.T) {
 
 func TestAuthService_ValidateToken(t *testing.T) {
 	tests := []struct {
-		name         string
-		tokenString  string
-		mockClaims   *utils.JWTClaims
-		mockError    error
+		name          string
+		tokenString   string
+		mockClaims    *utils.JWTClaims
+		mockError     error
 		expectedError string
-		expectClaims bool
+		expectClaims  bool
 	}{
 		{
 			name:        "valid token",
 			tokenString: "valid.jwt.token",
 			mockClaims: &utils.JWTClaims{
-				UserID:   uuid.New(),
-				Email:    "user@example.com",
-				Roles:    []string{"user"},
+				UserID:    uuid.New(),
+				Email:     "user@example.com",
+				Roles:     []string{"user"},
 				TokenType: "access",
 			},
 			mockError:     nil,
 			expectedError: "",
-			expectClaims: true,
+			expectClaims:  true,
 		},
 		{
 			name:          "invalid token",
-			tokenString:  "invalid.jwt.token",
+			tokenString:   "invalid.jwt.token",
 			mockClaims:    nil,
 			mockError:     errors.New("invalid token"),
 			expectedError: "invalid token",
@@ -795,7 +811,7 @@ func TestAuthService_ValidateToken(t *testing.T) {
 		},
 		{
 			name:          "expired token",
-			tokenString:  "expired.jwt.token",
+			tokenString:   "expired.jwt.token",
 			mockClaims:    nil,
 			mockError:     errors.New("token is expired"),
 			expectedError: "token is expired",
@@ -803,7 +819,7 @@ func TestAuthService_ValidateToken(t *testing.T) {
 		},
 		{
 			name:          "malformed token",
-			tokenString:  "malformed.token",
+			tokenString:   "malformed.token",
 			mockClaims:    nil,
 			mockError:     errors.New("token contains an invalid number of segments"),
 			expectedError: "token contains an invalid number of segments",
@@ -862,18 +878,18 @@ func TestAuthService_ValidateToken(t *testing.T) {
 
 func TestAuthService_RefreshToken(t *testing.T) {
 	tests := []struct {
-		name           string
-		request        *models.RefreshTokenRequest
-		mockToken      *models.AuthToken
-		mockTokenError error
-		mockClaims     *utils.JWTClaims
-		mockClaimsError error
-		mockAccessToken string
-		mockRefreshToken string
+		name              string
+		request           *models.RefreshTokenRequest
+		mockToken         *models.AuthToken
+		mockTokenError    error
+		mockClaims        *utils.JWTClaims
+		mockClaimsError   error
+		mockAccessToken   string
+		mockRefreshToken  string
 		mockTokenGenError error
-		mockRepoError  error
-		expectedError  string
-		expectTokens   bool
+		mockRepoError     error
+		expectedError     string
+		expectTokens      bool
 	}{
 		{
 			name: "successful token refresh",
@@ -881,8 +897,8 @@ func TestAuthService_RefreshToken(t *testing.T) {
 				RefreshToken: "refresh.jwt.token",
 			},
 			mockToken: &models.AuthToken{
-				ID:     uuid.New(),
-				UserID: uuid.New(),
+				ID:        uuid.New(),
+				UserID:    uuid.New(),
 				TokenHash: "token.hash",
 			},
 			mockTokenError: nil,
@@ -892,13 +908,13 @@ func TestAuthService_RefreshToken(t *testing.T) {
 				Roles:     []string{"user"},
 				TokenType: "refresh",
 			},
-			mockClaimsError: nil,
-			mockAccessToken: "new.access.jwt.token",
-			mockRefreshToken: "new.refresh.jwt.token",
+			mockClaimsError:   nil,
+			mockAccessToken:   "new.access.jwt.token",
+			mockRefreshToken:  "new.refresh.jwt.token",
 			mockTokenGenError: nil,
-			mockRepoError:   nil,
-			expectedError:  "",
-			expectTokens:   true,
+			mockRepoError:     nil,
+			expectedError:     "",
+			expectTokens:      true,
 		},
 		{
 			name: "invalid refresh token",
@@ -938,8 +954,8 @@ func TestAuthService_RefreshToken(t *testing.T) {
 				RefreshToken: "refresh.jwt.token",
 			},
 			mockToken: &models.AuthToken{
-				ID:     uuid.New(),
-				UserID: uuid.New(),
+				ID:        uuid.New(),
+				UserID:    uuid.New(),
 				TokenHash: "token.hash",
 			},
 			mockTokenError: nil,
@@ -949,12 +965,12 @@ func TestAuthService_RefreshToken(t *testing.T) {
 				Roles:     []string{"user"},
 				TokenType: "refresh",
 			},
-			mockClaimsError: nil,
-			mockAccessToken: "",
-			mockRefreshToken: "",
+			mockClaimsError:   nil,
+			mockAccessToken:   "",
+			mockRefreshToken:  "",
 			mockTokenGenError: errors.New("token generation failed"),
-			expectedError:   "failed to generate new access token: token generation failed",
-			expectTokens:    false,
+			expectedError:     "failed to generate new access token: token generation failed",
+			expectTokens:      false,
 		},
 	}
 
@@ -1025,10 +1041,10 @@ func TestAuthService_RefreshToken(t *testing.T) {
 
 func TestAuthService_ListRoles(t *testing.T) {
 	tests := []struct {
-		name         string
-		mockRoles    []models.Role
-		mockError    error
-		expectError  bool
+		name          string
+		mockRoles     []models.Role
+		mockError     error
+		expectError   bool
 		expectedCount int
 	}{
 		{
@@ -1169,13 +1185,13 @@ func TestAuthService_GetRole(t *testing.T) {
 func TestAuthService_UpdateRole(t *testing.T) {
 	roleID := uuid.New()
 	tests := []struct {
-		name         string
-		roleID       uuid.UUID
-		nameUpdate   string
-		descUpdate   string
-		mockRole     *models.Role
-		mockError    error
-		expectError  bool
+		name        string
+		roleID      uuid.UUID
+		nameUpdate  string
+		descUpdate  string
+		mockRole    *models.Role
+		mockError   error
+		expectError bool
 	}{
 		{
 			name:       "successful role update",
@@ -1245,12 +1261,12 @@ func TestAuthService_UpdateRole(t *testing.T) {
 func TestAuthService_DeleteRole(t *testing.T) {
 	roleID := uuid.New()
 	tests := []struct {
-		name           string
-		roleID         uuid.UUID
-		mockUserCount  int
-		mockCountError error
-		mockDeleteError error
-		expectError    bool
+		name             string
+		roleID           uuid.UUID
+		mockUserCount    int
+		mockCountError   error
+		mockDeleteError  error
+		expectError      bool
 		expectedErrorMsg string
 	}{
 		{
@@ -1271,21 +1287,21 @@ func TestAuthService_DeleteRole(t *testing.T) {
 			expectedErrorMsg: "cannot delete role: 3 users are assigned to this role",
 		},
 		{
-			name:            "count users error",
-			roleID:          roleID,
-			mockUserCount:   0,
-			mockCountError:  errors.New("database error"),
-			mockDeleteError: nil,
-			expectError:     true,
+			name:             "count users error",
+			roleID:           roleID,
+			mockUserCount:    0,
+			mockCountError:   errors.New("database error"),
+			mockDeleteError:  nil,
+			expectError:      true,
 			expectedErrorMsg: "failed to check role usage",
 		},
 		{
-			name:            "delete role error",
-			roleID:          roleID,
-			mockUserCount:   0,
-			mockCountError:  nil,
-			mockDeleteError: errors.New("delete failed"),
-			expectError:     true,
+			name:             "delete role error",
+			roleID:           roleID,
+			mockUserCount:    0,
+			mockCountError:   nil,
+			mockDeleteError:  errors.New("delete failed"),
+			expectError:      true,
 			expectedErrorMsg: "failed to delete role",
 		},
 	}
@@ -1323,13 +1339,13 @@ func TestAuthService_DeleteRole(t *testing.T) {
 
 func TestAuthService_CreatePermission(t *testing.T) {
 	tests := []struct {
-		name         string
-		permName     string
-		resource     string
-		action       string
+		name           string
+		permName       string
+		resource       string
+		action         string
 		mockPermission *models.Permission
-		mockError    error
-		expectError  bool
+		mockError      error
+		expectError    bool
 	}{
 		{
 			name:     "successful permission creation",
@@ -1346,22 +1362,22 @@ func TestAuthService_CreatePermission(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:         "permission creation error",
-			permName:     "invalid_perm",
-			resource:     "invalid",
-			action:       "invalid",
+			name:           "permission creation error",
+			permName:       "invalid_perm",
+			resource:       "invalid",
+			action:         "invalid",
 			mockPermission: nil,
-			mockError:    errors.New("permission already exists"),
-			expectError:  true,
+			mockError:      errors.New("permission already exists"),
+			expectError:    true,
 		},
 		{
-			name:         "repository error",
-			permName:     "write_posts",
-			resource:     "posts",
-			action:       "write",
+			name:           "repository error",
+			permName:       "write_posts",
+			resource:       "posts",
+			action:         "write",
 			mockPermission: nil,
-			mockError:    errors.New("database connection failed"),
-			expectError:  true,
+			mockError:      errors.New("database connection failed"),
+			expectError:    true,
 		},
 	}
 
@@ -1656,21 +1672,21 @@ func TestAuthService_DeletePermission(t *testing.T) {
 			expectedErrorMsg: "cannot delete permission: 2 roles are assigned this permission",
 		},
 		{
-			name:            "count roles error",
-			permissionID:    permissionID,
-			mockRoleCount:   0,
-			mockCountError:  errors.New("database error"),
-			mockDeleteError: nil,
-			expectError:     true,
+			name:             "count roles error",
+			permissionID:     permissionID,
+			mockRoleCount:    0,
+			mockCountError:   errors.New("database error"),
+			mockDeleteError:  nil,
+			expectError:      true,
 			expectedErrorMsg: "failed to check permission usage",
 		},
 		{
-			name:            "delete permission error",
-			permissionID:    permissionID,
-			mockRoleCount:   0,
-			mockCountError:  nil,
-			mockDeleteError: errors.New("delete failed"),
-			expectError:     true,
+			name:             "delete permission error",
+			permissionID:     permissionID,
+			mockRoleCount:    0,
+			mockCountError:   nil,
+			mockDeleteError:  errors.New("delete failed"),
+			expectError:      true,
 			expectedErrorMsg: "failed to delete permission",
 		},
 	}
@@ -1708,14 +1724,14 @@ func TestAuthService_DeletePermission(t *testing.T) {
 
 func TestAuthService_Logout(t *testing.T) {
 	tests := []struct {
-		name         string
-		tokenString  string
-		mockClaims   *utils.JWTClaims
-		mockClaimsError error
-		mockToken    *models.AuthToken
-		mockTokenError error
-		mockRevokeError error
-		expectError  bool
+		name             string
+		tokenString      string
+		mockClaims       *utils.JWTClaims
+		mockClaimsError  error
+		mockToken        *models.AuthToken
+		mockTokenError   error
+		mockRevokeError  error
+		expectError      bool
 		expectedErrorMsg string
 	}{
 		{
@@ -1732,16 +1748,16 @@ func TestAuthService_Logout(t *testing.T) {
 				ID:     uuid.New(),
 				UserID: uuid.New(),
 			},
-			mockTokenError: nil,
+			mockTokenError:  nil,
 			mockRevokeError: nil,
 			expectError:     false,
 		},
 		{
 			name:             "invalid token",
-			tokenString:     "invalid.jwt.token",
-			mockClaims:      nil,
-			mockClaimsError: errors.New("invalid token"),
-			expectError:     true,
+			tokenString:      "invalid.jwt.token",
+			mockClaims:       nil,
+			mockClaimsError:  errors.New("invalid token"),
+			expectError:      true,
 			expectedErrorMsg: "invalid token",
 		},
 		{
@@ -1753,10 +1769,10 @@ func TestAuthService_Logout(t *testing.T) {
 				Roles:     []string{"user"},
 				TokenType: "access",
 			},
-			mockClaimsError: nil,
-			mockToken:      nil,
-			mockTokenError: errors.New("token not found"),
-			expectError:    true,
+			mockClaimsError:  nil,
+			mockToken:        nil,
+			mockTokenError:   errors.New("token not found"),
+			expectError:      true,
 			expectedErrorMsg: "token not found",
 		},
 		{
@@ -1773,9 +1789,9 @@ func TestAuthService_Logout(t *testing.T) {
 				ID:     uuid.New(),
 				UserID: uuid.New(),
 			},
-			mockTokenError: nil,
-			mockRevokeError: errors.New("revoke failed"),
-			expectError:     true,
+			mockTokenError:   nil,
+			mockRevokeError:  errors.New("revoke failed"),
+			expectError:      true,
 			expectedErrorMsg: "failed to revoke token",
 		},
 	}
@@ -1828,17 +1844,17 @@ func TestAuthService_GetCurrentUser(t *testing.T) {
 	email := "user@example.com"
 
 	tests := []struct {
-		name           string
-		userID         uuid.UUID
-		email          string
-		mockUserData   *client.UserData
-		mockUserError  error
-		mockRoles      []models.Role
-		mockRolesError error
-		expectError    bool
+		name             string
+		userID           uuid.UUID
+		email            string
+		mockUserData     *client.UserData
+		mockUserError    error
+		mockRoles        []models.Role
+		mockRolesError   error
+		expectError      bool
 		expectedErrorMsg string
-		expectFirstName bool
-		expectLastName  bool
+		expectFirstName  bool
+		expectLastName   bool
 	}{
 		{
 			name:   "successful with user service data",
@@ -1857,16 +1873,16 @@ func TestAuthService_GetCurrentUser(t *testing.T) {
 					Name: "user",
 				},
 			},
-			mockRolesError:   nil,
-			expectError:      false,
-			expectFirstName:  true,
-			expectLastName:   true,
+			mockRolesError:  nil,
+			expectError:     false,
+			expectFirstName: true,
+			expectLastName:  true,
 		},
 		{
-			name:   "successful with fallback",
-			userID: userID,
-			email:  email,
-			mockUserData: nil,
+			name:          "successful with fallback",
+			userID:        userID,
+			email:         email,
+			mockUserData:  nil,
 			mockUserError: errors.New("user service unavailable"),
 			mockRoles: []models.Role{
 				{
@@ -1874,20 +1890,20 @@ func TestAuthService_GetCurrentUser(t *testing.T) {
 					Name: "admin",
 				},
 			},
-			mockRolesError:   nil,
-			expectError:      false,
-			expectFirstName:  false,
-			expectLastName:   false,
+			mockRolesError:  nil,
+			expectError:     false,
+			expectFirstName: false,
+			expectLastName:  false,
 		},
 		{
-			name:            "get user roles error",
-			userID:          userID,
-			email:           email,
-			mockUserData:    nil,
-			mockUserError:   nil,
-			mockRoles:       nil,
-			mockRolesError:  errors.New("database error"),
-			expectError:     true,
+			name:             "get user roles error",
+			userID:           userID,
+			email:            email,
+			mockUserData:     nil,
+			mockUserError:    nil,
+			mockRoles:        nil,
+			mockRolesError:   errors.New("database error"),
+			expectError:      true,
 			expectedErrorMsg: "failed to get user roles",
 		},
 	}
@@ -1943,9 +1959,9 @@ func TestAuthService_GetCurrentUser(t *testing.T) {
 
 func TestAuthService_RotateKeys(t *testing.T) {
 	tests := []struct {
-		name         string
-		mockRotateError error
-		expectError  bool
+		name             string
+		mockRotateError  error
+		expectError      bool
 		expectedErrorMsg string
 	}{
 		{
@@ -1997,11 +2013,11 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 	permissionID := uuid.New()
 
 	tests := []struct {
-		name         string
-		roleID       uuid.UUID
-		permissionID uuid.UUID
-		mockAssignError error
-		expectError  bool
+		name             string
+		roleID           uuid.UUID
+		permissionID     uuid.UUID
+		mockAssignError  error
+		expectError      bool
 		expectedErrorMsg string
 	}{
 		{
@@ -2054,11 +2070,11 @@ func TestAuthService_RemovePermissionFromRole(t *testing.T) {
 	permissionID := uuid.New()
 
 	tests := []struct {
-		name         string
-		roleID       uuid.UUID
-		permissionID uuid.UUID
-		mockRemoveError error
-		expectError  bool
+		name             string
+		roleID           uuid.UUID
+		permissionID     uuid.UUID
+		mockRemoveError  error
+		expectError      bool
 		expectedErrorMsg string
 	}{
 		{
@@ -2194,11 +2210,11 @@ func TestAuthService_AssignRoleToUser(t *testing.T) {
 	roleID := uuid.New()
 
 	tests := []struct {
-		name         string
-		userID       uuid.UUID
-		roleID       uuid.UUID
-		mockAssignError error
-		expectError  bool
+		name             string
+		userID           uuid.UUID
+		roleID           uuid.UUID
+		mockAssignError  error
+		expectError      bool
 		expectedErrorMsg string
 	}{
 		{
@@ -2251,11 +2267,11 @@ func TestAuthService_RemoveRoleFromUser(t *testing.T) {
 	roleID := uuid.New()
 
 	tests := []struct {
-		name         string
-		userID       uuid.UUID
-		roleID       uuid.UUID
-		mockRemoveError error
-		expectError  bool
+		name             string
+		userID           uuid.UUID
+		roleID           uuid.UUID
+		mockRemoveError  error
+		expectError      bool
 		expectedErrorMsg string
 	}{
 		{
@@ -2308,11 +2324,11 @@ func TestAuthService_UpdateUserRoles(t *testing.T) {
 	roleIDs := []uuid.UUID{uuid.New(), uuid.New()}
 
 	tests := []struct {
-		name         string
-		userID       uuid.UUID
-		roleIDs      []uuid.UUID
-		mockUpdateError error
-		expectError  bool
+		name             string
+		userID           uuid.UUID
+		roleIDs          []uuid.UUID
+		mockUpdateError  error
+		expectError      bool
 		expectedErrorMsg string
 	}{
 		{

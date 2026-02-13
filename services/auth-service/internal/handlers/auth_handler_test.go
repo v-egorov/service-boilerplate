@@ -44,6 +44,9 @@ type MockAuthService struct {
 	removeRoleFromUserFunc       func(ctx context.Context, userID, roleID uuid.UUID) error
 	getUserRolesFunc             func(ctx context.Context, userID uuid.UUID) ([]models.Role, error)
 	updateUserRolesFunc          func(ctx context.Context, userID uuid.UUID, roleIDs []uuid.UUID) error
+	checkPermissionFunc          func(ctx context.Context, userID, permission string) (bool, error)
+	getUserPermissionsFunc       func(ctx context.Context, userID string) ([]string, error)
+	getUserRolesSimpleFunc       func(ctx context.Context, userID string) ([]string, error)
 }
 
 func (m *MockAuthService) Login(ctx context.Context, req *models.LoginRequest, ipAddress, userAgent string) (*models.TokenResponse, error) {
@@ -219,6 +222,27 @@ func (m *MockAuthService) UpdateUserRoles(ctx context.Context, userID uuid.UUID,
 		return m.updateUserRolesFunc(ctx, userID, roleIDs)
 	}
 	return errors.New("not implemented")
+}
+
+func (m *MockAuthService) CheckPermission(ctx context.Context, userID, permission string) (bool, error) {
+	if m.checkPermissionFunc != nil {
+		return m.checkPermissionFunc(ctx, userID, permission)
+	}
+	return false, errors.New("not implemented")
+}
+
+func (m *MockAuthService) GetUserPermissions(ctx context.Context, userID string) ([]string, error) {
+	if m.getUserPermissionsFunc != nil {
+		return m.getUserPermissionsFunc(ctx, userID)
+	}
+	return nil, errors.New("not implemented")
+}
+
+func (m *MockAuthService) GetUserRolesSimple(ctx context.Context, userID string) ([]string, error) {
+	if m.getUserRolesSimpleFunc != nil {
+		return m.getUserRolesSimpleFunc(ctx, userID)
+	}
+	return nil, errors.New("not implemented")
 }
 
 // Helper function to create a test Gin context
@@ -2090,4 +2114,3 @@ func TestAuthHandler_DeletePermission(t *testing.T) {
 		})
 	}
 }
-

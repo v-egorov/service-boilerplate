@@ -16,6 +16,7 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/logging"
 	"github.com/v-egorov/service-boilerplate/common/middleware"
 	"github.com/v-egorov/service-boilerplate/common/tracing"
+	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/cache"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/client"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/handlers"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/repository"
@@ -88,11 +89,20 @@ func main() {
 	// Initialize repository and service only if database is available
 	var authHandler *handlers.AuthHandler
 	var healthHandler *handlers.HealthHandler
+	var permissionHandler *handlers.PermissionHandler
 	var revocationChecker middleware.TokenRevocationChecker
 	var jwtUtils *utils.JWTUtils
 	var keyRotationManager *services.KeyRotationManager
+	var permCache cache.PermissionCache
 
 	if db != nil {
+		// Initialize permission cache
+		permCache = cache.NewPermissionCache(cache.PermissionCacheConfig{
+			TTL:        time.Duration(cfg.PermissionCache.TTL) * time.Second,
+			MaxEntries: cfg.PermissionCache.MaxEntries,
+		})
+		logger.Info("Permission cache initialized")
+
 		// Initialize JWT utils with database connection
 		var err error
 		jwtUtils, err = utils.NewJWTUtils(db.Pool)
@@ -128,12 +138,13 @@ func main() {
 		}
 		userClient := client.NewUserClient(userServiceURL, logger.Logger)
 
-		// Initialize service
-		authService := services.NewAuthService(authRepo, userClient, jwtUtils, logger.Logger)
+		// Initialize service with cache
+		authService := services.NewAuthServiceWithCache(authRepo, userClient, jwtUtils, logger.Logger, permCache)
 
 		// Initialize handlers
 		authHandler = handlers.NewAuthHandler(authService, logger.Logger)
 		healthHandler = handlers.NewHealthHandler(db.GetPool(), jwtUtils, keyRotationManager, logger.Logger, cfg)
+		permissionHandler = handlers.NewPermissionHandler(authService, permCache, logger.Logger)
 
 		// Create token revocation checker for JWT middleware
 		revocationChecker = &authServiceRevocationChecker{
@@ -267,6 +278,10 @@ func main() {
 				protected.Use(middleware.RequireAuth())
 				{
 					protected.GET("/me", authHandler.GetCurrentUser)
+
+					// Permission check endpoints (for other services)
+					protected.POST("/permissions/check", permissionHandler.CheckPermission)
+					protected.GET("/users/:user_id/permissions", permissionHandler.GetUserPermissions)
 				}
 
 				// Admin routes
