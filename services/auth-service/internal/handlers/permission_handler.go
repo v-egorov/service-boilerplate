@@ -12,7 +12,6 @@ import (
 type PermissionServiceInterface interface {
 	CheckPermission(ctx context.Context, userID, permission string) (bool, error)
 	GetUserPermissions(ctx context.Context, userID string) ([]string, error)
-	GetUserRolesSimple(ctx context.Context, userID string) ([]string, error)
 }
 
 type PermissionHandler struct {

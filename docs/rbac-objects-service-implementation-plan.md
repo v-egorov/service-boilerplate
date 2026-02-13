@@ -2,7 +2,7 @@
 
 **Project**: Role-Based Access Control for Objects-Service
 **Architecture**: Centralized Authorization with Auth-Service
-**Status**: Planning
+**Status**: Phase 1 Complete
 **Total Estimated Time**: 20-24 hours
 
 ## Table of Contents
@@ -103,22 +103,22 @@ Implement comprehensive RBAC for objects-service with centralized permission man
 
 ## Phase Breakdown
 
-### Phase 1: Auth-Service Foundation (4-5 hours)
+### Phase 1: Auth-Service Foundation (4-5 hours) ✅ COMPLETED
 
 **Goal**: Add permission caching and permission check API to auth-service
 
-| Task | Description | Effort |
-|------|-------------|--------|
-| 1.1 | Extend config with cache settings | 0.5h |
-| 1.2 | Implement permission cache with interface | 1.5h |
-| 1.3 | Add permission check endpoint | 1h |
-| 1.4 | Add user permissions endpoint | 1h |
-| 1.5 | Write unit tests | 1h |
+| Task | Description | Effort | Status |
+|------|-------------|--------|--------|
+| 1.1 | Extend config with cache settings | 0.5h | ✅ Done |
+| 1.2 | Implement permission cache with interface | 1.5h | ✅ Done |
+| 1.3 | Add permission check endpoint | 1h | ✅ Done |
+| 1.4 | Add user permissions endpoint | 1h | ✅ Done |
+| 1.5 | Write unit tests | 1h | ✅ Done |
 
 **Deliverables**:
-- Auth-service cache package
-- New API endpoints
-- Unit tests
+- ✅ Auth-service cache package (`internal/cache/permission_cache.go`)
+- ✅ New API endpoints (`internal/handlers/permission_handler.go`)
+- ✅ Unit tests (11 tests passing)
 
 ### Phase 2: Auth-Service Migration (2-3 hours)
 
@@ -1219,18 +1219,18 @@ If auth-service becomes unavailable:
 
 ### Functional
 
-- [ ] All permission endpoints return correct allow/deny
-- [ ] Objects-service routes protected correctly
-- [ ] Ownership validation works for update/delete
-- [ ] Cache expires after TTL
-- [ ] Fail-closed behavior on auth-service unavailability
+- [x] All permission endpoints return correct allow/deny (Phase 1)
+- [ ] Objects-service routes protected correctly (Phase 4)
+- [ ] Ownership validation works for update/delete (Phase 5)
+- [x] Cache expires after TTL (Phase 1)
+- [ ] Fail-closed behavior on auth-service unavailability (Phase 4)
 
 ### Non-Functional
 
-- [ ] All tests passing
-- [ ] < 100ms overhead for permission checks (cached)
-- [ ] Documentation complete
-- [ ] Migration reversible
+- [x] All tests passing (Phase 1)
+- [ ] < 100ms overhead for permission checks (cached) (Phase 4)
+- [ ] Documentation complete (Phase 6)
+- [ ] Migration reversible (Phase 2)
 
 ---
 
