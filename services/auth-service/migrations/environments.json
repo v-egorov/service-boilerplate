@@ -3,7 +3,9 @@
     "development": {
       "description": "Development environment with test data and debug features",
       "migrations": [
-        "development/000004_dev_admin_setup.up.sql"
+        "development/000004_dev_admin_setup.up.sql",
+        "000005_dev_object_permissions.up.sql",
+        "development/000005_dev_object_permissions_seed.up.sql"
       ],
       "seed_files": [],
       "config": {
@@ -14,7 +16,10 @@
     },
     "staging": {
       "description": "Staging environment for pre-production testing",
-      "migrations": [],
+      "migrations": [
+        "000005_dev_object_permissions.up.sql",
+        "development/000005_dev_object_permissions_seed.up.sql"
+      ],
       "seed_files": [],
       "config": {
         "allow_destructive_operations": false,
@@ -25,7 +30,9 @@
     },
     "production": {
       "description": "Production environment with strict controls",
-      "migrations": [],
+      "migrations": [
+        "000005_dev_object_permissions.up.sql"
+      ],
       "seed_files": [],
       "config": {
         "allow_destructive_operations": false,
