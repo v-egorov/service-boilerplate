@@ -46,6 +46,20 @@
       "risk_level": "low",
       "rollback_safe": true,
       "created_at": "2025-09-07T20:54:28Z"
+    },
+    "000005": {
+      "description": "Add object admin user for objects-service management",
+      "depends_on": [
+        "000001",
+        "000003"
+      ],
+      "affects_tables": [
+        "user_service.users"
+      ],
+      "estimated_duration": "5s",
+      "risk_level": "low",
+      "rollback_safe": true,
+      "environment": "development"
     }
   },
   "global_config": {
