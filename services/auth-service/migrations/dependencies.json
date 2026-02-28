@@ -35,24 +35,24 @@
       "risk_level": "low",
       "rollback_safe": true
     },
-     "000004": {
-        "description": "Setup development admin accounts with RBAC roles",
-        "depends_on": [
-          "000001",
-          "000002",
-          "000003"
-        ],
-        "cross_service_depends_on": {
-          "user-service": ["000001", "000002", "000003"]
-        },
-        "affects_tables": [
-          "auth_service.user_roles"
-        ],
-        "estimated_duration": "10s",
-        "risk_level": "low",
-        "rollback_safe": true,
-        "environment": "development"
-      },
+       "000004": {
+         "description": "Setup development admin accounts with RBAC roles",
+         "depends_on": [
+           "000001",
+           "000002",
+           "000003"
+         ],
+         "cross_service_depends_on": {
+           "user-service": ["000001", "000002", "000003"]
+         },
+         "affects_tables": [
+           "auth_service.user_roles"
+         ],
+         "estimated_duration": "10s",
+         "risk_level": "low",
+         "rollback_safe": true,
+         "environment": "development"
+       },
        "000005": {
          "description": "Add objects-service permissions for RBAC",
          "depends_on": [
@@ -66,7 +66,7 @@
          "rollback_safe": true,
          "environment": null
        },
-       "development_000005": {
+       "000006": {
          "description": "Seed object-type-admin role and assign permissions for dev/staging",
          "depends_on": [
            "000005"
