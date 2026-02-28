@@ -2,7 +2,7 @@
 
 **Project**: Role-Based Access Control for Objects-Service
 **Architecture**: Centralized Authorization with Auth-Service
-**Status**: Phase 1 Complete
+**Status**: Phase 2 Complete
 **Total Estimated Time**: 20-24 hours
 
 ## Table of Contents
@@ -29,11 +29,20 @@ Implement comprehensive RBAC for objects-service with centralized permission man
 
 ### Key Features
 
-- Fine-grained permissions (8+ permissions)
+- Fine-grained permissions (11 permissions)
 - Dedicated `object-type-admin` role
 - Ownership-based access (users manage own objects)
 - Centralized caching in auth-service (TTL configurable)
 - Fail-closed security model
+
+### Test Users
+
+| Email | Roles | Purpose |
+|-------|-------|---------|
+| `dev.admin@example.com` | admin, object-type-admin, user | Full admin access |
+| `object.admin@example.com` | object-type-admin | Objects administration |
+| `test.user@example.com` | user | Standard user access |
+| `qa.tester@example.com` | user | QA testing |
 
 ---
 
@@ -120,20 +129,21 @@ Implement comprehensive RBAC for objects-service with centralized permission man
 - ✅ New API endpoints (`internal/handlers/permission_handler.go`)
 - ✅ Unit tests (11 tests passing)
 
-### Phase 2: Auth-Service Migration (2-3 hours)
+### Phase 2: Auth-Service Migration (2-3 hours) ✅ COMPLETED
 
 **Goal**: Populate objects-service permissions and create dedicated role
 
-| Task | Description | Effort |
-|------|-------------|--------|
-| 2.1 | Create permission migration | 0.5h |
-| 2.2 | Create object-type-admin role | 0.5h |
-| 2.3 | Assign permissions to roles | 0.5h |
-| 2.4 | Write migration tests | 0.5h |
+| Task | Description | Effort | Status |
+|------|-------------|--------|--------|
+| 2.1 | Create permission migration | 0.5h | ✅ Done |
+| 2.2 | Create object-type-admin role | 0.5h | ✅ Done |
+| 2.3 | Assign permissions to roles | 0.5h | ✅ Done |
+| 2.4 | Run migrations | 0.5h | ✅ Done |
 
 **Deliverables**:
-- Migration files
-- Seeded permissions and roles
+- ✅ Migration files created (`000005`, `000006`)
+- ✅ Seeded permissions and roles
+- ✅ `object.admin@example.com` user created
 
 ### Phase 3: Auth-Client Wrapper (2-3 hours)
 
@@ -1230,7 +1240,7 @@ If auth-service becomes unavailable:
 - [x] All tests passing (Phase 1)
 - [ ] < 100ms overhead for permission checks (cached) (Phase 4)
 - [ ] Documentation complete (Phase 6)
-- [ ] Migration reversible (Phase 2)
+- [x] Migration reversible (Phase 2)
 
 ---
 

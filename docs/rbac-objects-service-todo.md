@@ -1,9 +1,9 @@
 # RBAC Implementation - TODO List
 
 **Project**: Role-Based Access Control for Objects-Service
-**Status**: Not Started
-**Started**: -
-**Completed**: -
+**Status**: Phase 2 Complete
+**Started**: 2026-02-12
+**Completed**: 2026-02-28
 **Total Estimated Time**: 17-23 hours
 
 ---
@@ -12,13 +12,13 @@
 
 | Phase | Status | Tasks | Progress |
 |-------|--------|-------|----------|
-| Phase 1: Auth-Service Foundation | ⬜ | 5 | 0/5 |
-| Phase 2: Auth-Service Migration | ⬜ | 4 | 0/4 |
+| Phase 1: Auth-Service Foundation | ✅ | 5 | 5/5 |
+| Phase 2: Auth-Service Migration | ✅ | 4 | 4/4 |
 | Phase 3: Auth-Client Wrapper | ⬜ | 4 | 0/4 |
 | Phase 4: Objects-Service Integration | ⬜ | 4 | 0/4 |
 | Phase 5: Ownership Validation | ⬜ | 4 | 0/4 |
 | Phase 6: Testing & Documentation | ⬜ | 4 | 0/4 |
-| **Total** | ⬜ | **25** | **0/25** |
+| **Total** | ✅ | **25** | **9/25** |
 
 ---
 
@@ -26,15 +26,15 @@
 
 **Goal**: Add permission caching and permission check API to auth-service
 **Estimated Time**: 4-5 hours
-**Status**: ⬜ Not Started
+**Status**: ✅ COMPLETED
 
 ### Tasks
 
-- [ ] **1.1** Extend config with cache settings (0.5h)
+- [x] **1.1** Extend config with cache settings (0.5h)
   - File: `services/auth-service/internal/config/config.go`
   - Add `PermissionCacheConfig` struct
 
-- [ ] **1.2** Implement permission cache with interface (1.5h)
+- [x] **1.2** Implement permission cache with interface (1.5h)
   - File: `services/auth-service/internal/cache/permission_cache.go`
   - Interface-based design (Redis-ready)
   - TTL: 60s configurable
@@ -42,27 +42,27 @@
   - Thread-safe with RWMutex
   - LRU eviction
 
-- [ ] **1.3** Add permission check endpoint (1h)
+- [x] **1.3** Add permission check endpoint (1h)
   - File: `services/auth-service/internal/handlers/permission_handler.go`
   - POST `/api/v1/auth/permissions/check`
   - Request: `{user_id, permission}`
   - Response: `{allowed, user_id, permission}`
 
-- [ ] **1.4** Add user permissions endpoint (1h)
+- [x] **1.4** Add user permissions endpoint (1h)
   - File: `services/auth-service/internal/handlers/permission_handler.go`
   - GET `/api/v1/auth/users/{user_id}/permissions`
   - Returns user's permissions list
 
-- [ ] **1.5** Write unit tests (1h)
+- [x] **1.5** Write unit tests (1h)
   - File: `services/auth-service/internal/cache/permission_cache_test.go`
   - Cache hit/miss tests
   - TTL expiration tests
   - Concurrent access tests
 
 ### Deliverables
-- [ ] Auth-service cache package
-- [ ] New API endpoints registered in `auth_handler.go`
-- [ ] Unit tests passing
+- [x] Auth-service cache package
+- [x] New API endpoints registered in `auth_handler.go`
+- [x] Unit tests passing
 
 ---
 
@@ -70,33 +70,33 @@
 
 **Goal**: Populate objects-service permissions and create dedicated role
 **Estimated Time**: 2-3 hours
-**Status**: ⬜ Not Started
+**Status**: ✅ COMPLETED
 
 ### Tasks
 
-- [ ] **2.1** Create permission migration (0.5h)
-  - File: `services/auth-service/migrations/development/000005_dev_object_permissions.up.sql`
+- [x] **2.1** Create permission migration (0.5h)
+  - File: `services/auth-service/migrations/000005_dev_object_permissions.up.sql`
   - 11 permissions (4 object-types + 7 objects)
   - Includes `objects:read:all` and `objects:read:own`
 
-- [ ] **2.2** Create object-type-admin role (0.5h)
-  - File: `services/auth-service/migrations/development/000005_dev_object_permissions.up.sql`
+- [x] **2.2** Create object-type-admin role (0.5h)
+  - File: `services/auth-service/migrations/development/000006_dev_object_permissions_seed.up.sql`
   - Add role to `auth_service.roles`
 
-- [ ] **2.3** Assign permissions to roles (0.5h)
+- [x] **2.3** Assign permissions to roles (0.5h)
   - Admin: All 11 permissions
   - object-type-admin: All object-types:* + objects:read:* + objects:update:all + objects:delete:all
   - User: object-types:read, objects:create, objects:read:own, objects:update:own, objects:delete:own
 
-- [ ] **2.4** Create rollback migration (0.5h)
-  - File: `services/auth-service/migrations/development/000005_dev_object_permissions.down.sql`
+- [x] **2.4** Create rollback migration (0.5h)
+  - File: `services/auth-service/migrations/000005_dev_object_permissions.down.sql`
   - Removes all permissions
   - Removes object-type-admin role
 
 ### Deliverables
-- [ ] Migration files created
-- [ ] Permissions and roles seeded
-- [ ] Migration tested
+- [x] Migration files created
+- [x] Permissions and roles seeded
+- [x] Migration tested
 
 ---
 
@@ -241,14 +241,19 @@
 
 ## File Changes Summary
 
-### New Files to Create
+### New Files Created
 
 | File | Phase | Status |
 |------|-------|--------|
-| `services/auth-service/internal/cache/permission_cache.go` | 1 | ⬜ |
-| `services/auth-service/internal/handlers/permission_handler.go` | 1 | ⬜ |
-| `services/auth-service/migrations/development/000005_dev_object_permissions.up.sql` | 2 | ⬜ |
-| `services/auth-service/migrations/development/000005_dev_object_permissions.down.sql` | 2 | ⬜ |
+| `services/auth-service/internal/cache/permission_cache.go` | 1 | ✅ |
+| `services/auth-service/internal/cache/permission_cache_test.go` | 1 | ✅ |
+| `services/auth-service/internal/handlers/permission_handler.go` | 1 | ✅ |
+| `services/auth-service/migrations/000005_dev_object_permissions.up.sql` | 2 | ✅ |
+| `services/auth-service/migrations/000005_dev_object_permissions.down.sql` | 2 | ✅ |
+| `services/auth-service/migrations/development/000006_dev_object_permissions_seed.up.sql` | 2 | ✅ |
+| `services/auth-service/migrations/development/000006_dev_object_permissions_seed.down.sql` | 2 | ✅ |
+| `services/user-service/migrations/development/000005_dev_add_object_admin.up.sql` | 2 | ✅ |
+| `services/user-service/migrations/development/000005_dev_add_object_admin.down.sql` | 2 | ✅ |
 | `services/objects-service/internal/client/auth_client.go` | 3 | ⬜ |
 | `services/objects-service/internal/client/auth_client_test.go` | 3 | ⬜ |
 | `services/objects-service/internal/middleware/permission.go` | 4 | ⬜ |
@@ -256,20 +261,26 @@
 | `docs/rbac-objects-service.md` | 6 | ⬜ |
 | `scripts/test-rbac-objects-service.sh` | 6 | ⬜ |
 
-### Files to Modify
+### Files Modified
 
-| File | Phase | Changes |
-|------|-------|---------|
-| `services/auth-service/internal/config/config.go` | 1 | Add `PermissionCacheConfig` |
-| `services/auth-service/internal/services/auth_service.go` | 1 | Add `CheckPermission`, `GetUserPermissions`, `GetUserRoles` methods |
-| `services/auth-service/cmd/main.go` | 1 | Initialize cache, register permission routes |
-| `services/auth-service/config.yaml` | 1 | Add `permission_cache` settings |
-| `services/auth-service/internal/handlers/auth_handler.go` | 1 | Register new permission endpoints |
-| `services/objects-service/config.yaml` | 4 | Add `auth_service` settings |
-| `services/objects-service/cmd/main.go` | 4 | Initialize auth-client, add route protection |
-| `services/objects-service/internal/handlers/object_handler.go` | 5 | Add ownership validation |
-| `services/objects-service/internal/models/object_request.go` | 5 | Add `CreatedBy` field |
-| `services/objects-service/api/swagger.yaml` | 6 | Update with permission requirements |
+| File | Phase | Changes | Status |
+|------|-------|---------|--------|
+| `services/auth-service/internal/config/config.go` | 1 | Add `PermissionCacheConfig` | ✅ |
+| `services/auth-service/internal/services/auth_service.go` | 1 | Add `CheckPermission`, `GetUserPermissions`, `GetUserRoles` methods | ✅ |
+| `services/auth-service/cmd/main.go` | 1 | Initialize cache, register permission routes | ✅ |
+| `services/auth-service/config.yaml` | 1 | Add `permission_cache` settings | ✅ |
+| `services/auth-service/internal/handlers/auth_handler.go` | 1 | Register new permission endpoints | ✅ |
+| `services/auth-service/internal/handlers/auth_handler_test.go` | 1 | Update MockAuthService | ✅ |
+| `services/auth-service/internal/services/auth_service_test.go` | 1 | Update MockAuthRepository | ✅ |
+| `services/auth-service/migrations/dependencies.json` | 2 | Add 000005, 000006 entries | ✅ |
+| `services/auth-service/migrations/environments.json` | 2 | Add migrations to dev/staging | ✅ |
+| `services/user-service/migrations/dependencies.json` | 2 | Add 000005 entry | ✅ |
+| `services/user-service/migrations/environments.json` | 2 | Add migration to dev/staging | ✅ |
+| `services/objects-service/config.yaml` | 4 | Add `auth_service` settings | ⬜ |
+| `services/objects-service/cmd/main.go` | 4 | Initialize auth-client, add route protection | ⬜ |
+| `services/objects-service/internal/handlers/object_handler.go` | 5 | Add ownership validation | ⬜ |
+| `services/objects-service/internal/models/object_request.go` | 5 | Add `CreatedBy` field | ⬜ |
+| `services/objects-service/api/swagger.yaml` | 6 | Update with permission requirements | ⬜ |
 
 ---
 
@@ -350,3 +361,4 @@ psql -U postgres -d service_db -f services/auth-service/migrations/development/0
 | Date | Phase | Change | Author |
 |------|-------|--------|--------|
 | 2026-02-12 | - | Created TODO list | - |
+| 2026-02-28 | 1,2 | Implemented Phase 1 (permission cache) and Phase 2 (migrations) | - |
