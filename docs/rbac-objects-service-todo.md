@@ -1,7 +1,7 @@
 # RBAC Implementation - TODO List
 
 **Project**: Role-Based Access Control for Objects-Service
-**Status**: Phase 3 Complete
+**Status**: Phase 4 Complete
 **Started**: 2026-02-12
 **Completed**: 2026-02-28
 **Total Estimated Time**: 17-23 hours
@@ -15,10 +15,10 @@
 | Phase 1: Auth-Service Foundation | ✅ | 5 | 5/5 |
 | Phase 2: Auth-Service Migration | ✅ | 4 | 4/4 |
 | Phase 3: Auth-Client Wrapper | ✅ | 4 | 4/4 |
-| Phase 4: Objects-Service Integration | ⬜ | 4 | 0/4 |
+| Phase 4: Objects-Service Integration | ✅ | 4 | 4/4 |
 | Phase 5: Ownership Validation | ⬜ | 4 | 0/4 |
 | Phase 6: Testing & Documentation | ⬜ | 4 | 0/4 |
-| **Total** | ✅ | **25** | **13/25** |
+| **Total** | ✅ | **25** | **17/25** |
 
 ---
 
@@ -136,7 +136,7 @@
 
 **Goal**: Integrate auth-client, add permission middleware, protect routes
 **Estimated Time**: 4-5 hours
-**Status**: ⬜ Not Started
+**Status**: ✅ COMPLETED
 
 ### Tasks
 
@@ -144,6 +144,34 @@
   - File: `services/objects-service/config.yaml`
   - Add `auth_service.url` and `auth_service.timeout_seconds`
   - ✅ DONE in Phase 3
+
+- [x] **4.2** Initialize auth-client in main.go (0.5h)
+  - File: `services/objects-service/cmd/main.go`
+  - Create `client.NewAuthClient()`
+  - Pass to middleware
+
+- [x] **4.3** Create permission middleware (1.5h)
+  - File: `services/objects-service/internal/permiddleware/permission.go`
+  - Function: `RequirePermission(permissions ...string) gin.HandlerFunc`
+  - Calls auth-client for permission checks
+  - Fail-closed behavior
+
+- [x] **4.4** Protect routes with middleware (1.5h)
+  - File: `services/objects-service/cmd/main.go`
+  - Object Types: POST/PUT/DELETE → object-types:create/update/delete
+  - Object Types: GET → object-types:read
+  - Objects: POST → objects:create
+  - Objects: GET → objects:read:all OR objects:read:own
+  - Objects: PUT → objects:update:all OR objects:update:own
+  - Objects: DELETE → objects:delete:all OR objects:delete:own
+  - JWT validation: handled by API Gateway (config pre-existing)
+
+### Deliverables
+- [x] Auth-client initialized
+- [x] Permission middleware created
+- [x] All routes protected (fail-closed)
+- [x] Unit tests passing (5 tests)
+- [x] JWT config (pre-existing, handled by gateway)
 
 - [ ] **4.2** Initialize auth-client in main.go (0.5h)
   - File: `services/objects-service/cmd/main.go`
@@ -257,7 +285,8 @@
 | `services/user-service/migrations/development/000005_dev_add_object_admin.down.sql` | 2 | ✅ |
 | `services/objects-service/internal/client/auth_client.go` | 3 | ✅ |
 | `services/objects-service/internal/client/auth_client_test.go` | 3 | ✅ |
-| `services/objects-service/internal/middleware/permission.go` | 4 | ⬜ |
+| `services/objects-service/internal/permiddleware/permission.go` | 4 | ✅ |
+| `services/objects-service/internal/permiddleware/permission_test.go` | 4 | ✅ |
 | `tests/integration/rbac_integration_test.go` | 6 | ⬜ |
 | `docs/rbac-objects-service.md` | 6 | ⬜ |
 | `scripts/test-rbac-objects-service.sh` | 6 | ⬜ |
@@ -279,7 +308,7 @@
 | `services/user-service/migrations/environments.json` | 2 | Add migration to dev/staging | ✅ |
 | `common/config/config.go` | 3 | Add `AuthServiceConfig` struct | ✅ |
 | `services/objects-service/config.yaml` | 3 | Add `auth_service` settings | ✅ |
-| `services/objects-service/cmd/main.go` | 4 | Initialize auth-client, add route protection | ⬜ |
+| `services/objects-service/cmd/main.go` | 4 | Initialize auth-client, add route protection | ✅ |
 | `services/objects-service/internal/handlers/object_handler.go` | 5 | Add ownership validation | ⬜ |
 | `services/objects-service/internal/models/object_request.go` | 5 | Add `CreatedBy` field | ⬜ |
 | `services/objects-service/api/swagger.yaml` | 6 | Update with permission requirements | ⬜ |
@@ -365,3 +394,4 @@ psql -U postgres -d service_db -f services/auth-service/migrations/development/0
 | 2026-02-12 | - | Created TODO list | - |
 | 2026-02-28 | 1,2 | Implemented Phase 1 (permission cache) and Phase 2 (migrations) | - |
 | 2026-03-03 | 3 | Implemented Phase 3 (auth-client wrapper) | - |
+| 2026-03-03 | 4 | Implemented Phase 4 (objects-service integration, route protection) | - |

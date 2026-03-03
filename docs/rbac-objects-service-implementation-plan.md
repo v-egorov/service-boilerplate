@@ -2,7 +2,7 @@
 
 **Project**: Role-Based Access Control for Objects-Service
 **Architecture**: Centralized Authorization with Auth-Service
-**Status**: Phase 3 Complete
+**Status**: Phase 4 Complete
 **Total Estimated Time**: 20-24 hours
 
 ## Table of Contents
@@ -160,21 +160,22 @@ Implement comprehensive RBAC for objects-service with centralized permission man
 - ✅ `services/objects-service/internal/client/auth_client.go`
 - ✅ Unit tests (6 tests passing)
 
-### Phase 4: Objects-Service Integration (4-5 hours)
+### Phase 4: Objects-Service Integration (4-5 hours) ✅ COMPLETED
 
 **Goal**: Integrate auth-client, add permission middleware, protect routes
 
-| Task | Description | Effort |
-|------|-------------|--------|
-| 4.1 | Initialize auth-client in main.go | 0.5h |
-| 4.2 | Create permission middleware | 1.5h |
-| 4.3 | Protect routes with middleware | 1.5h |
-| 4.4 | Add JWT config to config.yaml | 0.5h |
+| Task | Description | Effort | Status |
+|------|-------------|--------|--------|
+| 4.1 | Initialize auth-client in main.go | 0.5h | ✅ Done |
+| 4.2 | Create permission middleware | 1.5h | ✅ Done |
+| 4.3 | Protect routes with middleware | 1.5h | ✅ Done |
+| 4.4 | JWT validation (handled by API Gateway, config pre-existing) | 0.5h | ✅ Done |
 
 **Deliverables**:
-- Auth-client initialized
-- Permission middleware
-- Protected routes
+- ✅ Auth-client initialized in main.go
+- ✅ Permission middleware (`internal/permiddleware/permission.go`)
+- ✅ All routes protected with appropriate permissions
+- ✅ Unit tests (5 tests passing)
 
 ### Phase 5: Ownership Validation (2-3 hours)
 
@@ -1156,6 +1157,8 @@ func (h *ObjectHandler) Delete(c *gin.Context) {
 | `services/auth-service/migrations/development/000005_dev_object_permissions.down.sql` | 2 | Rollback migration |
 | `services/objects-service/internal/client/auth_client.go` | 3 | Auth-service client |
 | `services/objects-service/internal/client/auth_client_test.go` | 3 | Auth-client tests |
+| `services/objects-service/internal/permiddleware/permission.go` | 4 | Permission middleware |
+| `services/objects-service/internal/permiddleware/permission_test.go` | 4 | Permission middleware tests |
 | `services/objects-service/internal/middleware/permission.go` | 4 | Permission middleware |
 
 ### Modified Files
