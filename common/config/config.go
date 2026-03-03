@@ -16,6 +16,7 @@ type Config struct {
 	Tracing         TracingConfig         `mapstructure:"tracing"`
 	JWT             JWTConfig             `mapstructure:"jwt"`
 	PermissionCache PermissionCacheConfig `mapstructure:"permission_cache"`
+	AuthService     AuthServiceConfig     `mapstructure:"auth_service"`
 }
 
 type AppConfig struct {
@@ -79,6 +80,11 @@ type PermissionCacheConfig struct {
 	MaxEntries int `mapstructure:"max_entries"`
 }
 
+type AuthServiceConfig struct {
+	URL     string `mapstructure:"url"`
+	Timeout int    `mapstructure:"timeout_seconds"`
+}
+
 func Load(configPath string) (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -111,6 +117,8 @@ func Load(configPath string) (*Config, error) {
 	viper.BindEnv("tracing.collector_url", "TRACING_COLLECTOR_URL")
 	viper.BindEnv("tracing.sampling_rate", "TRACING_SAMPLING_RATE")
 	viper.BindEnv("jwt.public_key", "JWT_PUBLIC_KEY")
+	viper.BindEnv("auth_service.url", "AUTH_SERVICE_URL")
+	viper.BindEnv("auth_service.timeout_seconds", "AUTH_SERVICE_TIMEOUT")
 
 	// Set environment variable defaults for Docker
 	if os.Getenv("DOCKER_ENV") == "true" {
@@ -184,4 +192,8 @@ func setDefaults() {
 	// Permission cache defaults
 	viper.SetDefault("permission_cache.ttl", 60)
 	viper.SetDefault("permission_cache.max_entries", 10000)
+
+	// Auth service defaults
+	viper.SetDefault("auth_service.url", "http://auth-service:8083")
+	viper.SetDefault("auth_service.timeout_seconds", 10)
 }
