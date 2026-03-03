@@ -16,7 +16,9 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/logging"
 	"github.com/v-egorov/service-boilerplate/common/middleware"
 	"github.com/v-egorov/service-boilerplate/common/tracing"
+	authclient "github.com/v-egorov/service-boilerplate/services/objects-service/internal/client"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/handlers"
+	permiddleware "github.com/v-egorov/service-boilerplate/services/objects-service/internal/permiddleware"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/repository"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/services"
 )
@@ -106,6 +108,18 @@ func main() {
 		healthHandler = handlers.NewHealthHandler(nil, logger.Logger, cfg)
 	}
 
+	// Initialize auth-client for permission checks
+	authClient := authclient.NewAuthClient(authclient.AuthClientConfig{
+		BaseURL: cfg.AuthService.URL,
+		Timeout: time.Duration(cfg.AuthService.Timeout) * time.Second,
+	}, logger.Logger)
+
+	// Initialize permission middleware (fail-closed)
+	permissionMiddleware := permiddleware.NewPermissionMiddleware(permiddleware.PermissionMiddlewareConfig{
+		AuthClient: authClient,
+		Logger:     logger.Logger,
+	})
+
 	// Initialize alert manager
 	alertManager := alerting.NewAlertManager(logger.Logger, cfg.App.Name, &cfg.Alerting, serviceLogger.GetMetricsCollector())
 
@@ -167,48 +181,89 @@ func main() {
 
 		// Object Type endpoints (only if database is available)
 		if objectTypeHandler != nil {
-			objectTypes := v1.Group("/object-types")
+			// Object Types - Admin only (create, update, delete)
+			objectTypesAdmin := v1.Group("/object-types")
+			objectTypesAdmin.Use(middleware.RequireAuth())
+			objectTypesAdmin.Use(permissionMiddleware("object-types:create", "object-types:update", "object-types:delete"))
 			{
-				objectTypes.POST("", objectTypeHandler.Create)
-				objectTypes.GET("/:id", objectTypeHandler.GetByID)
-				objectTypes.GET("/name/:name", objectTypeHandler.GetByName)
-				objectTypes.PUT("/:id", objectTypeHandler.Update)
-				objectTypes.DELETE("/:id", objectTypeHandler.Delete)
-				objectTypes.GET("/:id/tree", objectTypeHandler.GetTree)
-				objectTypes.GET("/:id/children", objectTypeHandler.GetChildren)
-				objectTypes.GET("/:id/descendants", objectTypeHandler.GetDescendants)
-				objectTypes.GET("/:id/ancestors", objectTypeHandler.GetAncestors)
-				objectTypes.GET("/:id/path", objectTypeHandler.GetPath)
-				objectTypes.GET("", objectTypeHandler.List)
-				objectTypes.GET("/search", objectTypeHandler.Search)
-				objectTypes.POST("/:id/validate-move", objectTypeHandler.ValidateMove)
-				objectTypes.GET("/:id/subtree-count", objectTypeHandler.GetSubtreeObjectCount)
+				objectTypesAdmin.POST("", objectTypeHandler.Create)
+				objectTypesAdmin.PUT("/:id", objectTypeHandler.Update)
+				objectTypesAdmin.DELETE("/:id", objectTypeHandler.Delete)
+			}
+
+			// Object Types - Read (authenticated users)
+			objectTypesRead := v1.Group("/object-types")
+			objectTypesRead.Use(middleware.RequireAuth())
+			objectTypesRead.Use(permissionMiddleware("object-types:read"))
+			{
+				objectTypesRead.GET("/:id", objectTypeHandler.GetByID)
+				objectTypesRead.GET("/name/:name", objectTypeHandler.GetByName)
+				objectTypesRead.GET("", objectTypeHandler.List)
+				objectTypesRead.GET("/search", objectTypeHandler.Search)
+				objectTypesRead.GET("/:id/tree", objectTypeHandler.GetTree)
+				objectTypesRead.GET("/:id/children", objectTypeHandler.GetChildren)
+				objectTypesRead.GET("/:id/descendants", objectTypeHandler.GetDescendants)
+				objectTypesRead.GET("/:id/ancestors", objectTypeHandler.GetAncestors)
+				objectTypesRead.GET("/:id/path", objectTypeHandler.GetPath)
+				objectTypesRead.GET("/:id/subtree-count", objectTypeHandler.GetSubtreeObjectCount)
+				objectTypesRead.POST("/:id/validate-move", objectTypeHandler.ValidateMove)
 			}
 		}
 
 		// Object endpoints (only if database is available)
 		if objectHandler != nil {
-			objects := v1.Group("/objects")
+			// Objects - Create
+			objectsCreate := v1.Group("/objects")
+			objectsCreate.Use(middleware.RequireAuth())
+			objectsCreate.Use(permissionMiddleware("objects:create"))
 			{
-				objects.POST("", objectHandler.Create)
-				objects.GET("/:id", objectHandler.GetByID)
-				objects.GET("/public-id/:public_id", objectHandler.GetByPublicID)
-				objects.GET("/name/:name", objectHandler.GetByName)
-				objects.PUT("/:id", objectHandler.Update)
-				objects.DELETE("/:id", objectHandler.Delete)
-				objects.GET("", objectHandler.List)
-				objects.GET("/search", objectHandler.Search)
-				objects.PUT("/:id/metadata", objectHandler.UpdateMetadata)
-				objects.POST("/:id/tags", objectHandler.AddTags)
-				objects.DELETE("/:id/tags", objectHandler.RemoveTags)
-				objects.GET("/:id/children", objectHandler.GetChildren)
-				objects.GET("/:id/descendants", objectHandler.GetDescendants)
-				objects.GET("/:id/ancestors", objectHandler.GetAncestors)
-				objects.GET("/:id/path", objectHandler.GetPath)
-				objects.POST("/bulk", objectHandler.BulkCreate)
-				objects.PUT("/bulk", objectHandler.BulkUpdate)
-				objects.DELETE("/bulk", objectHandler.BulkDelete)
-				objects.GET("/stats", objectHandler.GetStats)
+				objectsCreate.POST("", objectHandler.Create)
+			}
+
+			// Objects - Read
+			objectsRead := v1.Group("/objects")
+			objectsRead.Use(middleware.RequireAuth())
+			objectsRead.Use(permissionMiddleware("objects:read:all", "objects:read:own"))
+			{
+				objectsRead.GET("/:id", objectHandler.GetByID)
+				objectsRead.GET("/public-id/:public_id", objectHandler.GetByPublicID)
+				objectsRead.GET("/name/:name", objectHandler.GetByName)
+				objectsRead.GET("", objectHandler.List)
+				objectsRead.GET("/search", objectHandler.Search)
+				objectsRead.GET("/:id/children", objectHandler.GetChildren)
+				objectsRead.GET("/:id/descendants", objectHandler.GetDescendants)
+				objectsRead.GET("/:id/ancestors", objectHandler.GetAncestors)
+				objectsRead.GET("/:id/path", objectHandler.GetPath)
+				objectsRead.GET("/stats", objectHandler.GetStats)
+			}
+
+			// Objects - Update
+			objectsUpdate := v1.Group("/objects")
+			objectsUpdate.Use(middleware.RequireAuth())
+			objectsUpdate.Use(permissionMiddleware("objects:update:all", "objects:update:own"))
+			{
+				objectsUpdate.PUT("/:id", objectHandler.Update)
+				objectsUpdate.PUT("/:id/metadata", objectHandler.UpdateMetadata)
+				objectsUpdate.POST("/:id/tags", objectHandler.AddTags)
+				objectsUpdate.DELETE("/:id/tags", objectHandler.RemoveTags)
+			}
+
+			// Objects - Delete
+			objectsDelete := v1.Group("/objects")
+			objectsDelete.Use(middleware.RequireAuth())
+			objectsDelete.Use(permissionMiddleware("objects:delete:all", "objects:delete:own"))
+			{
+				objectsDelete.DELETE("/:id", objectHandler.Delete)
+			}
+
+			// Objects - Bulk operations
+			objectsBulk := v1.Group("/objects")
+			objectsBulk.Use(middleware.RequireAuth())
+			objectsBulk.Use(permissionMiddleware("objects:create", "objects:update:all", "objects:delete:all"))
+			{
+				objectsBulk.POST("/bulk", objectHandler.BulkCreate)
+				objectsBulk.PUT("/bulk", objectHandler.BulkUpdate)
+				objectsBulk.DELETE("/bulk", objectHandler.BulkDelete)
 			}
 		}
 	}
