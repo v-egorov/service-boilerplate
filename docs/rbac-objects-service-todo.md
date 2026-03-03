@@ -1,7 +1,7 @@
 # RBAC Implementation - TODO List
 
 **Project**: Role-Based Access Control for Objects-Service
-**Status**: Phase 2 Complete
+**Status**: Phase 3 Complete
 **Started**: 2026-02-12
 **Completed**: 2026-02-28
 **Total Estimated Time**: 17-23 hours
@@ -14,11 +14,11 @@
 |-------|--------|-------|----------|
 | Phase 1: Auth-Service Foundation | ✅ | 5 | 5/5 |
 | Phase 2: Auth-Service Migration | ✅ | 4 | 4/4 |
-| Phase 3: Auth-Client Wrapper | ⬜ | 4 | 0/4 |
+| Phase 3: Auth-Client Wrapper | ✅ | 4 | 4/4 |
 | Phase 4: Objects-Service Integration | ⬜ | 4 | 0/4 |
 | Phase 5: Ownership Validation | ⬜ | 4 | 0/4 |
 | Phase 6: Testing & Documentation | ⬜ | 4 | 0/4 |
-| **Total** | ✅ | **25** | **9/25** |
+| **Total** | ✅ | **25** | **13/25** |
 
 ---
 
@@ -104,31 +104,31 @@
 
 **Goal**: Create client wrapper in objects-service for auth-service API calls
 **Estimated Time**: 2-3 hours
-**Status**: ⬜ Not Started
+**Status**: ✅ COMPLETED
 
 ### Tasks
 
-- [ ] **3.1** Create auth-client package (1h)
+- [x] **3.1** Create auth-client package (1h)
   - File: `services/objects-service/internal/client/auth_client.go`
   - Interface-based design
   - HTTP client with configurable timeout
 
-- [ ] **3.2** Implement permission check call (0.5h)
+- [x] **3.2** Implement permission check call (0.5h)
   - Method: `CheckPermission(ctx, userID, permission) (bool, error)`
   - Calls `POST /api/v1/auth/permissions/check`
 
-- [ ] **3.3** Implement user permissions call (0.5h)
+- [x] **3.3** Implement user permissions call (0.5h)
   - Method: `GetUserPermissions(ctx, userID) ([]string, error)`
   - Calls `GET /api/v1/auth/users/{user_id}/permissions`
 
-- [ ] **3.4** Write unit tests (0.5h)
+- [x] **3.4** Write unit tests (0.5h)
   - File: `services/objects-service/internal/client/auth_client_test.go`
   - Mock HTTP responses
-  - Error handling tests
+  - Error handling tests (6 tests passing)
 
 ### Deliverables
-- [ ] `services/objects-service/internal/client/auth_client.go`
-- [ ] Unit tests passing
+- [x] `services/objects-service/internal/client/auth_client.go`
+- [x] Unit tests passing
 
 ---
 
@@ -140,9 +140,10 @@
 
 ### Tasks
 
-- [ ] **4.1** Add config for auth-service (0.5h)
+- [x] **4.1** Add config for auth-service (0.5h)
   - File: `services/objects-service/config.yaml`
   - Add `auth_service.url` and `auth_service.timeout_seconds`
+  - ✅ DONE in Phase 3
 
 - [ ] **4.2** Initialize auth-client in main.go (0.5h)
   - File: `services/objects-service/cmd/main.go`
@@ -254,8 +255,8 @@
 | `services/auth-service/migrations/development/000006_dev_object_permissions_seed.down.sql` | 2 | ✅ |
 | `services/user-service/migrations/development/000005_dev_add_object_admin.up.sql` | 2 | ✅ |
 | `services/user-service/migrations/development/000005_dev_add_object_admin.down.sql` | 2 | ✅ |
-| `services/objects-service/internal/client/auth_client.go` | 3 | ⬜ |
-| `services/objects-service/internal/client/auth_client_test.go` | 3 | ⬜ |
+| `services/objects-service/internal/client/auth_client.go` | 3 | ✅ |
+| `services/objects-service/internal/client/auth_client_test.go` | 3 | ✅ |
 | `services/objects-service/internal/middleware/permission.go` | 4 | ⬜ |
 | `tests/integration/rbac_integration_test.go` | 6 | ⬜ |
 | `docs/rbac-objects-service.md` | 6 | ⬜ |
@@ -276,7 +277,8 @@
 | `services/auth-service/migrations/environments.json` | 2 | Add migrations to dev/staging | ✅ |
 | `services/user-service/migrations/dependencies.json` | 2 | Add 000005 entry | ✅ |
 | `services/user-service/migrations/environments.json` | 2 | Add migration to dev/staging | ✅ |
-| `services/objects-service/config.yaml` | 4 | Add `auth_service` settings | ⬜ |
+| `common/config/config.go` | 3 | Add `AuthServiceConfig` struct | ✅ |
+| `services/objects-service/config.yaml` | 3 | Add `auth_service` settings | ✅ |
 | `services/objects-service/cmd/main.go` | 4 | Initialize auth-client, add route protection | ⬜ |
 | `services/objects-service/internal/handlers/object_handler.go` | 5 | Add ownership validation | ⬜ |
 | `services/objects-service/internal/models/object_request.go` | 5 | Add `CreatedBy` field | ⬜ |
@@ -362,3 +364,4 @@ psql -U postgres -d service_db -f services/auth-service/migrations/development/0
 |------|-------|--------|--------|
 | 2026-02-12 | - | Created TODO list | - |
 | 2026-02-28 | 1,2 | Implemented Phase 1 (permission cache) and Phase 2 (migrations) | - |
+| 2026-03-03 | 3 | Implemented Phase 3 (auth-client wrapper) | - |
