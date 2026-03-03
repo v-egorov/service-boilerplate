@@ -1,0 +1,35 @@
+- brevity is good
+- project uses Docker Compose, compose files located at ./docker/ directory.
+- there are two compose files:
+  - ./docker/docker-compose.yml - base compose
+  - ./docker/docker-compose.override.yml - development environment oriented compose, overriding and extending base compose
+- this is a boilerplate project intended to be used as a base to develop 'real' project via forking. Consequently:
+  - assume that we are working in 'development' mode all the time.
+  - no need to worry about backward compatibility and breaking changes.
+  - production environment planned for derivative projects, but does not exists for this boilerplate
+  - user can re-create dev environment from scratch at any time
+- project consists of
+  - api-gateway located at ./api-gateway/
+  - set of services located at ./services/
+  - template to instantiate new service located at ./templates/service-template/ - do not try to compile, vet, test or fix service template directly - it will not work
+  - set of utilities scripts located as ./scripts/
+  - script to instantiate new service - ./scripts/create-service.sh
+  - custom ./migration-orchestrator/ implemented as docker container with go application to manage migrations
+- services running as containers in Docker, communicate via compose network, do not try to run services outside of docker
+- builds and tests, however, can be run on host machine to simplify development workflow
+- project uses Air based hot-reload - so when source is changed, corresponding service[s] compiled and restarted automatically
+- project extensively uses Makefile for pretty much all common tasks. Most important targets are:
+  - `make dev` - start all services in development mode. Air is started inside containers, compile and start each service.
+  - `make down` - stop all services
+  - `make logs` - stream logs from all containers. Warning: amount of output from this command can be fairly large, use with caution
+  - `make status` - output status of services
+  - `make build-<service-name>` - build service-name
+  - `make test-<service-name>` - run tests for service-name
+- each service produces it's own log, accessible via mounted folder on a host: ./docker/volumes/[service-name]/logs/[service-name].log - these logs available for inspection via tail/grep etc
+- if after changing any YAML files (including docker-compose\*.yml) you'll encounter errors - stop and transfer control to user for inspection
+- do not make 'quick and dirty' fixes in the database for any configuration-level data. These data (including data seeded for dev/debug purposes) should be popuated via database migrations
+- most important database-related Makefile targets:
+  - `make db-migrate SERVICE_NAME=<service-name>` - apply all pending migrations
+  - `make db-migrate-down SERVICE_NAME=<service-name>` - rollback one migration
+  - `docker exec service-boilerplate-postgres psql -U postgres -d service_db -c "<SQL STATEMENT>" 2>&1` - run SQL STATEMENT against database
+- tests should be implemented using testify framework. Overview of testing approach for project described in ./docs/testify-overview.md
