@@ -95,18 +95,18 @@ func (m *MockObjectService) FindByTags(ctx context.Context, tags []string, match
 	return args.Get(0).([]*models.Object), args.Error(1)
 }
 
-func (m *MockObjectService) UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}) error {
-	args := m.Called(ctx, id, metadata)
+func (m *MockObjectService) UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}, updatedBy string) error {
+	args := m.Called(ctx, id, metadata, updatedBy)
 	return args.Error(0)
 }
 
-func (m *MockObjectService) AddTags(ctx context.Context, id int64, tags []string) error {
-	args := m.Called(ctx, id, tags)
+func (m *MockObjectService) AddTags(ctx context.Context, id int64, tags []string, updatedBy string) error {
+	args := m.Called(ctx, id, tags, updatedBy)
 	return args.Error(0)
 }
 
-func (m *MockObjectService) RemoveTags(ctx context.Context, id int64, tags []string) error {
-	args := m.Called(ctx, id, tags)
+func (m *MockObjectService) RemoveTags(ctx context.Context, id int64, tags []string, updatedBy string) error {
+	args := m.Called(ctx, id, tags, updatedBy)
 	return args.Error(0)
 }
 
@@ -548,7 +548,7 @@ func TestObjectHandler_AddTags(t *testing.T) {
 
 	handler := NewObjectHandlerWithInterface(mockService, logger)
 
-	mockService.On("AddTags", mock.Anything, int64(1), []string{"tag1", "tag2"}).Return(nil)
+	mockService.On("AddTags", mock.Anything, int64(1), []string{"tag1", "tag2"}, mock.Anything).Return(nil)
 
 	c, w := createTestGinContext("POST", "/api/v1/objects/1/tags", map[string]interface{}{"tags": []string{"tag1", "tag2"}})
 	c.Params = gin.Params{{Key: "id", Value: "1"}}
@@ -566,7 +566,7 @@ func TestObjectHandler_RemoveTags(t *testing.T) {
 
 	handler := NewObjectHandlerWithInterface(mockService, logger)
 
-	mockService.On("RemoveTags", mock.Anything, int64(1), []string{"tag1"}).Return(nil)
+	mockService.On("RemoveTags", mock.Anything, int64(1), []string{"tag1"}, mock.Anything).Return(nil)
 
 	c, w := createTestGinContext("DELETE", "/api/v1/objects/1/tags", map[string]interface{}{"tags": []string{"tag1"}})
 	c.Params = gin.Params{{Key: "id", Value: "1"}}

@@ -210,18 +210,18 @@ func (m *MockObjectService) FindByTags(ctx context.Context, tags []string, match
 	return args.Get(0).([]*models.Object), args.Error(1)
 }
 
-func (m *MockObjectService) UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}) error {
-	args := m.Called(ctx, id, metadata)
+func (m *MockObjectService) UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}, updatedBy string) error {
+	args := m.Called(ctx, id, metadata, updatedBy)
 	return args.Error(0)
 }
 
-func (m *MockObjectService) AddTags(ctx context.Context, id int64, tags []string) error {
-	args := m.Called(ctx, id, tags)
+func (m *MockObjectService) AddTags(ctx context.Context, id int64, tags []string, updatedBy string) error {
+	args := m.Called(ctx, id, tags, updatedBy)
 	return args.Error(0)
 }
 
-func (m *MockObjectService) RemoveTags(ctx context.Context, id int64, tags []string) error {
-	args := m.Called(ctx, id, tags)
+func (m *MockObjectService) RemoveTags(ctx context.Context, id int64, tags []string, updatedBy string) error {
+	args := m.Called(ctx, id, tags, updatedBy)
 	return args.Error(0)
 }
 

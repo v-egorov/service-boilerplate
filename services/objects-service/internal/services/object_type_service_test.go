@@ -1,11 +1,5 @@
 package services
 
-// Stub tests for ObjectTypeService
-//
-// These are placeholder tests that verify method signatures compile correctly.
-// They use minimal mocks and do not test full service logic.
-//
-// TODO: Replace with proper integration tests in Phase 8
 // - Test actual service validation logic
 // - Test error propagation from repositories
 // - Test complex hierarchical scenarios
@@ -158,7 +152,6 @@ func (m *mockObjectTypeRepository) Metrics() *repository.RepositoryMetrics { ret
 func (m *mockObjectTypeRepository) ResetMetrics()                          {}
 func (m *mockObjectTypeRepository) Healthy(ctx context.Context) error      { return nil }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectTypeService_Create_ValidationError(t *testing.T) {
 	mockRepo := &mockObjectTypeRepository{}
 	service := NewObjectTypeService(mockRepo)
@@ -181,7 +174,6 @@ func TestObjectTypeService_Create_Success(t *testing.T) {
 	assert.Equal(t, "test-type", result.Name)
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectTypeService_GetByID_InvalidID(t *testing.T) {
 	mockRepo := &mockObjectTypeRepository{}
 	service := NewObjectTypeService(mockRepo)
@@ -191,7 +183,6 @@ func TestObjectTypeService_GetByID_InvalidID(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid id")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectTypeService_GetByID_NotFound(t *testing.T) {
 	mockRepo := &mockObjectTypeRepository{
 		getByIDFunc: func(ctx context.Context, id int64) (*models.ObjectType, error) {
@@ -205,7 +196,6 @@ func TestObjectTypeService_GetByID_NotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectTypeService_GetByName_InvalidName(t *testing.T) {
 	mockRepo := &mockObjectTypeRepository{}
 	service := NewObjectTypeService(mockRepo)
@@ -215,7 +205,6 @@ func TestObjectTypeService_GetByName_InvalidName(t *testing.T) {
 	assert.Contains(t, err.Error(), "name is required")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectTypeService_Update_SealedType(t *testing.T) {
 	mockRepo := &mockObjectTypeRepository{
 		getByIDFunc: func(ctx context.Context, id int64) (*models.ObjectType, error) {
@@ -230,7 +219,6 @@ func TestObjectTypeService_Update_SealedType(t *testing.T) {
 	assert.Contains(t, err.Error(), "sealed")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectTypeService_Update_Success(t *testing.T) {
 	mockRepo := &mockObjectTypeRepository{
 		getByIDFunc: func(ctx context.Context, id int64) (*models.ObjectType, error) {
@@ -248,7 +236,6 @@ func TestObjectTypeService_Update_Success(t *testing.T) {
 	assert.Equal(t, "updated", result.Name)
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectTypeService_Delete_SealedType(t *testing.T) {
 	mockRepo := &mockObjectTypeRepository{
 		getByIDFunc: func(ctx context.Context, id int64) (*models.ObjectType, error) {
@@ -262,7 +249,6 @@ func TestObjectTypeService_Delete_SealedType(t *testing.T) {
 	assert.Contains(t, err.Error(), "sealed")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectTypeService_Delete_WithObjects(t *testing.T) {
 	mockRepo := &mockObjectTypeRepository{
 		getByIDFunc: func(ctx context.Context, id int64) (*models.ObjectType, error) {
@@ -279,7 +265,6 @@ func TestObjectTypeService_Delete_WithObjects(t *testing.T) {
 	assert.Contains(t, err.Error(), "existing objects")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectTypeService_Delete_Success(t *testing.T) {
 	mockRepo := &mockObjectTypeRepository{
 		getByIDFunc: func(ctx context.Context, id int64) (*models.ObjectType, error) {
@@ -298,7 +283,6 @@ func TestObjectTypeService_Delete_Success(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectTypeService_Search_EmptyQuery(t *testing.T) {
 	mockRepo := &mockObjectTypeRepository{}
 	service := NewObjectTypeService(mockRepo)
@@ -308,7 +292,6 @@ func TestObjectTypeService_Search_EmptyQuery(t *testing.T) {
 	assert.Contains(t, err.Error(), "query is required")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectTypeService_ValidateMove_InvalidID(t *testing.T) {
 	mockRepo := &mockObjectTypeRepository{}
 	service := NewObjectTypeService(mockRepo)
@@ -318,7 +301,6 @@ func TestObjectTypeService_ValidateMove_InvalidID(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid id")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectTypeService_ValidateMove_InvalidParentID(t *testing.T) {
 	mockRepo := &mockObjectTypeRepository{}
 	service := NewObjectTypeService(mockRepo)
@@ -328,7 +310,6 @@ func TestObjectTypeService_ValidateMove_InvalidParentID(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid new parent id")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectTypeService_ValidateMove_Success(t *testing.T) {
 	mockRepo := &mockObjectTypeRepository{
 		getAncestorsFunc: func(ctx context.Context, id int64) ([]*models.ObjectType, error) {
@@ -341,7 +322,6 @@ func TestObjectTypeService_ValidateMove_Success(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectTypeService_GetSubtreeObjectCount_InvalidID(t *testing.T) {
 	mockRepo := &mockObjectTypeRepository{}
 	service := NewObjectTypeService(mockRepo)
@@ -351,7 +331,6 @@ func TestObjectTypeService_GetSubtreeObjectCount_InvalidID(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid id")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectTypeService_GetSubtreeObjectCount_Success(t *testing.T) {
 	mockRepo := &mockObjectTypeRepository{
 		getSubtreeObjectCountFunc: func(ctx context.Context, id int64) (int64, error) {

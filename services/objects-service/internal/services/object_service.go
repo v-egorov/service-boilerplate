@@ -21,9 +21,9 @@ type ObjectService interface {
 	Search(ctx context.Context, query string, limit int) ([]*models.Object, error)
 	FindByMetadata(ctx context.Context, key, value string) ([]*models.Object, error)
 	FindByTags(ctx context.Context, tags []string, matchAll bool) ([]*models.Object, error)
-	UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}) error
-	AddTags(ctx context.Context, id int64, tags []string) error
-	RemoveTags(ctx context.Context, id int64, tags []string) error
+	UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}, updatedBy string) error
+	AddTags(ctx context.Context, id int64, tags []string, updatedBy string) error
+	RemoveTags(ctx context.Context, id int64, tags []string, updatedBy string) error
 	GetChildren(ctx context.Context, parentID int64) ([]*models.Object, error)
 	GetDescendants(ctx context.Context, rootID int64, maxDepth *int) ([]*models.Object, error)
 	GetAncestors(ctx context.Context, id int64) ([]*models.Object, error)
@@ -228,7 +228,7 @@ func (s *objectService) FindByTags(ctx context.Context, tags []string, matchAll 
 	return s.repo.FindByTags(ctx, tags, matchAll)
 }
 
-func (s *objectService) UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}) error {
+func (s *objectService) UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}, updatedBy string) error {
 	if id <= 0 {
 		return fmt.Errorf("invalid id: %w", repository.ErrInvalidInput)
 	}
@@ -237,10 +237,10 @@ func (s *objectService) UpdateMetadata(ctx context.Context, id int64, metadata m
 		return fmt.Errorf("metadata cannot be nil: %w", repository.ErrInvalidInput)
 	}
 
-	return s.repo.UpdateMetadata(ctx, id, metadata)
+	return s.repo.UpdateMetadata(ctx, id, metadata, updatedBy)
 }
 
-func (s *objectService) AddTags(ctx context.Context, id int64, tags []string) error {
+func (s *objectService) AddTags(ctx context.Context, id int64, tags []string, updatedBy string) error {
 	if id <= 0 {
 		return fmt.Errorf("invalid id: %w", repository.ErrInvalidInput)
 	}
@@ -249,10 +249,10 @@ func (s *objectService) AddTags(ctx context.Context, id int64, tags []string) er
 		return nil
 	}
 
-	return s.repo.AddTags(ctx, id, tags)
+	return s.repo.AddTags(ctx, id, tags, updatedBy)
 }
 
-func (s *objectService) RemoveTags(ctx context.Context, id int64, tags []string) error {
+func (s *objectService) RemoveTags(ctx context.Context, id int64, tags []string, updatedBy string) error {
 	if id <= 0 {
 		return fmt.Errorf("invalid id: %w", repository.ErrInvalidInput)
 	}
@@ -261,7 +261,7 @@ func (s *objectService) RemoveTags(ctx context.Context, id int64, tags []string)
 		return nil
 	}
 
-	return s.repo.RemoveTags(ctx, id, tags)
+	return s.repo.RemoveTags(ctx, id, tags, updatedBy)
 }
 
 func (s *objectService) GetChildren(ctx context.Context, parentID int64) ([]*models.Object, error) {

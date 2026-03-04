@@ -28,9 +28,9 @@ type ObjectServiceInterface interface {
 	Search(ctx context.Context, query string, limit int) ([]*models.Object, error)
 	FindByMetadata(ctx context.Context, key, value string) ([]*models.Object, error)
 	FindByTags(ctx context.Context, tags []string, matchAll bool) ([]*models.Object, error)
-	UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}) error
-	AddTags(ctx context.Context, id int64, tags []string) error
-	RemoveTags(ctx context.Context, id int64, tags []string) error
+	UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}, updatedBy string) error
+	AddTags(ctx context.Context, id int64, tags []string, updatedBy string) error
+	RemoveTags(ctx context.Context, id int64, tags []string, updatedBy string) error
 	GetChildren(ctx context.Context, parentID int64) ([]*models.Object, error)
 	GetDescendants(ctx context.Context, rootID int64, maxDepth *int) ([]*models.Object, error)
 	GetAncestors(ctx context.Context, id int64) ([]*models.Object, error)
@@ -77,6 +77,12 @@ func (h *ObjectHandler) handleServiceError(c *gin.Context, err error, operation 
 
 	switch err {
 	case nil:
+		return
+	case repository.ErrOptimisticLock:
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "Version conflict - the object has been modified by another request",
+			"type":  "version_conflict",
+		})
 		return
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -272,6 +278,11 @@ func (h *ObjectHandler) Update(c *gin.Context) {
 		return
 	}
 
+	userID := middleware.GetAuthenticatedUserID(c)
+	if userID != "" {
+		req.UpdatedBy = userID
+	}
+
 	object, err := h.service.Update(c.Request.Context(), id, &req)
 	if err != nil {
 		h.handleServiceError(c, err, "Failed to update object", requestID)
@@ -444,7 +455,8 @@ func (h *ObjectHandler) UpdateMetadata(c *gin.Context) {
 		return
 	}
 
-	err = h.service.UpdateMetadata(c.Request.Context(), id, metadata)
+	userID := middleware.GetAuthenticatedUserID(c)
+	err = h.service.UpdateMetadata(c.Request.Context(), id, metadata, userID)
 	if err != nil {
 		h.handleServiceError(c, err, "Failed to update metadata", requestID)
 		return
@@ -482,7 +494,8 @@ func (h *ObjectHandler) AddTags(c *gin.Context) {
 		return
 	}
 
-	err = h.service.AddTags(c.Request.Context(), id, req.Tags)
+	userID := middleware.GetAuthenticatedUserID(c)
+	err = h.service.AddTags(c.Request.Context(), id, req.Tags, userID)
 	if err != nil {
 		h.handleServiceError(c, err, "Failed to add tags", requestID)
 		return
@@ -520,7 +533,8 @@ func (h *ObjectHandler) RemoveTags(c *gin.Context) {
 		return
 	}
 
-	err = h.service.RemoveTags(c.Request.Context(), id, req.Tags)
+	userID := middleware.GetAuthenticatedUserID(c)
+	err = h.service.RemoveTags(c.Request.Context(), id, req.Tags, userID)
 	if err != nil {
 		h.handleServiceError(c, err, "Failed to remove tags", requestID)
 		return

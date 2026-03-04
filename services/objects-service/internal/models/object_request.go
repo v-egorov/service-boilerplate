@@ -28,6 +28,7 @@ type UpdateObjectRequest struct {
 	Tags           *[]string               `json:"tags,omitempty"`
 	Status         *string                 `json:"status,omitempty" validate:"omitempty,oneof=active inactive archived deleted pending"`
 	Version        *int64                  `json:"version,omitempty" validate:"omitempty,gt=0"`
+	UpdatedBy      string                  `json:"-" db:"updated_by"`
 }
 
 // ReplaceObjectRequest represents the request payload for replacing an object

@@ -32,9 +32,9 @@ type ObjectRepository interface {
 	// Metadata and tag operations
 	FindByMetadata(ctx context.Context, key, value string) ([]*models.Object, error)
 	FindByTags(ctx context.Context, tags []string, matchAll bool) ([]*models.Object, error)
-	UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}) error
-	AddTags(ctx context.Context, id int64, tags []string) error
-	RemoveTags(ctx context.Context, id int64, tags []string) error
+	UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}, updatedBy string) error
+	AddTags(ctx context.Context, id int64, tags []string, updatedBy string) error
+	RemoveTags(ctx context.Context, id int64, tags []string, updatedBy string) error
 
 	// Hierarchical operations (simplified - no eager loading for performance)
 	GetChildren(ctx context.Context, parentID int64) ([]*models.Object, error)
@@ -105,7 +105,8 @@ func (r *objectRepository) ResetMetrics() {
 
 // Healthy implements Repository interface
 func (r *objectRepository) Healthy(ctx context.Context) error {
-	return nil // TODO: Implement health check
+	var result int
+	return r.db.QueryRow(ctx, "SELECT 1").Scan(&result)
 }
 
 // Create creates a new object
@@ -351,7 +352,11 @@ func (r *objectRepository) Update(ctx context.Context, id int64, input *models.U
 	setClauses = append(setClauses, fmt.Sprintf("version = version + 1"))
 	setClauses = append(setClauses, "updated_at = CURRENT_TIMESTAMP")
 	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", argIndex))
-	args = append(args, "system") // TODO: Get from context
+	if input.UpdatedBy != "" {
+		args = append(args, input.UpdatedBy)
+	} else {
+		args = append(args, "system")
+	}
 	argIndex++
 
 	query := fmt.Sprintf(`
@@ -827,7 +832,7 @@ func (r *objectRepository) FindByTags(ctx context.Context, tags []string, matchA
 	return objects, nil
 }
 
-func (r *objectRepository) UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}) error {
+func (r *objectRepository) UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}, updatedBy string) error {
 	r.metrics.QueryCount++
 
 	metadataJSON, err := json.Marshal(metadata)
@@ -836,12 +841,17 @@ func (r *objectRepository) UpdateMetadata(ctx context.Context, id int64, metadat
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
+	userToSet := updatedBy
+	if userToSet == "" {
+		userToSet = "system"
+	}
+
 	query := `
 		UPDATE objects
-		SET metadata = $1, updated_at = CURRENT_TIMESTAMP, updated_by = 'system'
+		SET metadata = $1, updated_at = CURRENT_TIMESTAMP, updated_by = $3
 		WHERE id = $2 AND deleted_at IS NULL`
 
-	_, err = r.db.Exec(ctx, query, metadataJSON, id)
+	_, err = r.db.Exec(ctx, query, metadataJSON, id, userToSet)
 	if err != nil {
 		r.metrics.ErrorCount++
 		return fmt.Errorf("failed to update metadata: %w", err)
@@ -850,19 +860,24 @@ func (r *objectRepository) UpdateMetadata(ctx context.Context, id int64, metadat
 	return nil
 }
 
-func (r *objectRepository) AddTags(ctx context.Context, id int64, tags []string) error {
+func (r *objectRepository) AddTags(ctx context.Context, id int64, tags []string, updatedBy string) error {
 	r.metrics.QueryCount++
 
 	if len(tags) == 0 {
 		return nil
 	}
 
+	userToSet := updatedBy
+	if userToSet == "" {
+		userToSet = "system"
+	}
+
 	query := `
 		UPDATE objects
-		SET tags = tags || $1::text[], updated_at = CURRENT_TIMESTAMP, updated_by = 'system'
+		SET tags = tags || $1::text[], updated_at = CURRENT_TIMESTAMP, updated_by = $3
 		WHERE id = $2 AND deleted_at IS NULL`
 
-	_, err := r.db.Exec(ctx, query, tags, id)
+	_, err := r.db.Exec(ctx, query, tags, id, userToSet)
 	if err != nil {
 		r.metrics.ErrorCount++
 		return fmt.Errorf("failed to add tags: %w", err)
@@ -871,19 +886,24 @@ func (r *objectRepository) AddTags(ctx context.Context, id int64, tags []string)
 	return nil
 }
 
-func (r *objectRepository) RemoveTags(ctx context.Context, id int64, tags []string) error {
+func (r *objectRepository) RemoveTags(ctx context.Context, id int64, tags []string, updatedBy string) error {
 	r.metrics.QueryCount++
 
 	if len(tags) == 0 {
 		return nil
 	}
 
+	userToSet := updatedBy
+	if userToSet == "" {
+		userToSet = "system"
+	}
+
 	query := `
 		UPDATE objects
-		SET tags = tags - $1::text[], updated_at = CURRENT_TIMESTAMP, updated_by = 'system'
+		SET tags = tags - $1::text[], updated_at = CURRENT_TIMESTAMP, updated_by = $3
 		WHERE id = $2 AND deleted_at IS NULL`
 
-	_, err := r.db.Exec(ctx, query, tags, id)
+	_, err := r.db.Exec(ctx, query, tags, id, userToSet)
 	if err != nil {
 		r.metrics.ErrorCount++
 		return fmt.Errorf("failed to remove tags: %w", err)

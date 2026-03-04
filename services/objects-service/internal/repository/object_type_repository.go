@@ -84,7 +84,8 @@ func (r *objectTypeRepository) ResetMetrics() {
 
 // Healthy implements Repository interface
 func (r *objectTypeRepository) Healthy(ctx context.Context) error {
-	return nil // TODO: Implement health check
+	var result int
+	return r.db.QueryRow(ctx, "SELECT 1").Scan(&result)
 }
 
 // Create creates a new object type

@@ -204,7 +204,7 @@ func TestObjectRepository_UpdateMetadata(t *testing.T) {
 		"key2": 123,
 	}
 
-	err := repo.UpdateMetadata(context.Background(), 1, metadata)
+	err := repo.UpdateMetadata(context.Background(), 1, metadata, "test-user")
 	assert.NoError(t, err)
 }
 
@@ -219,7 +219,7 @@ func TestObjectRepository_AddTags(t *testing.T) {
 	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
 	tags := []string{"tag1", "tag2", "tag3"}
 
-	err := repo.AddTags(context.Background(), 1, tags)
+	err := repo.AddTags(context.Background(), 1, tags, "test-user")
 	assert.NoError(t, err)
 }
 
@@ -228,7 +228,7 @@ func TestObjectRepository_AddTags_Empty(t *testing.T) {
 	mockDB := &MockDBPool{}
 
 	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
-	err := repo.AddTags(context.Background(), 1, []string{})
+	err := repo.AddTags(context.Background(), 1, []string{}, "test-user")
 	assert.NoError(t, err)
 }
 
@@ -243,7 +243,7 @@ func TestObjectRepository_RemoveTags(t *testing.T) {
 	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
 	tags := []string{"tag1", "tag2"}
 
-	err := repo.RemoveTags(context.Background(), 1, tags)
+	err := repo.RemoveTags(context.Background(), 1, tags, "test-user")
 	assert.NoError(t, err)
 }
 
@@ -252,7 +252,7 @@ func TestObjectRepository_RemoveTags_Empty(t *testing.T) {
 	mockDB := &MockDBPool{}
 
 	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
-	err := repo.RemoveTags(context.Background(), 1, []string{})
+	err := repo.RemoveTags(context.Background(), 1, []string{}, "test-user")
 	assert.NoError(t, err)
 }
 

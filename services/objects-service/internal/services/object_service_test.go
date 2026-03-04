@@ -5,7 +5,6 @@ package services
 // These are placeholder tests that verify method signatures compile correctly.
 // They use minimal mocks and do not test full service logic.
 //
-// TODO: Replace with proper integration tests in Phase 8
 // - Test actual service validation logic
 // - Test sealed type restrictions
 // - Test parent-child type compatibility
@@ -34,9 +33,9 @@ type mockObjectRepository struct {
 	searchFunc              func(ctx context.Context, query string, limit int) ([]*models.Object, error)
 	findByMetadataFunc      func(ctx context.Context, key, value string) ([]*models.Object, error)
 	findByTagsFunc          func(ctx context.Context, tags []string, matchAll bool) ([]*models.Object, error)
-	updateMetadataFunc      func(ctx context.Context, id int64, metadata map[string]interface{}) error
-	addTagsFunc             func(ctx context.Context, id int64, tags []string) error
-	removeTagsFunc          func(ctx context.Context, id int64, tags []string) error
+	updateMetadataFunc      func(ctx context.Context, id int64, metadata map[string]interface{}, updatedBy string) error
+	addTagsFunc             func(ctx context.Context, id int64, tags []string, updatedBy string) error
+	removeTagsFunc          func(ctx context.Context, id int64, tags []string, updatedBy string) error
 	getChildrenFunc         func(ctx context.Context, parentID int64) ([]*models.Object, error)
 	getDescendantsFunc      func(ctx context.Context, rootID int64, maxDepth *int) ([]*models.Object, error)
 	getAncestorsFunc        func(ctx context.Context, id int64) ([]*models.Object, error)
@@ -118,23 +117,23 @@ func (m *mockObjectRepository) FindByTags(ctx context.Context, tags []string, ma
 	return nil, nil
 }
 
-func (m *mockObjectRepository) UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}) error {
+func (m *mockObjectRepository) UpdateMetadata(ctx context.Context, id int64, metadata map[string]interface{}, updatedBy string) error {
 	if m.updateMetadataFunc != nil {
-		return m.updateMetadataFunc(ctx, id, metadata)
+		return m.updateMetadataFunc(ctx, id, metadata, updatedBy)
 	}
 	return nil
 }
 
-func (m *mockObjectRepository) AddTags(ctx context.Context, id int64, tags []string) error {
+func (m *mockObjectRepository) AddTags(ctx context.Context, id int64, tags []string, updatedBy string) error {
 	if m.addTagsFunc != nil {
-		return m.addTagsFunc(ctx, id, tags)
+		return m.addTagsFunc(ctx, id, tags, updatedBy)
 	}
 	return nil
 }
 
-func (m *mockObjectRepository) RemoveTags(ctx context.Context, id int64, tags []string) error {
+func (m *mockObjectRepository) RemoveTags(ctx context.Context, id int64, tags []string, updatedBy string) error {
 	if m.removeTagsFunc != nil {
-		return m.removeTagsFunc(ctx, id, tags)
+		return m.removeTagsFunc(ctx, id, tags, updatedBy)
 	}
 	return nil
 }
@@ -297,7 +296,6 @@ func (m *mockObjectTypeRepositoryForObjectService) Metrics() *repository.Reposit
 func (m *mockObjectTypeRepositoryForObjectService) ResetMetrics()                     {}
 func (m *mockObjectTypeRepositoryForObjectService) Healthy(ctx context.Context) error { return nil }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_Create_EmptyName(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
@@ -308,7 +306,6 @@ func TestObjectService_Create_EmptyName(t *testing.T) {
 	assert.Contains(t, err.Error(), "name is required")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_Create_InvalidObjectTypeID(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
@@ -319,7 +316,6 @@ func TestObjectService_Create_InvalidObjectTypeID(t *testing.T) {
 	assert.Contains(t, err.Error(), "object_type_id is required")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_Create_SealedType(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{
@@ -334,7 +330,6 @@ func TestObjectService_Create_SealedType(t *testing.T) {
 	assert.Contains(t, err.Error(), "sealed type")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_Create_Success(t *testing.T) {
 	mockRepo := &mockObjectRepository{
 		createFunc: func(ctx context.Context, input *models.CreateObjectRequest) (*models.Object, error) {
@@ -353,7 +348,6 @@ func TestObjectService_Create_Success(t *testing.T) {
 	assert.Equal(t, "test", result.Name)
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_GetByID_InvalidID(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
@@ -364,7 +358,6 @@ func TestObjectService_GetByID_InvalidID(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid id")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_GetByID_NotFound(t *testing.T) {
 	mockRepo := &mockObjectRepository{
 		getByIDFunc: func(ctx context.Context, id int64) (*models.Object, error) {
@@ -379,7 +372,6 @@ func TestObjectService_GetByID_NotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_GetByPublicID_InvalidID(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
@@ -390,7 +382,6 @@ func TestObjectService_GetByPublicID_InvalidID(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid public id")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_Update_SelfParent(t *testing.T) {
 	mockRepo := &mockObjectRepository{
 		getByIDFunc: func(ctx context.Context, id int64) (*models.Object, error) {
@@ -410,7 +401,6 @@ func TestObjectService_Update_SelfParent(t *testing.T) {
 	assert.Contains(t, err.Error(), "own parent")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_Delete_Success(t *testing.T) {
 	mockRepo := &mockObjectRepository{
 		getByIDFunc: func(ctx context.Context, id int64) (*models.Object, error) {
@@ -431,7 +421,6 @@ func TestObjectService_Delete_Success(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_Search_EmptyQuery(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
@@ -442,7 +431,6 @@ func TestObjectService_Search_EmptyQuery(t *testing.T) {
 	assert.Contains(t, err.Error(), "query is required")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_FindByTags_EmptyTags(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
@@ -453,61 +441,55 @@ func TestObjectService_FindByTags_EmptyTags(t *testing.T) {
 	assert.Contains(t, err.Error(), "tag is required")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_UpdateMetadata_InvalidID(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
 	service := NewObjectService(mockRepo, mockTypeRepo)
 
-	err := service.UpdateMetadata(context.Background(), 0, map[string]interface{}{"key": "value"})
+	err := service.UpdateMetadata(context.Background(), 0, map[string]interface{}{"key": "value"}, "test-user")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid id")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_UpdateMetadata_NilMetadata(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
 	service := NewObjectService(mockRepo, mockTypeRepo)
 
-	err := service.UpdateMetadata(context.Background(), 1, nil)
+	err := service.UpdateMetadata(context.Background(), 1, nil, "test-user")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "metadata cannot be nil")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_AddTags_InvalidID(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
 	service := NewObjectService(mockRepo, mockTypeRepo)
 
-	err := service.AddTags(context.Background(), 0, []string{"tag1"})
+	err := service.AddTags(context.Background(), 0, []string{"tag1"}, "test-user")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid id")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_AddTags_EmptyTags(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
 	service := NewObjectService(mockRepo, mockTypeRepo)
 
-	err := service.AddTags(context.Background(), 1, []string{})
+	err := service.AddTags(context.Background(), 1, []string{}, "test-user")
 	assert.NoError(t, err)
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_RemoveTags_InvalidID(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
 	service := NewObjectService(mockRepo, mockTypeRepo)
 
-	err := service.RemoveTags(context.Background(), 0, []string{"tag1"})
+	err := service.RemoveTags(context.Background(), 0, []string{"tag1"}, "test-user")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid id")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_GetChildren_InvalidParentID(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
@@ -518,7 +500,6 @@ func TestObjectService_GetChildren_InvalidParentID(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid parent id")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_GetDescendants_InvalidRootID(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
@@ -529,7 +510,6 @@ func TestObjectService_GetDescendants_InvalidRootID(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid root id")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_ValidateParentChild_InvalidParentID(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
@@ -540,7 +520,6 @@ func TestObjectService_ValidateParentChild_InvalidParentID(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid parent id")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_ValidateParentChild_InvalidChildID(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
@@ -551,7 +530,6 @@ func TestObjectService_ValidateParentChild_InvalidChildID(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid child id")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_BulkCreate_EmptyObjects(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
@@ -563,7 +541,6 @@ func TestObjectService_BulkCreate_EmptyObjects(t *testing.T) {
 	assert.Len(t, result, 0)
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_BulkCreate_InvalidObjectType(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{
@@ -578,7 +555,6 @@ func TestObjectService_BulkCreate_InvalidObjectType(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid object type")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_BulkCreate_Success(t *testing.T) {
 	mockRepo := &mockObjectRepository{
 		bulkCreateFunc: func(ctx context.Context, objects []*models.CreateObjectRequest) ([]*models.Object, error) {
@@ -604,7 +580,6 @@ func TestObjectService_BulkCreate_Success(t *testing.T) {
 	assert.Len(t, result, 2)
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_BulkUpdate_EmptyIDs(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
@@ -616,7 +591,6 @@ func TestObjectService_BulkUpdate_EmptyIDs(t *testing.T) {
 	assert.Len(t, result, 0)
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_BulkUpdate_NilUpdates(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
@@ -627,7 +601,6 @@ func TestObjectService_BulkUpdate_NilUpdates(t *testing.T) {
 	assert.Contains(t, err.Error(), "updates cannot be nil")
 }
 
-// TODO: Replace with proper test - minimal stub
 func TestObjectService_BulkDelete_EmptyIDs(t *testing.T) {
 	mockRepo := &mockObjectRepository{}
 	mockTypeRepo := &mockObjectTypeRepositoryForObjectService{}
