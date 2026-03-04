@@ -2,7 +2,7 @@
 
 **Project**: Role-Based Access Control for Objects-Service
 **Architecture**: Centralized Authorization with Auth-Service
-**Status**: Phase 4 Complete
+**Status**: Phase 5 Complete
 **Total Estimated Time**: 20-24 hours
 
 ## Table of Contents
@@ -177,20 +177,22 @@ Implement comprehensive RBAC for objects-service with centralized permission man
 - ✅ All routes protected with appropriate permissions
 - ✅ Unit tests (5 tests passing)
 
-### Phase 5: Ownership Validation (2-3 hours)
+### Phase 5: Ownership Validation (2-3 hours) ✅ COMPLETED
 
 **Goal**: Add ownership checks to update/delete operations
 
-| Task | Description | Effort |
-|------|-------------|--------|
-| 5.1 | Add CreatedBy to Create request | 0.5h |
-| 5.2 | Update Object model (if needed) | 0.5h |
-| 5.3 | Add ownership validation in handlers | 1h |
-| 5.4 | Write integration tests | 0.5h |
+| Task | Description | Effort | Status |
+|------|-------------|--------|--------|
+| 5.1 | Add CreatedBy to Create request | 0.5h | ✅ Done |
+| 5.2 | Verify Object model | 0.5h | ✅ Done |
+| 5.3 | Add ownership validation in handlers | 1h | ✅ Done |
+| 5.4 | Write integration tests | 0.5h | ✅ Done |
 
 **Deliverables**:
-- Ownership validation
-- Integration tests
+- ✅ CreatedBy field populated on object creation (from JWT)
+- ✅ Ownership validation for Update/Delete
+- ✅ Admin/object-type-admin can modify any object
+- ✅ Regular users can only modify own objects
 
 ### Phase 6: Testing & Documentation (3-4 hours)
 
@@ -1174,6 +1176,7 @@ func (h *ObjectHandler) Delete(c *gin.Context) {
 | `services/objects-service/config.yaml` | 4 | Add auth-service config |
 | `services/objects-service/internal/handlers/object_handler.go` | 5 | Ownership validation |
 | `services/objects-service/internal/models/object_request.go` | 5 | Add CreatedBy field |
+| `services/objects-service/internal/repository/object_repository.go` | 5 | Use CreatedBy from input |
 | `common/config/config.go` | 3 | Add AuthServiceConfig |
 
 ---
@@ -1235,14 +1238,14 @@ If auth-service becomes unavailable:
 ### Functional
 
 - [x] All permission endpoints return correct allow/deny (Phase 1)
-- [ ] Objects-service routes protected correctly (Phase 4)
-- [ ] Ownership validation works for update/delete (Phase 5)
+- [x] Objects-service routes protected correctly (Phase 4)
+- [x] Ownership validation works for update/delete (Phase 5)
 - [x] Cache expires after TTL (Phase 1)
-- [ ] Fail-closed behavior on auth-service unavailability (Phase 4)
+- [x] Fail-closed behavior on auth-service unavailability (Phase 4)
 
 ### Non-Functional
 
-- [x] All tests passing (Phase 1)
+- [x] All tests passing (Phase 1, 3, 4, 5)
 - [ ] < 100ms overhead for permission checks (cached) (Phase 4)
 - [ ] Documentation complete (Phase 6)
 - [x] Migration reversible (Phase 2)

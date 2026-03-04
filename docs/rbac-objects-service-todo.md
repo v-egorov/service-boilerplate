@@ -1,7 +1,7 @@
 # RBAC Implementation - TODO List
 
 **Project**: Role-Based Access Control for Objects-Service
-**Status**: Phase 4 Complete
+**Status**: Phase 5 Complete
 **Started**: 2026-02-12
 **Completed**: 2026-02-28
 **Total Estimated Time**: 17-23 hours
@@ -16,9 +16,9 @@
 | Phase 2: Auth-Service Migration | ✅ | 4 | 4/4 |
 | Phase 3: Auth-Client Wrapper | ✅ | 4 | 4/4 |
 | Phase 4: Objects-Service Integration | ✅ | 4 | 4/4 |
-| Phase 5: Ownership Validation | ⬜ | 4 | 0/4 |
+| Phase 5: Ownership Validation | ✅ | 4 | 4/4 |
 | Phase 6: Testing & Documentation | ⬜ | 4 | 0/4 |
-| **Total** | ✅ | **25** | **17/25** |
+| **Total** | ✅ | **25** | **21/25** |
 
 ---
 
@@ -203,33 +203,33 @@
 
 **Goal**: Add ownership checks to update/delete operations
 **Estimated Time**: 2-3 hours
-**Status**: ⬜ Not Started
+**Status**: ✅ COMPLETED
 
 ### Tasks
 
-- [ ] **5.1** Add CreatedBy to Create request (0.5h)
+- [x] **5.1** Add CreatedBy to Create request (0.5h)
   - File: `services/objects-service/internal/models/object_request.go`
   - Field: `CreatedBy string` (json:"-", db:"created_by")
   - Set from JWT context in handler
 
-- [ ] **5.2** Update Object model (0.5h)
-  - Verify `created_by` column exists in schema
-  - May need migration update
+- [x] **5.2** Verify Object model (0.5h)
+  - Verified `created_by` column exists in schema (already present)
+  - Repository uses input.CreatedBy instead of "system"
 
-- [ ] **5.3** Add ownership validation in handlers (1h)
+- [x] **5.3** Add ownership validation in handlers (1h)
   - File: `services/objects-service/internal/handlers/object_handler.go`
   - Update: Check `object.CreatedBy == userID` or admin role
   - Delete: Check `object.CreatedBy == userID` or admin role
 
-- [ ] **5.4** Write integration tests (0.5h)
+- [x] **5.4** Write integration tests (0.5h)
   - Test owner can update/delete own object
   - Test user cannot update/delete other's object
   - Test admin can update/delete any object
 
 ### Deliverables
-- [ ] CreatedBy field populated on object creation
-- [ ] Ownership validation working
-- [ ] Integration tests passing
+- [x] CreatedBy field populated on object creation
+- [x] Ownership validation working
+- [x] Integration tests passing
 
 ---
 
@@ -309,9 +309,9 @@
 | `common/config/config.go` | 3 | Add `AuthServiceConfig` struct | ✅ |
 | `services/objects-service/config.yaml` | 3 | Add `auth_service` settings | ✅ |
 | `services/objects-service/cmd/main.go` | 4 | Initialize auth-client, add route protection | ✅ |
-| `services/objects-service/internal/handlers/object_handler.go` | 5 | Add ownership validation | ⬜ |
-| `services/objects-service/internal/models/object_request.go` | 5 | Add `CreatedBy` field | ⬜ |
-| `services/objects-service/api/swagger.yaml` | 6 | Update with permission requirements | ⬜ |
+| `services/objects-service/internal/handlers/object_handler.go` | 5 | Add ownership validation | ✅ |
+| `services/objects-service/internal/models/object_request.go` | 5 | Add `CreatedBy` field | ✅ |
+| `services/objects-service/internal/repository/object_repository.go` | 5 | Use CreatedBy from input | ✅ |
 
 ---
 
@@ -395,3 +395,4 @@ psql -U postgres -d service_db -f services/auth-service/migrations/development/0
 | 2026-02-28 | 1,2 | Implemented Phase 1 (permission cache) and Phase 2 (migrations) | - |
 | 2026-03-03 | 3 | Implemented Phase 3 (auth-client wrapper) | - |
 | 2026-03-03 | 4 | Implemented Phase 4 (objects-service integration, route protection) | - |
+| 2026-03-03 | 5 | Implemented Phase 5 (ownership validation) | - |
