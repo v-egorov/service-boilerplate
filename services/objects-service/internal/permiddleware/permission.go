@@ -26,6 +26,8 @@ func NewPermissionMiddleware(cfg PermissionMiddlewareConfig) RequirePermissionFu
 				return
 			}
 
+			var matchedPermissions []string
+
 			for _, permission := range requiredPermissions {
 				allowed, err := cfg.AuthClient.CheckPermission(c.Request.Context(), userID, permission)
 				if err != nil {
@@ -38,20 +40,24 @@ func NewPermissionMiddleware(cfg PermissionMiddlewareConfig) RequirePermissionFu
 				}
 
 				if allowed {
-					c.Next()
-					return
+					matchedPermissions = append(matchedPermissions, permission)
 				}
 			}
 
-			if cfg.Logger != nil {
-				cfg.Logger.WithFields(logrus.Fields{
-					"user_id":  userID,
-					"required": requiredPermissions,
-				}).Warn("Permission denied")
+			if len(matchedPermissions) == 0 {
+				if cfg.Logger != nil {
+					cfg.Logger.WithFields(logrus.Fields{
+						"user_id":  userID,
+						"required": requiredPermissions,
+					}).Warn("Permission denied")
+				}
+				c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
+				c.Abort()
+				return
 			}
 
-			c.JSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
-			c.Abort()
+			c.Set("matched_permissions", matchedPermissions)
+			c.Next()
 		}
 	}
 }

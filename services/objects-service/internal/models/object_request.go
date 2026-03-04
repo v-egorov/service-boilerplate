@@ -15,6 +15,7 @@ type CreateObjectRequest struct {
 	Description    string                 `json:"description,omitempty" validate:"max=1000"`
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
 	Tags           []string               `json:"tags,omitempty"`
+	CreatedBy      string                 `json:"-" db:"created_by"`
 }
 
 // UpdateObjectRequest represents the request payload for updating an object

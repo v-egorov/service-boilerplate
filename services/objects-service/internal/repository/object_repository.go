@@ -144,8 +144,13 @@ func (r *objectRepository) Create(ctx context.Context, input *models.CreateObjec
 	object.Tags = input.Tags
 	object.Status = models.StatusActive // Default status
 	object.Version = 1
-	object.CreatedBy = "system" // TODO: Get from context
-	object.UpdatedBy = "system"
+	if input.CreatedBy != "" {
+		object.CreatedBy = input.CreatedBy
+		object.UpdatedBy = input.CreatedBy
+	} else {
+		object.CreatedBy = "system"
+		object.UpdatedBy = "system"
+	}
 
 	// Handle metadata
 	if input.Metadata != nil {

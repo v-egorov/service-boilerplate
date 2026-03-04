@@ -3,12 +3,14 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/v-egorov/service-boilerplate/common/logging"
+	"github.com/v-egorov/service-boilerplate/common/middleware"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/models"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/repository"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/services"
@@ -84,6 +86,36 @@ func (h *ObjectHandler) handleServiceError(c *gin.Context, err error, operation 
 	}
 }
 
+func (h *ObjectHandler) checkOwnership(c *gin.Context, object *models.Object, allPermission string) bool {
+	userID := middleware.GetAuthenticatedUserID(c)
+	if userID == "" {
+		return false
+	}
+
+	userRoles := middleware.GetAuthenticatedUserRoles(c)
+	for _, role := range userRoles {
+		if role == "admin" || role == "object-type-admin" {
+			return true
+		}
+	}
+
+	matchedPermissions, exists := c.Get("matched_permissions")
+	if !exists {
+		return object.CreatedBy == userID
+	}
+
+	perms, ok := matchedPermissions.([]string)
+	if !ok {
+		return object.CreatedBy == userID
+	}
+
+	if slices.Contains(perms, allPermission) {
+		return true
+	}
+
+	return object.CreatedBy == userID
+}
+
 func (h *ObjectHandler) Create(c *gin.Context) {
 	requestID := c.GetHeader("X-Request-ID")
 
@@ -98,6 +130,11 @@ func (h *ObjectHandler) Create(c *gin.Context) {
 			"type":    "validation_error",
 		})
 		return
+	}
+
+	userID := middleware.GetAuthenticatedUserID(c)
+	if userID != "" {
+		req.CreatedBy = userID
 	}
 
 	object, err := h.service.Create(c.Request.Context(), &req)
@@ -208,6 +245,20 @@ func (h *ObjectHandler) Update(c *gin.Context) {
 		return
 	}
 
+	existingObj, err := h.service.GetByID(c.Request.Context(), id)
+	if err != nil {
+		h.handleServiceError(c, err, "Failed to get object", requestID)
+		return
+	}
+
+	if !h.checkOwnership(c, existingObj, "objects:update:all") {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "You can only update your own objects",
+			"type":  "ownership_error",
+		})
+		return
+	}
+
 	var req models.UpdateObjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithFields(logrus.Fields{
@@ -249,6 +300,20 @@ func (h *ObjectHandler) Delete(c *gin.Context) {
 			"details": "ID must be a positive integer",
 			"type":    "validation_error",
 			"field":   "id",
+		})
+		return
+	}
+
+	existingObj, err := h.service.GetByID(c.Request.Context(), id)
+	if err != nil {
+		h.handleServiceError(c, err, "Failed to get object", requestID)
+		return
+	}
+
+	if !h.checkOwnership(c, existingObj, "objects:delete:all") {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "You can only delete your own objects",
+			"type":  "ownership_error",
 		})
 		return
 	}

@@ -326,22 +326,98 @@ func TestObjectHandler_Update(t *testing.T) {
 		Description: stringPtr("Updated description"),
 	}
 
+	existingObj := &models.Object{
+		ID:           1,
+		ObjectTypeID: 1,
+		Name:         "ExistingObject",
+		CreatedBy:    "user-123",
+	}
+
 	updatedObj := &models.Object{
 		ID:           1,
 		ObjectTypeID: 1,
 		Name:         "UpdatedObject",
 		Description:  "Updated description",
+		CreatedBy:    "user-123",
 	}
 
+	mockService.On("GetByID", mock.Anything, int64(1)).Return(existingObj, nil)
 	mockService.On("Update", mock.Anything, int64(1), mock.AnythingOfType("*models.UpdateObjectRequest")).Return(updatedObj, nil)
 
 	c, w := createTestGinContext("PUT", "/api/v1/objects/1", req)
 	c.Params = gin.Params{{Key: "id", Value: "1"}}
+	c.Set("user_id", "user-123")
 
 	handler.Update(c)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
+	mockService.AssertExpectations(t)
+}
+
+func TestObjectHandler_Update_OwnershipDenied(t *testing.T) {
+	logger := createTestLogger()
+	mockService := &MockObjectService{}
+
+	handler := NewObjectHandlerWithInterface(mockService, logger)
+
+	req := models.UpdateObjectRequest{
+		Name: stringPtr("UpdatedObject"),
+	}
+
+	existingObj := &models.Object{
+		ID:        1,
+		Name:      "ExistingObject",
+		CreatedBy: "other-user",
+	}
+
+	mockService.On("GetByID", mock.Anything, int64(1)).Return(existingObj, nil)
+
+	c, w := createTestGinContext("PUT", "/api/v1/objects/1", req)
+	c.Params = gin.Params{{Key: "id", Value: "1"}}
+	c.Set("user_id", "user-123")
+
+	handler.Update(c)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), "You can only update your own objects")
+
+	mockService.AssertExpectations(t)
+}
+
+func TestObjectHandler_Update_AdminCanUpdateAny(t *testing.T) {
+	logger := createTestLogger()
+	mockService := &MockObjectService{}
+
+	handler := NewObjectHandlerWithInterface(mockService, logger)
+
+	req := models.UpdateObjectRequest{
+		Name: stringPtr("UpdatedObject"),
+	}
+
+	existingObj := &models.Object{
+		ID:        1,
+		Name:      "ExistingObject",
+		CreatedBy: "other-user",
+	}
+
+	updatedObj := &models.Object{
+		ID:        1,
+		Name:      "UpdatedObject",
+		CreatedBy: "other-user",
+	}
+
+	mockService.On("GetByID", mock.Anything, int64(1)).Return(existingObj, nil)
+	mockService.On("Update", mock.Anything, int64(1), mock.AnythingOfType("*models.UpdateObjectRequest")).Return(updatedObj, nil)
+
+	c, w := createTestGinContext("PUT", "/api/v1/objects/1", req)
+	c.Params = gin.Params{{Key: "id", Value: "1"}}
+	c.Set("user_id", "admin-user")
+	c.Set("user_roles", []string{"admin"})
+
+	handler.Update(c)
+
+	assert.Equal(t, http.StatusOK, w.Code)
 	mockService.AssertExpectations(t)
 }
 
@@ -351,15 +427,75 @@ func TestObjectHandler_Delete(t *testing.T) {
 
 	handler := NewObjectHandlerWithInterface(mockService, logger)
 
+	existingObj := &models.Object{
+		ID:        1,
+		Name:      "Object",
+		CreatedBy: "user-123",
+	}
+
+	mockService.On("GetByID", mock.Anything, int64(1)).Return(existingObj, nil)
 	mockService.On("Delete", mock.Anything, int64(1)).Return(nil)
 
 	c, w := createTestGinContext("DELETE", "/api/v1/objects/1", nil)
 	c.Params = gin.Params{{Key: "id", Value: "1"}}
+	c.Set("user_id", "user-123")
 
 	handler.Delete(c)
 
 	assert.Equal(t, http.StatusNoContent, w.Code)
 
+	mockService.AssertExpectations(t)
+}
+
+func TestObjectHandler_Delete_OwnershipDenied(t *testing.T) {
+	logger := createTestLogger()
+	mockService := &MockObjectService{}
+
+	handler := NewObjectHandlerWithInterface(mockService, logger)
+
+	existingObj := &models.Object{
+		ID:        1,
+		Name:      "Object",
+		CreatedBy: "other-user",
+	}
+
+	mockService.On("GetByID", mock.Anything, int64(1)).Return(existingObj, nil)
+
+	c, w := createTestGinContext("DELETE", "/api/v1/objects/1", nil)
+	c.Params = gin.Params{{Key: "id", Value: "1"}}
+	c.Set("user_id", "user-123")
+
+	handler.Delete(c)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Contains(t, w.Body.String(), "You can only delete your own objects")
+
+	mockService.AssertExpectations(t)
+}
+
+func TestObjectHandler_Delete_AdminCanDeleteAny(t *testing.T) {
+	logger := createTestLogger()
+	mockService := &MockObjectService{}
+
+	handler := NewObjectHandlerWithInterface(mockService, logger)
+
+	existingObj := &models.Object{
+		ID:        1,
+		Name:      "Object",
+		CreatedBy: "other-user",
+	}
+
+	mockService.On("GetByID", mock.Anything, int64(1)).Return(existingObj, nil)
+	mockService.On("Delete", mock.Anything, int64(1)).Return(nil)
+
+	c, w := createTestGinContext("DELETE", "/api/v1/objects/1", nil)
+	c.Params = gin.Params{{Key: "id", Value: "1"}}
+	c.Set("user_id", "admin-user")
+	c.Set("user_roles", []string{"admin"})
+
+	handler.Delete(c)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
 	mockService.AssertExpectations(t)
 }
 
