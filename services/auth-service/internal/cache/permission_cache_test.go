@@ -196,3 +196,23 @@ func TestPermissionCache_Size(t *testing.T) {
 	size := cache.Size()
 	assert.Equal(t, 50, size)
 }
+
+func TestPermissionCache_Expiration(t *testing.T) {
+	cfg := PermissionCacheConfig{
+		TTL:        100 * time.Millisecond,
+		MaxEntries: 100,
+	}
+	cache := NewPermissionCache(cfg)
+
+	cache.SetPermissions("user-1", []string{"perm-1"})
+
+	perms, found := cache.GetPermissions("user-1")
+	assert.True(t, found)
+	assert.Equal(t, []string{"perm-1"}, perms)
+
+	time.Sleep(150 * time.Millisecond)
+
+	perms, found = cache.GetPermissions("user-1")
+	assert.False(t, found)
+	assert.Nil(t, perms)
+}
