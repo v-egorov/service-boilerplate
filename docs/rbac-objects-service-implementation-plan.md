@@ -201,7 +201,7 @@ Implement comprehensive RBAC for objects-service with centralized permission man
 | Task | Description | Effort |
 |------|-------------|--------|
 | 6.1 | Integration tests | 1.5h |
-| 6.2 | Update documentation | 1h |
+| 6.2 | Update documentation | 1h   |
 | 6.3 | Update swagger.yaml | 0.5h |
 | 6.4 | Test script | 0.5h |
 

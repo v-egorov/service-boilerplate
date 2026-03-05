@@ -17,7 +17,7 @@
 | Phase 3: Auth-Client Wrapper | ✅ | 4 | 4/4 |
 | Phase 4: Objects-Service Integration | ✅ | 4 | 4/4 |
 | Phase 5: Ownership Validation | ✅ | 4 | 4/4 |
-| Phase 6: Testing & Documentation | 🔄 | 4 | 1/4 |
+| Phase 6: Testing & Documentation | 🔄 | 4 | 2/4 |
 | **Total** | ✅ | **25** | **22/25** |
 
 ---
@@ -248,11 +248,12 @@
   - Test fail-closed on auth-service unavailability
   - ✅ 11 tests passing
 
-- [ ] **6.2** Update documentation (1h)
+- [x] **6.2** Update documentation (1h)
   - File: `docs/rbac-objects-service.md`
   - Architecture diagram
   - Permission model
   - Usage examples
+  - ✅ DONE
 
 - [ ] **6.3** Update swagger.yaml (0.5h)
   - File: `services/objects-service/api/swagger.yaml`
@@ -289,7 +290,7 @@
 | `services/objects-service/internal/permiddleware/permission.go` | 4 | ✅ |
 | `services/objects-service/internal/permiddleware/permission_test.go` | 4 | ✅ |
 | `tests/integration/rbac_integration_test.go` | 6 | ⬜ |
-| `docs/rbac-objects-service.md` | 6 | ⬜ |
+| `docs/rbac-objects-service.md` | 6 | ✅ |
 | `scripts/test-rbac-objects-service.sh` | 6 | ⬜ |
 
 ### Files Modified
@@ -398,4 +399,4 @@ psql -U postgres -d service_db -f services/auth-service/migrations/development/0
 | 2026-03-03 | 4 | Implemented Phase 4 (objects-service integration, route protection) | - |
 | 2026-03-03 | 5 | Implemented Phase 5 (ownership validation) | - |
 | 2026-03-05 | 6.1 | Implemented Phase 6.1 (RBAC integration tests - 11 tests) | - |
-| 2026-03-05 | 6.1 | Added TTL expiration test to auth-service cache (12 tests) | - |
+| 2026-03-05 | 6.2 | Created user-focused documentation (docs/rbac-objects-service.md) | - |
