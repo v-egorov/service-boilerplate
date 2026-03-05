@@ -1,7 +1,27 @@
 openapi: 3.0.0
 info:
   title: Objects Service API
-  description: API for managing generic object taxonomies with hierarchical relationships
+  description: |
+    API for managing generic object taxonomies with hierarchical relationships.
+    
+    ## Security
+    All endpoints (except health checks) require JWT authentication and permission-based authorization.
+    Permission checks are performed against auth-service.
+    
+    ## RBAC Permissions
+    - **object-types:create/update/delete** - Admin and object-type-admin roles only
+    - **object-types:read** - Admin, object-type-admin, and user roles
+    - **objects:create** - Admin and user roles
+    - **objects:read:all** - Admin and object-type-admin roles
+    - **objects:read:own** - Admin and user roles (can read own objects)
+    - **objects:update:all** - Admin and object-type-admin roles
+    - **objects:update:own** - Admin and user roles (can update own objects)
+    - **objects:delete:all** - Admin and object-type-admin roles
+    - **objects:delete:own** - Admin and user roles (can delete own objects)
+    
+    ## Ownership
+    Users with `user` role can only modify objects they created (created_by matches user_id from JWT).
+    Users with `admin` or `object-type-admin` roles can modify any object.
   version: 1.0.0
   contact:
     name: Objects Service Team
@@ -30,6 +50,37 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: JWT token for authentication
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Authentication required"
+            type: "authentication_error"
+
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Insufficient permissions"
+            type: "authorization_error"
+
+    ForbiddenOwnership:
+      description: Cannot modify object owned by another user
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "you can only update your own objects"
+            type: "authorization_error"
 
   schemas:
     ObjectType:
@@ -515,6 +566,9 @@ paths:
           schema:
             type: integer
             default: 0
+      security:
+        - bearerAuth: []
+      x-permission-required: object-types:read
       responses:
         '200':
           description: List of object types
@@ -538,6 +592,10 @@ paths:
                         type: integer
                       count:
                         type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
     post:
       summary: Create object type
@@ -549,6 +607,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateObjectTypeRequest'
+      security:
+        - bearerAuth: []
+      x-permission-required: object-types:create
       responses:
         '201':
           description: Object type created
@@ -567,6 +628,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/object-types/{id}:
     get:
@@ -580,6 +645,9 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
+      x-permission-required: object-types:read
       responses:
         '200':
           description: Object type found
@@ -598,6 +666,10 @@ paths:
                 $ref: '#/components/schemas/ValidationError'
         '404':
           description: Object type not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
     put:
       summary: Update object type
@@ -616,6 +688,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateObjectTypeRequest'
+      security:
+        - bearerAuth: []
+      x-permission-required: object-types:update
       responses:
         '200':
           description: Object type updated
@@ -636,6 +711,10 @@ paths:
                 $ref: '#/components/schemas/ValidationError'
         '404':
           description: Object type not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
     delete:
       summary: Delete object type
@@ -648,6 +727,9 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
+      x-permission-required: object-types:delete
       responses:
         '204':
           description: Object type deleted
@@ -659,6 +741,10 @@ paths:
                 $ref: '#/components/schemas/ValidationError'
         '409':
           description: Cannot delete (has children or objects)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/object-types/name/{name}:
     get:
@@ -671,6 +757,9 @@ paths:
           required: true
           schema:
             type: string
+      security:
+        - bearerAuth: []
+      x-permission-required: object-types:read
       responses:
         '200':
           description: Object type found
@@ -683,6 +772,10 @@ paths:
                     $ref: '#/components/schemas/ObjectType'
         '404':
           description: Object type not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/object-types/{id}/tree:
     get:
@@ -701,6 +794,9 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
+      x-permission-required: object-types:read
       responses:
         '200':
           description: Tree of object types
@@ -713,6 +809,10 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ObjectType'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/object-types/{id}/children:
     get:
@@ -726,6 +826,9 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
+      x-permission-required: object-types:read
       responses:
         '200':
           description: List of child types
@@ -738,6 +841,10 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ObjectType'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/object-types/{id}/descendants:
     get:
@@ -755,6 +862,9 @@ paths:
           in: query
           schema:
             type: integer
+      security:
+        - bearerAuth: []
+      x-permission-required: object-types:read
       responses:
         '200':
           description: List of all descendants
@@ -767,6 +877,10 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ObjectType'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/object-types/{id}/ancestors:
     get:
@@ -780,6 +894,9 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
+      x-permission-required: object-types:read
       responses:
         '200':
           description: List of ancestors
@@ -792,6 +909,10 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ObjectType'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/object-types/{id}/path:
     get:
@@ -805,6 +926,9 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
+      x-permission-required: object-types:read
       responses:
         '200':
           description: Path from root to type
@@ -817,6 +941,10 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ObjectType'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/object-types/search:
     get:
@@ -834,6 +962,9 @@ paths:
           schema:
             type: integer
             default: 50
+      security:
+        - bearerAuth: []
+      x-permission-required: object-types:read
       responses:
         '200':
           description: Search results
@@ -848,6 +979,10 @@ paths:
                       $ref: '#/components/schemas/ObjectType'
                   query:
                     type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/object-types/{id}/validate-move:
     post:
@@ -867,6 +1002,9 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
+      x-permission-required: object-types:update
       responses:
         '200':
           description: Move is valid
@@ -885,6 +1023,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/object-types/{id}/subtree-count:
     get:
@@ -898,6 +1040,9 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
+      x-permission-required: object-types:read
       responses:
         '200':
           description: Object count
@@ -909,6 +1054,10 @@ paths:
                   count:
                     type: integer
                     format: int64
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # Objects Endpoints
   /api/v1/objects:
@@ -946,6 +1095,9 @@ paths:
           schema:
             type: integer
             default: 0
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:read:all or objects:read:own
       responses:
         '200':
           description: List of objects
@@ -960,6 +1112,10 @@ paths:
                       $ref: '#/components/schemas/Object'
                   pagination:
                     type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
     post:
       summary: Create object
@@ -971,6 +1127,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateObjectRequest'
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:create
       responses:
         '201':
           description: Object created
@@ -989,6 +1148,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/objects/{id}:
     get:
@@ -1002,6 +1165,9 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:read:all or objects:read:own
       responses:
         '200':
           description: Object found
@@ -1020,6 +1186,10 @@ paths:
                 $ref: '#/components/schemas/ValidationError'
         '404':
           description: Object not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
     put:
       summary: Update object
@@ -1038,6 +1208,10 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateObjectRequest'
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:update:all or objects:update:own
+      x-ownership-required: own_object
       responses:
         '200':
           description: Object updated
@@ -1060,6 +1234,11 @@ paths:
           description: Object not found
         '409':
           description: Version conflict
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Forbidden - insufficient permissions or ownership
+          $ref: '#/components/responses/Forbidden'
 
     delete:
       summary: Delete object (soft)
@@ -1072,6 +1251,10 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:delete:all or objects:delete:own
+      x-ownership-required: own_object
       responses:
         '204':
           description: Object deleted
@@ -1079,6 +1262,11 @@ paths:
           description: Invalid request
         '404':
           description: Object not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Forbidden - insufficient permissions or ownership
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/objects/public-id/{public_id}:
     get:
@@ -1092,6 +1280,9 @@ paths:
           schema:
             type: string
             format: uuid
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:read:all or objects:read:own
       responses:
         '200':
           description: Object found
@@ -1110,6 +1301,10 @@ paths:
                 $ref: '#/components/schemas/ValidationError'
         '404':
           description: Object not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/objects/name/{name}:
     get:
@@ -1122,6 +1317,9 @@ paths:
           required: true
           schema:
             type: string
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:read:all or objects:read:own
       responses:
         '200':
           description: Object found
@@ -1132,6 +1330,10 @@ paths:
                 properties:
                   data:
                     $ref: '#/components/schemas/Object'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/objects/{id}/children:
     get:
@@ -1145,6 +1347,9 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:read:all or objects:read:own
       responses:
         '200':
           description: List of child objects
@@ -1157,6 +1362,10 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Object'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/objects/{id}/descendants:
     get:
@@ -1174,6 +1383,9 @@ paths:
           in: query
           schema:
             type: integer
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:read:all or objects:read:own
       responses:
         '200':
           description: List of all descendants
@@ -1186,6 +1398,10 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Object'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/objects/{id}/ancestors:
     get:
@@ -1199,6 +1415,9 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:read:all or objects:read:own
       responses:
         '200':
           description: List of ancestors
@@ -1211,6 +1430,10 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Object'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/objects/{id}/path:
     get:
@@ -1224,6 +1447,9 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:read:all or objects:read:own
       responses:
         '200':
           description: Path from root to object
@@ -1236,6 +1462,10 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Object'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/objects/{id}/metadata:
     put:
@@ -1256,6 +1486,10 @@ paths:
             schema:
               type: object
               additionalProperties: true
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:update:all or objects:update:own
+      x-ownership-required: own_object
       responses:
         '200':
           description: Metadata updated
@@ -1266,6 +1500,10 @@ paths:
                 properties:
                   message:
                     type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/objects/{id}/tags:
     post:
@@ -1290,6 +1528,10 @@ paths:
                   type: array
                   items:
                     type: string
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:update:all or objects:update:own
+      x-ownership-required: own_object
       responses:
         '200':
           description: Tags added
@@ -1300,6 +1542,10 @@ paths:
                 properties:
                   message:
                     type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
     delete:
       summary: Remove tags from object
@@ -1323,6 +1569,10 @@ paths:
                   type: array
                   items:
                     type: string
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:update:all or objects:update:own
+      x-ownership-required: own_object
       responses:
         '200':
           description: Tags removed
@@ -1333,6 +1583,10 @@ paths:
                 properties:
                   message:
                     type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/objects/search:
     get:
@@ -1350,6 +1604,9 @@ paths:
           schema:
             type: integer
             default: 50
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:read:all or objects:read:own
       responses:
         '200':
           description: Search results
@@ -1364,6 +1621,10 @@ paths:
                       $ref: '#/components/schemas/Object'
                   query:
                     type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/objects/bulk:
     post:
@@ -1378,6 +1639,9 @@ paths:
               type: array
               items:
                 $ref: '#/components/schemas/CreateObjectRequest'
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:create
       responses:
         '201':
           description: Objects created
@@ -1392,6 +1656,10 @@ paths:
                       $ref: '#/components/schemas/Object'
                   message:
                     type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
     put:
       summary: Bulk update objects
@@ -1411,6 +1679,9 @@ paths:
                     format: int64
                 updates:
                   $ref: '#/components/schemas/UpdateObjectRequest'
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:update:all
       responses:
         '200':
           description: Objects updated
@@ -1425,6 +1696,10 @@ paths:
                       $ref: '#/components/schemas/Object'
                   message:
                     type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
     delete:
       summary: Bulk delete objects
@@ -1442,9 +1717,16 @@ paths:
                   items:
                     type: integer
                     format: int64
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:delete:all
       responses:
         '204':
           description: Objects deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /api/v1/objects/stats:
     get:
@@ -1457,6 +1739,9 @@ paths:
           schema:
             type: integer
             format: int64
+      security:
+        - bearerAuth: []
+      x-permission-required: objects:read:all or objects:read:own
       responses:
         '200':
           description: Object statistics
@@ -1467,3 +1752,7 @@ paths:
                 properties:
                   stats:
                     $ref: '#/components/schemas/ObjectStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'

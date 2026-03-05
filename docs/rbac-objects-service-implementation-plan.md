@@ -198,12 +198,12 @@ Implement comprehensive RBAC for objects-service with centralized permission man
 
 **Goal**: Comprehensive testing and documentation
 
-| Task | Description | Effort |
-|------|-------------|--------|
-| 6.1 | Integration tests | 1.5h |
-| 6.2 | Update documentation | 1h   |
-| 6.3 | Update swagger.yaml | 0.5h |
-| 6.4 | Test script | 0.5h |
+| Task | Description | Effort | Status |
+|------|-------------|--------|--------|
+| 6.1 | Integration tests | 1.5h | ✅ Done |
+| 6.2 | Update documentation | 1h   | ✅ Done |
+| 6.3 | Update swagger.yaml | 0.5h | ✅ Done |
+| 6.4 | Test script | 0.5h | |
 
 **Deliverables**:
 - All tests passing

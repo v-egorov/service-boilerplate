@@ -17,7 +17,7 @@
 | Phase 3: Auth-Client Wrapper | ✅ | 4 | 4/4 |
 | Phase 4: Objects-Service Integration | ✅ | 4 | 4/4 |
 | Phase 5: Ownership Validation | ✅ | 4 | 4/4 |
-| Phase 6: Testing & Documentation | 🔄 | 4 | 2/4 |
+| Phase 6: Testing & Documentation | 🔄 | 4 | 3/4 |
 | **Total** | ✅ | **25** | **22/25** |
 
 ---
@@ -255,9 +255,10 @@
   - Usage examples
   - ✅ DONE
 
-- [ ] **6.3** Update swagger.yaml (0.5h)
+- [x] **6.3** Update swagger.yaml (0.5h)
   - File: `services/objects-service/api/swagger.yaml`
   - Document permission requirements
+  - ✅ DONE
 
 - [ ] **6.4** Create test script (0.5h)
   - File: `scripts/test-rbac-objects-service.sh`
@@ -400,3 +401,4 @@ psql -U postgres -d service_db -f services/auth-service/migrations/development/0
 | 2026-03-03 | 5 | Implemented Phase 5 (ownership validation) | - |
 | 2026-03-05 | 6.1 | Implemented Phase 6.1 (RBAC integration tests - 11 tests) | - |
 | 2026-03-05 | 6.2 | Created user-focused documentation (docs/rbac-objects-service.md) | - |
+| 2026-03-05 | 6.3 | Updated swagger.yaml with permission requirements | - |
