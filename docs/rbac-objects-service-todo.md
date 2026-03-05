@@ -17,8 +17,8 @@
 | Phase 3: Auth-Client Wrapper | ✅ | 4 | 4/4 |
 | Phase 4: Objects-Service Integration | ✅ | 4 | 4/4 |
 | Phase 5: Ownership Validation | ✅ | 4 | 4/4 |
-| Phase 6: Testing & Documentation | ⬜ | 4 | 0/4 |
-| **Total** | ✅ | **25** | **21/25** |
+| Phase 6: Testing & Documentation | 🔄 | 4 | 1/4 |
+| **Total** | ✅ | **25** | **22/25** |
 
 ---
 
@@ -241,11 +241,12 @@
 
 ### Tasks
 
-- [ ] **6.1** Integration tests (1.5h)
+- [x] **6.1** Integration tests (1.5h)
   - File: `tests/integration/rbac_integration_test.go`
   - Test permission check flow end-to-end
-  - Test cache behavior
+  - Test ownership validation
   - Test fail-closed on auth-service unavailability
+  - ✅ 11 tests passing
 
 - [ ] **6.2** Update documentation (1h)
   - File: `docs/rbac-objects-service.md`
@@ -396,3 +397,5 @@ psql -U postgres -d service_db -f services/auth-service/migrations/development/0
 | 2026-03-03 | 3 | Implemented Phase 3 (auth-client wrapper) | - |
 | 2026-03-03 | 4 | Implemented Phase 4 (objects-service integration, route protection) | - |
 | 2026-03-03 | 5 | Implemented Phase 5 (ownership validation) | - |
+| 2026-03-05 | 6.1 | Implemented Phase 6.1 (RBAC integration tests - 11 tests) | - |
+| 2026-03-05 | 6.1 | Added TTL expiration test to auth-service cache (12 tests) | - |

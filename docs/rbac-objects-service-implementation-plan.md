@@ -2,7 +2,7 @@
 
 **Project**: Role-Based Access Control for Objects-Service
 **Architecture**: Centralized Authorization with Auth-Service
-**Status**: Phase 5 Complete
+**Status**: Phase 6.1 Complete
 **Total Estimated Time**: 20-24 hours
 
 ## Table of Contents
@@ -1161,6 +1161,8 @@ func (h *ObjectHandler) Delete(c *gin.Context) {
 | `services/objects-service/internal/client/auth_client_test.go` | 3 | Auth-client tests |
 | `services/objects-service/internal/permiddleware/permission.go` | 4 | Permission middleware |
 | `services/objects-service/internal/permiddleware/permission_test.go` | 4 | Permission middleware tests |
+| `services/objects-service/tests/integration/rbac_integration_test.go` | 6 | RBAC integration tests (11 tests) |
+| `services/auth-service/internal/cache/permission_cache_test.go` | 6 | Added TTL expiration test |
 | `services/objects-service/internal/middleware/permission.go` | 4 | Permission middleware |
 
 ### Modified Files
