@@ -4,7 +4,8 @@
       "description": "Development environment with test data and debug features",
       "migrations": [
         "development/000003_dev_test_data.up.sql",
-        "development/000005_dev_add_object_admin.up.sql"
+        "development/000005_dev_add_object_admin.up.sql",
+        "development/000006_dev_set_test_user_password.up.sql"
       ],
       "seed_files": [
         "scripts/seeds/development/dev_users.sql",
