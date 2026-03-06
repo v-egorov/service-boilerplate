@@ -279,6 +279,49 @@ func main() {
 			users.DELETE("/:id", gatewayHandler.ProxyRequest("user-service"))
 			users.GET("", gatewayHandler.ProxyRequest("user-service"))
 		}
+
+		// Object Types service routes
+		objectTypes := api.Group("/v1/object-types")
+		{
+			objectTypes.POST("", gatewayHandler.ProxyRequest("objects-service"))
+			objectTypes.GET("", gatewayHandler.ProxyRequest("objects-service"))
+			objectTypes.GET("/search", gatewayHandler.ProxyRequest("objects-service"))
+			objectTypes.GET("/:id", gatewayHandler.ProxyRequest("objects-service"))
+			objectTypes.PUT("/:id", gatewayHandler.ProxyRequest("objects-service"))
+			objectTypes.DELETE("/:id", gatewayHandler.ProxyRequest("objects-service"))
+			objectTypes.GET("/name/:name", gatewayHandler.ProxyRequest("objects-service"))
+			objectTypes.GET("/:id/tree", gatewayHandler.ProxyRequest("objects-service"))
+			objectTypes.GET("/:id/children", gatewayHandler.ProxyRequest("objects-service"))
+			objectTypes.GET("/:id/descendants", gatewayHandler.ProxyRequest("objects-service"))
+			objectTypes.GET("/:id/ancestors", gatewayHandler.ProxyRequest("objects-service"))
+			objectTypes.GET("/:id/path", gatewayHandler.ProxyRequest("objects-service"))
+			objectTypes.GET("/:id/subtree-count", gatewayHandler.ProxyRequest("objects-service"))
+			objectTypes.POST("/:id/validate-move", gatewayHandler.ProxyRequest("objects-service"))
+		}
+
+		// Objects service routes
+		objects := api.Group("/v1/objects")
+		{
+			objects.POST("", gatewayHandler.ProxyRequest("objects-service"))
+			objects.GET("", gatewayHandler.ProxyRequest("objects-service"))
+			objects.GET("/search", gatewayHandler.ProxyRequest("objects-service"))
+			objects.GET("/stats", gatewayHandler.ProxyRequest("objects-service"))
+			objects.GET("/:id", gatewayHandler.ProxyRequest("objects-service"))
+			objects.PUT("/:id", gatewayHandler.ProxyRequest("objects-service"))
+			objects.DELETE("/:id", gatewayHandler.ProxyRequest("objects-service"))
+			objects.GET("/public-id/:public_id", gatewayHandler.ProxyRequest("objects-service"))
+			objects.GET("/name/:name", gatewayHandler.ProxyRequest("objects-service"))
+			objects.GET("/:id/children", gatewayHandler.ProxyRequest("objects-service"))
+			objects.GET("/:id/descendants", gatewayHandler.ProxyRequest("objects-service"))
+			objects.GET("/:id/ancestors", gatewayHandler.ProxyRequest("objects-service"))
+			objects.GET("/:id/path", gatewayHandler.ProxyRequest("objects-service"))
+			objects.PUT("/:id/metadata", gatewayHandler.ProxyRequest("objects-service"))
+			objects.POST("/:id/tags", gatewayHandler.ProxyRequest("objects-service"))
+			objects.DELETE("/:id/tags", gatewayHandler.ProxyRequest("objects-service"))
+			objects.POST("/bulk", gatewayHandler.ProxyRequest("objects-service"))
+			objects.PUT("/bulk", gatewayHandler.ProxyRequest("objects-service"))
+			objects.DELETE("/bulk", gatewayHandler.ProxyRequest("objects-service"))
+		}
 	}
 
 	// Start server
