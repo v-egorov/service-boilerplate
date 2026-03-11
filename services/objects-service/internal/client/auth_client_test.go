@@ -35,7 +35,7 @@ func TestCheckPermission_Allowed(t *testing.T) {
 		BaseURL: server.URL,
 	}, nil)
 
-	allowed, err := client.CheckPermission(context.Background(), "user-123", "objects:create")
+	allowed, err := client.CheckPermission(context.Background(), "user-123", "objects:create", "")
 	assert.NoError(t, err)
 	assert.True(t, allowed)
 }
@@ -56,7 +56,7 @@ func TestCheckPermission_Denied(t *testing.T) {
 		BaseURL: server.URL,
 	}, nil)
 
-	allowed, err := client.CheckPermission(context.Background(), "user-123", "objects:delete:all")
+	allowed, err := client.CheckPermission(context.Background(), "user-123", "objects:delete:all", "")
 	assert.NoError(t, err)
 	assert.False(t, allowed)
 }
@@ -71,7 +71,7 @@ func TestCheckPermission_Error(t *testing.T) {
 		BaseURL: server.URL,
 	}, nil)
 
-	allowed, err := client.CheckPermission(context.Background(), "user-123", "objects:create")
+	allowed, err := client.CheckPermission(context.Background(), "user-123", "objects:create", "")
 	assert.Error(t, err)
 	assert.False(t, allowed)
 	assert.Contains(t, err.Error(), "500")
@@ -95,7 +95,7 @@ func TestGetUserPermissions(t *testing.T) {
 		BaseURL: server.URL,
 	}, nil)
 
-	permissions, err := client.GetUserPermissions(context.Background(), "user-123")
+	permissions, err := client.GetUserPermissions(context.Background(), "user-123", "")
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"objects:create", "objects:read:own", "object-types:read"}, permissions)
 }
@@ -118,7 +118,7 @@ func TestGetUserRoles(t *testing.T) {
 		BaseURL: server.URL,
 	}, nil)
 
-	roles, err := client.GetUserRoles(context.Background(), "user-123")
+	roles, err := client.GetUserRoles(context.Background(), "user-123", "")
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"user", "object-type-admin"}, roles)
 }

@@ -27,24 +27,24 @@ type MockAuthClientForRBAC struct {
 	mock.Mock
 }
 
-func (m *MockAuthClientForRBAC) CheckPermission(ctx context.Context, userID, permission string) (bool, error) {
-	args := m.Called(ctx, userID, permission)
+func (m *MockAuthClientForRBAC) CheckPermission(ctx context.Context, userID, permission, jwtToken string) (bool, error) {
+	args := m.Called(ctx, userID, permission, jwtToken)
 	return args.Bool(0), args.Error(1)
 }
 
-func (m *MockAuthClientForRBAC) GetUserPermissions(ctx context.Context, userID string) ([]string, error) {
-	args := m.Called(ctx, userID)
+func (m *MockAuthClientForRBAC) GetUserPermissions(ctx context.Context, userID, jwtToken string) ([]string, error) {
+	args := m.Called(ctx, userID, jwtToken)
 	return args.Get(0).([]string), args.Error(1)
 }
 
-func (m *MockAuthClientForRBAC) GetUserRoles(ctx context.Context, userID string) ([]string, error) {
-	args := m.Called(ctx, userID)
+func (m *MockAuthClientForRBAC) GetUserRoles(ctx context.Context, userID, jwtToken string) ([]string, error) {
+	args := m.Called(ctx, userID, jwtToken)
 	return args.Get(0).([]string), args.Error(1)
 }
 
 func TestPermissionMiddleware_Allowed(t *testing.T) {
 	mockAuthClient := new(MockAuthClientForRBAC)
-	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:create").Return(true, nil)
+	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:create", "").Return(true, nil)
 
 	router := gin.New()
 	permissionMiddleware := permiddleware.NewPermissionMiddleware(permiddleware.PermissionMiddlewareConfig{
@@ -70,7 +70,7 @@ func TestPermissionMiddleware_Allowed(t *testing.T) {
 
 func TestPermissionMiddleware_Denied(t *testing.T) {
 	mockAuthClient := new(MockAuthClientForRBAC)
-	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:create").Return(false, nil)
+	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:create", "").Return(false, nil)
 
 	router := gin.New()
 	permissionMiddleware := permiddleware.NewPermissionMiddleware(permiddleware.PermissionMiddlewareConfig{
@@ -118,7 +118,7 @@ func TestPermissionMiddleware_Unauthorized(t *testing.T) {
 
 func TestPermissionMiddleware_AuthServiceDown(t *testing.T) {
 	mockAuthClient := new(MockAuthClientForRBAC)
-	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:create").Return(false, assert.AnError)
+	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:create", "").Return(false, assert.AnError)
 
 	router := gin.New()
 	permissionMiddleware := permiddleware.NewPermissionMiddleware(permiddleware.PermissionMiddlewareConfig{
@@ -353,8 +353,8 @@ func TestOwnershipCheck_DeleteAdminBypass(t *testing.T) {
 
 func TestMatchedPermissions_AllAndOwn(t *testing.T) {
 	mockAuthClient := new(MockAuthClientForRBAC)
-	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:all").Return(false, nil)
-	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:own").Return(true, nil)
+	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:all", "").Return(false, nil)
+	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:own", "").Return(true, nil)
 
 	router := gin.New()
 	permissionMiddleware := permiddleware.NewPermissionMiddleware(permiddleware.PermissionMiddlewareConfig{

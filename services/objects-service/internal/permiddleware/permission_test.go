@@ -15,18 +15,18 @@ type MockAuthClient struct {
 	mock.Mock
 }
 
-func (m *MockAuthClient) CheckPermission(ctx context.Context, userID, permission string) (bool, error) {
-	args := m.Called(ctx, userID, permission)
+func (m *MockAuthClient) CheckPermission(ctx context.Context, userID, permission, jwtToken string) (bool, error) {
+	args := m.Called(ctx, userID, permission, jwtToken)
 	return args.Bool(0), args.Error(1)
 }
 
-func (m *MockAuthClient) GetUserPermissions(ctx context.Context, userID string) ([]string, error) {
-	args := m.Called(ctx, userID)
+func (m *MockAuthClient) GetUserPermissions(ctx context.Context, userID, jwtToken string) ([]string, error) {
+	args := m.Called(ctx, userID, jwtToken)
 	return args.Get(0).([]string), args.Error(1)
 }
 
-func (m *MockAuthClient) GetUserRoles(ctx context.Context, userID string) ([]string, error) {
-	args := m.Called(ctx, userID)
+func (m *MockAuthClient) GetUserRoles(ctx context.Context, userID, jwtToken string) ([]string, error) {
+	args := m.Called(ctx, userID, jwtToken)
 	return args.Get(0).([]string), args.Error(1)
 }
 
@@ -34,7 +34,7 @@ func TestRequirePermission_Allowed(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockClient := new(MockAuthClient)
-	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:create").Return(true, nil)
+	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:create", "").Return(true, nil)
 
 	cfg := PermissionMiddlewareConfig{
 		AuthClient: mockClient,
@@ -65,7 +65,7 @@ func TestRequirePermission_Denied(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockClient := new(MockAuthClient)
-	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:delete:all").Return(false, nil)
+	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:delete:all", "").Return(false, nil)
 
 	cfg := PermissionMiddlewareConfig{
 		AuthClient: mockClient,
@@ -123,7 +123,7 @@ func TestRequirePermission_Error(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockClient := new(MockAuthClient)
-	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:create").Return(false, assert.AnError)
+	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:create", "").Return(false, assert.AnError)
 
 	cfg := PermissionMiddlewareConfig{
 		AuthClient: mockClient,
@@ -155,8 +155,8 @@ func TestRequirePermission_AnyOfMultiplePermissions(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockClient := new(MockAuthClient)
-	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:all").Return(false, nil)
-	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:own").Return(true, nil)
+	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:all", "").Return(false, nil)
+	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:own", "").Return(true, nil)
 
 	cfg := PermissionMiddlewareConfig{
 		AuthClient: mockClient,
