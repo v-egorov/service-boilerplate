@@ -101,7 +101,7 @@ func (r *objectTypeRepository) Create(ctx context.Context, input *models.CreateO
 	}
 
 	query := `
-		INSERT INTO object_types (
+		INSERT INTO objects_service.object_types (
 			name, parent_type_id, concrete_table_name, description, is_sealed, metadata
 		) VALUES (
 			$1, $2, $3, $4, $5, $6
@@ -154,7 +154,7 @@ func (r *objectTypeRepository) GetByID(ctx context.Context, id int64) (*models.O
 
 	query := `
 		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
-		FROM object_types
+		FROM objects_service.object_types
 		WHERE id = $1`
 
 	var objectType models.ObjectType
@@ -202,7 +202,7 @@ func (r *objectTypeRepository) GetByName(ctx context.Context, name string) (*mod
 
 	query := `
 		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
-		FROM object_types 
+		FROM objects_service.object_types 
 		WHERE name = $1`
 
 	var objectType models.ObjectType
@@ -308,7 +308,7 @@ func (r *objectTypeRepository) Update(ctx context.Context, id int64, input *mode
 	setClauses = append(setClauses, "updated_at = CURRENT_TIMESTAMP")
 
 	query := fmt.Sprintf(`
-		UPDATE object_types 
+		UPDATE objects_service.object_types 
 		SET %s 
 		WHERE id = $%d
 		RETURNING updated_at`,
@@ -344,7 +344,7 @@ func (r *objectTypeRepository) Delete(ctx context.Context, id int64) error {
 	}
 
 	// For simplicity, we'll do a hard delete since the current schema doesn't have soft delete
-	query := `DELETE FROM object_types WHERE id = $1`
+	query := `DELETE FROM objects_service.object_types WHERE id = $1`
 	_, err = r.db.Exec(ctx, query, id)
 	if err != nil {
 		r.metrics.ErrorCount++
@@ -365,7 +365,7 @@ func (r *objectTypeRepository) GetTree(ctx context.Context, rootID *int64) ([]*m
 			SELECT 
 				id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata,
 				created_at, updated_at
-			FROM object_types 
+			FROM objects_service.object_types 
 			WHERE ($1::bigint IS NULL AND parent_type_id IS NULL) OR id = $1::bigint
 			
 			UNION ALL
@@ -374,7 +374,7 @@ func (r *objectTypeRepository) GetTree(ctx context.Context, rootID *int64) ([]*m
 			SELECT 
 				ot.id, ot.name, ot.parent_type_id, ot.concrete_table_name, ot.description, ot.is_sealed, ot.metadata,
 				ot.created_at, ot.updated_at
-			FROM object_types ot
+			FROM objects_service.object_types ot
 			INNER JOIN object_tree t ON ot.parent_type_id = t.id
 		)
 		SELECT * FROM object_tree ORDER BY name;`
@@ -434,7 +434,7 @@ func (r *objectTypeRepository) GetChildren(ctx context.Context, parentID int64) 
 
 	query := `
 		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
-		FROM object_types
+		FROM objects_service.object_types
 		WHERE parent_type_id = $1
 		ORDER BY name ASC`
 
@@ -474,7 +474,7 @@ func (r *objectTypeRepository) GetChildren(ctx context.Context, parentID int64) 
 // Helper methods
 
 func (r *objectTypeRepository) validateParentExists(ctx context.Context, parentID int64) error {
-	query := `SELECT COUNT(*) FROM object_types WHERE id = $1`
+	query := `SELECT COUNT(*) FROM objects_service.object_types WHERE id = $1`
 	var count int64
 	err := r.db.QueryRow(ctx, query, parentID).Scan(&count)
 	if err != nil {
@@ -490,10 +490,10 @@ func (r *objectTypeRepository) ValidateParentChild(ctx context.Context, parentID
 	// Check if parent would create a circular dependency
 	query := `
 		WITH RECURSIVE descendants AS (
-			SELECT id, parent_type_id FROM object_types WHERE id = $1
+			SELECT id, parent_type_id FROM objects_service.object_types WHERE id = $1
 			UNION ALL
 			SELECT ot.id, ot.parent_type_id 
-			FROM object_types ot
+			FROM objects_service.object_types ot
 			INNER JOIN descendants d ON ot.id = d.parent_type_id
 		)
 		SELECT COUNT(*) FROM descendants WHERE id = $2`
@@ -513,7 +513,7 @@ func (r *objectTypeRepository) ValidateParentChild(ctx context.Context, parentID
 
 func (r *objectTypeRepository) CanDelete(ctx context.Context, id int64) (bool, error) {
 	// Check if has children
-	query := `SELECT COUNT(*) FROM object_types WHERE parent_type_id = $1`
+	query := `SELECT COUNT(*) FROM objects_service.object_types WHERE parent_type_id = $1`
 	var childCount int64
 	err := r.db.QueryRow(ctx, query, id).Scan(&childCount)
 	if err != nil {
@@ -525,7 +525,7 @@ func (r *objectTypeRepository) CanDelete(ctx context.Context, id int64) (bool, e
 	}
 
 	// Check if has objects (assuming objects table exists)
-	query = `SELECT COUNT(*) FROM objects WHERE object_type_id = $1 AND deleted_at IS NULL`
+	query = `SELECT COUNT(*) FROM objects_service.objects WHERE object_type_id = $1 AND deleted_at IS NULL`
 	var objectCount int64
 	err = r.db.QueryRow(ctx, query, id).Scan(&objectCount)
 	if err != nil {
@@ -546,13 +546,13 @@ func (r *objectTypeRepository) GetDescendants(ctx context.Context, rootID int64,
 		WITH RECURSIVE descendants AS (
 			-- Base case: the root node itself
 			SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at, 1 as depth
-			FROM object_types WHERE id = $1
+			FROM objects_service.object_types WHERE id = $1
 
 			UNION ALL
 
 			-- Recursive case: children of current nodes
 			SELECT ot.id, ot.name, ot.parent_type_id, ot.concrete_table_name, ot.description, ot.is_sealed, ot.metadata, ot.created_at, ot.updated_at, d.depth + 1
-			FROM object_types ot
+			FROM objects_service.object_types ot
 			INNER JOIN descendants d ON ot.parent_type_id = d.id
 		)
 		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
@@ -612,13 +612,13 @@ func (r *objectTypeRepository) GetAncestors(ctx context.Context, id int64) ([]*m
 		WITH RECURSIVE ancestors AS (
 			-- Base case: the node itself
 			SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at, 1 as level
-			FROM object_types WHERE id = $1
+			FROM objects_service.object_types WHERE id = $1
 
 			UNION ALL
 
 			-- Recursive case: parent of current node
 			SELECT ot.id, ot.name, ot.parent_type_id, ot.concrete_table_name, ot.description, ot.is_sealed, ot.metadata, ot.created_at, ot.updated_at, a.level + 1
-			FROM object_types ot
+			FROM objects_service.object_types ot
 			INNER JOIN ancestors a ON ot.id = a.parent_type_id
 		)
 		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
@@ -667,13 +667,13 @@ func (r *objectTypeRepository) GetPath(ctx context.Context, id int64) ([]*models
 		WITH RECURSIVE path AS (
 			-- Base case: the target node
 			SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at, 1 as level
-			FROM object_types WHERE id = $1
+			FROM objects_service.object_types WHERE id = $1
 
 			UNION ALL
 
 			-- Recursive case: parent of current node
 			SELECT ot.id, ot.name, ot.parent_type_id, ot.concrete_table_name, ot.description, ot.is_sealed, ot.metadata, ot.created_at, ot.updated_at, p.level + 1
-			FROM object_types ot
+			FROM objects_service.object_types ot
 			INNER JOIN path p ON ot.id = p.parent_type_id
 		)
 		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
@@ -723,7 +723,7 @@ func (r *objectTypeRepository) List(ctx context.Context, filter *models.ObjectTy
 
 	query := `
 		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
-		FROM object_types`
+		FROM objects_service.object_types`
 	whereClauses := []string{}
 	args := []interface{}{}
 	argIndex := 1
@@ -806,7 +806,7 @@ func (r *objectTypeRepository) Search(ctx context.Context, query string, limit i
 
 	searchQuery := `
 		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
-		FROM object_types
+		FROM objects_service.object_types
 		WHERE name ILIKE $1 OR description ILIKE $1
 		ORDER BY
 			CASE WHEN name ILIKE $1 THEN 0 ELSE 1 END,
@@ -880,12 +880,12 @@ func (r *objectTypeRepository) GetSubtreeObjectCount(ctx context.Context, id int
 
 	query := `
 		WITH RECURSIVE subtree AS (
-			SELECT id FROM object_types WHERE id = $1
+			SELECT id FROM objects_service.object_types WHERE id = $1
 			UNION ALL
-			SELECT ot.id FROM object_types ot
+			SELECT ot.id FROM objects_service.object_types ot
 			INNER JOIN subtree t ON ot.parent_type_id = t.id
 		)
-		SELECT COUNT(*) FROM objects o
+		SELECT COUNT(*) FROM objects_service.objects o
 		WHERE o.object_type_id IN (SELECT id FROM subtree)
 		  AND o.deleted_at IS NULL`
 

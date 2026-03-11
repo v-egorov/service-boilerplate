@@ -129,7 +129,7 @@ func (r *objectRepository) Create(ctx context.Context, input *models.CreateObjec
 	}
 
 	query := `
-		INSERT INTO objects (
+		INSERT INTO objects_service.objects (
 			public_id, object_type_id, parent_object_id, name, description, 
 			metadata, tags, status, version, created_by, updated_by
 		) VALUES (
@@ -189,7 +189,7 @@ func (r *objectRepository) GetByID(ctx context.Context, id int64) (*models.Objec
 		SELECT id, public_id, object_type_id, parent_object_id, name, description,
 			   metadata, tags, status, version, created_by, updated_by,
 			   created_at, updated_at, deleted_at
-		FROM objects
+		FROM objects_service.objects
 		WHERE id = $1`
 
 	var object models.Object
@@ -228,7 +228,7 @@ func (r *objectRepository) GetByPublicID(ctx context.Context, publicID uuid.UUID
 
 	r.metrics.QueryCount++
 
-	query := `SELECT id FROM objects WHERE public_id = $1`
+	query := `SELECT id FROM objects_service.objects WHERE public_id = $1`
 	var id int64
 	err := r.db.QueryRow(ctx, query, publicID).Scan(&id)
 	if err != nil {
@@ -245,7 +245,7 @@ func (r *objectRepository) GetByName(ctx context.Context, name string) (*models.
 	r.metrics.QueryCount++
 
 	query := `
-		SELECT id FROM objects 
+		SELECT id FROM objects_service.objects 
 		WHERE name = $1 AND deleted_at IS NULL
 		ORDER BY created_at DESC LIMIT 1`
 
@@ -360,7 +360,7 @@ func (r *objectRepository) Update(ctx context.Context, id int64, input *models.U
 	argIndex++
 
 	query := fmt.Sprintf(`
-		UPDATE objects 
+		UPDATE objects_service.objects 
 		SET %s 
 		WHERE id = $%d AND deleted_at IS NULL AND version = $%d
 		RETURNING updated_at, version`,
@@ -399,7 +399,7 @@ func (r *objectRepository) Delete(ctx context.Context, id int64) error {
 	}
 
 	query := `
-		UPDATE objects 
+		UPDATE objects_service.objects 
 		SET deleted_at = CURRENT_TIMESTAMP, status = 'deleted', updated_at = CURRENT_TIMESTAMP
 		WHERE id = $1 AND deleted_at IS NULL`
 
@@ -422,7 +422,7 @@ func (r *objectRepository) List(ctx context.Context, filter *models.ObjectFilter
 		"id", "public_id", "object_type_id", "parent_object_id", "name", "description",
 		"metadata", "tags", "status", "version", "created_by", "updated_by",
 		"created_at", "updated_at", "deleted_at",
-	).From("objects")
+	).From("objects_service.objects")
 
 	// Apply filters
 	if filter.Name != "" {
@@ -538,7 +538,7 @@ func (r *objectRepository) List(ctx context.Context, filter *models.ObjectFilter
 // Helper methods
 
 func (r *objectRepository) validateParent(ctx context.Context, parentID int64) error {
-	query := `SELECT COUNT(*) FROM objects WHERE id = $1 AND deleted_at IS NULL`
+	query := `SELECT COUNT(*) FROM objects_service.objects WHERE id = $1 AND deleted_at IS NULL`
 	var count int64
 	err := r.db.QueryRow(ctx, query, parentID).Scan(&count)
 	if err != nil {
@@ -551,7 +551,7 @@ func (r *objectRepository) validateParent(ctx context.Context, parentID int64) e
 }
 
 func (r *objectRepository) ValidateObjectType(ctx context.Context, objectTypeID int64) error {
-	query := `SELECT COUNT(*) FROM object_types WHERE id = $1`
+	query := `SELECT COUNT(*) FROM objects_service.object_types WHERE id = $1`
 	var count int64
 	err := r.db.QueryRow(ctx, query, objectTypeID).Scan(&count)
 	if err != nil {
@@ -566,7 +566,7 @@ func (r *objectRepository) ValidateObjectType(ctx context.Context, objectTypeID 
 func (r *objectRepository) getObjectTypeByID(ctx context.Context, id int64) (*models.ObjectType, error) {
 	query := `
 		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
-		FROM object_types WHERE id = $1`
+		FROM objects_service.object_types WHERE id = $1`
 
 	var objectType models.ObjectType
 	var parentID sql.NullInt64
@@ -607,7 +607,7 @@ func (r *objectRepository) loadObjectTypesForObjects(ctx context.Context, object
 
 	query := fmt.Sprintf(`
 		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
-		FROM object_types WHERE id = ANY($1::bigint[])`)
+		FROM objects_service.object_types WHERE id = ANY($1::bigint[])`)
 
 	rows, err := r.db.Query(ctx, query, ids)
 	if err != nil {
@@ -655,7 +655,7 @@ func (r *objectRepository) Search(ctx context.Context, searchQuery string, limit
 		SELECT id, public_id, object_type_id, parent_object_id, name, description,
 			   metadata, tags, status, version, created_by, updated_by,
 			   created_at, updated_at, deleted_at
-		FROM objects
+		FROM objects_service.objects
 		WHERE deleted_at IS NULL
 		  AND (name ILIKE $1 OR description ILIKE $1 OR tags @> $2::text[])
 		ORDER BY
@@ -712,7 +712,7 @@ func (r *objectRepository) FindByMetadata(ctx context.Context, key, value string
 		SELECT id, public_id, object_type_id, parent_object_id, name, description,
 			   metadata, tags, status, version, created_by, updated_by,
 			   created_at, updated_at, deleted_at
-		FROM objects
+		FROM objects_service.objects
 		WHERE deleted_at IS NULL
 		  AND metadata @> $1::jsonb
 		ORDER BY created_at DESC`
@@ -774,7 +774,7 @@ func (r *objectRepository) FindByTags(ctx context.Context, tags []string, matchA
 			SELECT id, public_id, object_type_id, parent_object_id, name, description,
 				   metadata, tags, status, version, created_by, updated_by,
 				   created_at, updated_at, deleted_at
-			FROM objects
+			FROM objects_service.objects
 			WHERE deleted_at IS NULL
 			  AND tags @> $1::text[]
 			ORDER BY created_at DESC`
@@ -784,7 +784,7 @@ func (r *objectRepository) FindByTags(ctx context.Context, tags []string, matchA
 			SELECT id, public_id, object_type_id, parent_object_id, name, description,
 				   metadata, tags, status, version, created_by, updated_by,
 				   created_at, updated_at, deleted_at
-			FROM objects
+			FROM objects_service.objects
 			WHERE deleted_at IS NULL
 			  AND tags && $1::text[]
 			ORDER BY created_at DESC`
@@ -847,7 +847,7 @@ func (r *objectRepository) UpdateMetadata(ctx context.Context, id int64, metadat
 	}
 
 	query := `
-		UPDATE objects
+		UPDATE objects_service.objects
 		SET metadata = $1, updated_at = CURRENT_TIMESTAMP, updated_by = $3
 		WHERE id = $2 AND deleted_at IS NULL`
 
@@ -873,7 +873,7 @@ func (r *objectRepository) AddTags(ctx context.Context, id int64, tags []string,
 	}
 
 	query := `
-		UPDATE objects
+		UPDATE objects_service.objects
 		SET tags = tags || $1::text[], updated_at = CURRENT_TIMESTAMP, updated_by = $3
 		WHERE id = $2 AND deleted_at IS NULL`
 
@@ -899,7 +899,7 @@ func (r *objectRepository) RemoveTags(ctx context.Context, id int64, tags []stri
 	}
 
 	query := `
-		UPDATE objects
+		UPDATE objects_service.objects
 		SET tags = tags - $1::text[], updated_at = CURRENT_TIMESTAMP, updated_by = $3
 		WHERE id = $2 AND deleted_at IS NULL`
 
@@ -919,7 +919,7 @@ func (r *objectRepository) GetChildren(ctx context.Context, parentID int64) ([]*
 		SELECT id, public_id, object_type_id, parent_object_id, name, description,
 			   metadata, tags, status, version, created_by, updated_by,
 			   created_at, updated_at, deleted_at
-		FROM objects
+		FROM objects_service.objects
 		WHERE parent_object_id = $1 AND deleted_at IS NULL
 		ORDER BY name ASC`
 
@@ -972,14 +972,14 @@ func (r *objectRepository) GetDescendants(ctx context.Context, rootID int64, max
 			SELECT id, public_id, object_type_id, parent_object_id, name, description,
 				   metadata, tags, status, version, created_by, updated_by,
 				   created_at, updated_at, deleted_at, 1 as depth
-			FROM objects WHERE id = $1 AND deleted_at IS NULL
+			FROM objects_service.objects WHERE id = $1 AND deleted_at IS NULL
 
 			UNION ALL
 
 			SELECT o.id, o.public_id, o.object_type_id, o.parent_object_id, o.name, o.description,
 				   o.metadata, o.tags, o.status, o.version, o.created_by, o.updated_by,
 				   o.created_at, o.updated_at, o.deleted_at, d.depth + 1
-			FROM objects o
+			FROM objects_service.objects o
 			INNER JOIN descendants d ON o.parent_object_id = d.id
 			WHERE o.deleted_at IS NULL
 		)
@@ -1045,14 +1045,14 @@ func (r *objectRepository) GetAncestors(ctx context.Context, id int64) ([]*model
 			SELECT id, public_id, object_type_id, parent_object_id, name, description,
 				   metadata, tags, status, version, created_by, updated_by,
 				   created_at, updated_at, deleted_at, 1 as level
-			FROM objects WHERE id = $1 AND deleted_at IS NULL
+			FROM objects_service.objects WHERE id = $1 AND deleted_at IS NULL
 
 			UNION ALL
 
 			SELECT o.id, o.public_id, o.object_type_id, o.parent_object_id, o.name, o.description,
 				   o.metadata, o.tags, o.status, o.version, o.created_by, o.updated_by,
 				   o.created_at, o.updated_at, o.deleted_at, a.level + 1
-			FROM objects o
+			FROM objects_service.objects o
 			INNER JOIN ancestors a ON o.id = a.parent_object_id
 			WHERE o.deleted_at IS NULL
 		)
@@ -1112,14 +1112,14 @@ func (r *objectRepository) GetPath(ctx context.Context, id int64) ([]*models.Obj
 			SELECT id, public_id, object_type_id, parent_object_id, name, description,
 				   metadata, tags, status, version, created_by, updated_by,
 				   created_at, updated_at, deleted_at, 1 as level
-			FROM objects WHERE id = $1 AND deleted_at IS NULL
+			FROM objects_service.objects WHERE id = $1 AND deleted_at IS NULL
 
 			UNION ALL
 
 			SELECT o.id, o.public_id, o.object_type_id, o.parent_object_id, o.name, o.description,
 				   o.metadata, o.tags, o.status, o.version, o.created_by, o.updated_by,
 				   o.created_at, o.updated_at, o.deleted_at, p.level + 1
-			FROM objects o
+			FROM objects_service.objects o
 			INNER JOIN path p ON o.id = p.parent_object_id
 			WHERE o.deleted_at IS NULL
 		)
@@ -1178,7 +1178,7 @@ func (r *objectRepository) BulkCreate(ctx context.Context, inputs []*models.Crea
 	}
 
 	query := `
-		INSERT INTO objects (
+		INSERT INTO objects_service.objects (
 			public_id, object_type_id, parent_object_id, name, description,
 			metadata, tags, status, version, created_by, updated_by
 		) VALUES`
@@ -1307,7 +1307,7 @@ func (r *objectRepository) BulkUpdate(ctx context.Context, ids []int64, updates 
 	args = append(args, ids)
 
 	query := fmt.Sprintf(`
-		UPDATE objects
+		UPDATE objects_service.objects
 		SET %s
 		WHERE id = ANY(%s::bigint[]) AND deleted_at IS NULL
 		RETURNING id, public_id, object_type_id, parent_object_id, name, description,
@@ -1367,7 +1367,7 @@ func (r *objectRepository) BulkDelete(ctx context.Context, ids []int64) error {
 
 	idArray := fmt.Sprintf("$1::bigint[]")
 	query := fmt.Sprintf(`
-		UPDATE objects
+		UPDATE objects_service.objects
 		SET deleted_at = CURRENT_TIMESTAMP, status = 'deleted', updated_at = CURRENT_TIMESTAMP
 		WHERE id = ANY(%s) AND deleted_at IS NULL`, idArray)
 
@@ -1389,10 +1389,10 @@ func (r *objectRepository) ValidateParentChild(ctx context.Context, parentID, ch
 
 	query := `
 		WITH RECURSIVE descendants AS (
-			SELECT id, parent_object_id FROM objects WHERE id = $1 AND deleted_at IS NULL
+			SELECT id, parent_object_id FROM objects_service.objects WHERE id = $1 AND deleted_at IS NULL
 			UNION ALL
 			SELECT o.id, o.parent_object_id
-			FROM objects o
+			FROM objects_service.objects o
 			INNER JOIN descendants d ON o.parent_object_id = d.id
 			WHERE o.deleted_at IS NULL
 		)
@@ -1413,7 +1413,7 @@ func (r *objectRepository) ValidateParentChild(ctx context.Context, parentID, ch
 
 func (r *objectRepository) CanDelete(ctx context.Context, id int64) (bool, error) {
 	// Check if has children
-	query := `SELECT COUNT(*) FROM objects WHERE parent_object_id = $1 AND deleted_at IS NULL`
+	query := `SELECT COUNT(*) FROM objects_service.objects WHERE parent_object_id = $1 AND deleted_at IS NULL`
 	var childCount int64
 	err := r.db.QueryRow(ctx, query, id).Scan(&childCount)
 	if err != nil {
@@ -1436,7 +1436,7 @@ func (r *objectRepository) GetObjectStats(ctx context.Context, filter *models.Ob
 		ByTags:   make(map[string]int64),
 	}
 
-	baseQuery := "FROM objects"
+	baseQuery := "FROM objects_service.objects"
 	whereClauses := []string{}
 	if filter == nil || filter.Status != models.StatusDeleted {
 		whereClauses = append(whereClauses, "deleted_at IS NULL")
@@ -1467,7 +1467,7 @@ func (r *objectRepository) GetObjectStats(ctx context.Context, filter *models.Ob
 
 	statusQuery := fmt.Sprintf(`
 		SELECT status, COUNT(*)
-		FROM objects
+		FROM objects_service.objects
 		WHERE deleted_at IS NULL
 		GROUP BY status`)
 
@@ -1489,7 +1489,7 @@ func (r *objectRepository) GetObjectStats(ctx context.Context, filter *models.Ob
 
 	typeQuery := fmt.Sprintf(`
 		SELECT object_type_id, COUNT(*)
-		FROM objects
+		FROM objects_service.objects
 		WHERE deleted_at IS NULL
 		GROUP BY object_type_id`)
 
@@ -1511,7 +1511,7 @@ func (r *objectRepository) GetObjectStats(ctx context.Context, filter *models.Ob
 
 	recentQuery := `
 		SELECT COUNT(*)
-		FROM objects
+		FROM objects_service.objects
 		WHERE deleted_at IS NULL
 		  AND created_at > CURRENT_TIMESTAMP - INTERVAL '30 days'`
 
