@@ -2,6 +2,7 @@ package permiddleware
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -26,10 +27,18 @@ func NewPermissionMiddleware(cfg PermissionMiddlewareConfig) RequirePermissionFu
 				return
 			}
 
+			// Get JWT token from Authorization header to forward to auth-service
+			jwtToken := c.GetHeader("Authorization")
+			if strings.HasPrefix(jwtToken, "Bearer ") {
+				jwtToken = strings.TrimPrefix(jwtToken, "Bearer ")
+			} else {
+				jwtToken = ""
+			}
+
 			var matchedPermissions []string
 
 			for _, permission := range requiredPermissions {
-				allowed, err := cfg.AuthClient.CheckPermission(c.Request.Context(), userID, permission)
+				allowed, err := cfg.AuthClient.CheckPermission(c.Request.Context(), userID, permission, jwtToken)
 				if err != nil {
 					if cfg.Logger != nil {
 						cfg.Logger.WithError(err).Error("Permission check failed")

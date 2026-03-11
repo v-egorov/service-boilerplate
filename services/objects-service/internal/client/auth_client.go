@@ -12,9 +12,9 @@ import (
 )
 
 type AuthClient interface {
-	CheckPermission(ctx context.Context, userID, permission string) (bool, error)
-	GetUserPermissions(ctx context.Context, userID string) ([]string, error)
-	GetUserRoles(ctx context.Context, userID string) ([]string, error)
+	CheckPermission(ctx context.Context, userID, permission, jwtToken string) (bool, error)
+	GetUserPermissions(ctx context.Context, userID, jwtToken string) ([]string, error)
+	GetUserRoles(ctx context.Context, userID, jwtToken string) ([]string, error)
 }
 
 type authClient struct {
@@ -53,7 +53,7 @@ type checkPermissionResponse struct {
 	Permission string `json:"permission"`
 }
 
-func (c *authClient) CheckPermission(ctx context.Context, userID, permission string) (bool, error) {
+func (c *authClient) CheckPermission(ctx context.Context, userID, permission, jwtToken string) (bool, error) {
 	url := fmt.Sprintf("%s/api/v1/auth/permissions/check", c.baseURL)
 
 	reqBody := checkPermissionRequest{
@@ -72,6 +72,9 @@ func (c *authClient) CheckPermission(ctx context.Context, userID, permission str
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	if jwtToken != "" {
+		req.Header.Set("Authorization", "Bearer "+jwtToken)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -91,12 +94,16 @@ func (c *authClient) CheckPermission(ctx context.Context, userID, permission str
 	return result.Allowed, nil
 }
 
-func (c *authClient) GetUserPermissions(ctx context.Context, userID string) ([]string, error) {
+func (c *authClient) GetUserPermissions(ctx context.Context, userID, jwtToken string) ([]string, error) {
 	url := fmt.Sprintf("%s/api/v1/auth/users/%s/permissions", c.baseURL, userID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if jwtToken != "" {
+		req.Header.Set("Authorization", "Bearer "+jwtToken)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -119,12 +126,16 @@ func (c *authClient) GetUserPermissions(ctx context.Context, userID string) ([]s
 	return result.Permissions, nil
 }
 
-func (c *authClient) GetUserRoles(ctx context.Context, userID string) ([]string, error) {
+func (c *authClient) GetUserRoles(ctx context.Context, userID, jwtToken string) ([]string, error) {
 	url := fmt.Sprintf("%s/api/v1/auth/users/%s/roles", c.baseURL, userID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if jwtToken != "" {
+		req.Header.Set("Authorization", "Bearer "+jwtToken)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -137,12 +148,12 @@ func (c *authClient) GetUserRoles(ctx context.Context, userID string) ([]string,
 		return nil, fmt.Errorf("auth-service returned status %d", resp.StatusCode)
 	}
 
-	var result struct {
+	var rolesResult struct {
 		Roles []string `json:"roles"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&rolesResult); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	return result.Roles, nil
+	return rolesResult.Roles, nil
 }

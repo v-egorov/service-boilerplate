@@ -9,6 +9,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -69,6 +70,26 @@ func (h *GatewayHandler) ProxyRequest(serviceName string) gin.HandlerFunc {
 		// Add request ID to headers
 		if requestID, exists := c.Get("request_id"); exists {
 			c.Request.Header.Set("X-Request-ID", requestID.(string))
+		}
+
+		// Forward user identity headers to backend services
+		// This allows internal services to trust gateway's authentication
+		// instead of validating JWT themselves.
+		//
+		// Hybrid approach for future enhancement:
+		// - Services can use these headers for fast path (trust gateway)
+		// - Or validate JWT themselves for defense in depth
+		// - Set X-User- headers only when JWT was successfully validated
+		if userID, exists := c.Get("user_id"); exists {
+			c.Request.Header.Set("X-User-ID", userID.(string))
+		}
+		if userEmail, exists := c.Get("user_email"); exists {
+			c.Request.Header.Set("X-User-Email", userEmail.(string))
+		}
+		if userRoles, exists := c.Get("user_roles"); exists {
+			if roles, ok := userRoles.([]string); ok {
+				c.Request.Header.Set("X-User-Roles", ","+strings.Join(roles, ",")+",")
+			}
 		}
 
 		// Extract trace information from context

@@ -33,19 +33,68 @@ func JWTMiddleware(jwtSecret interface{}, logger *logrus.Logger, revocationCheck
 			requestID = "unknown"
 		}
 
-		// If no JWT secret provided, skip authentication
+		// If no JWT secret provided, try to read user info from gateway headers
+		// This allows internal services to trust the API Gateway's authentication
+		// instead of validating JWT themselves.
+		//
+		// Hybrid approach (see hybrid approach documentation in gateway):
+		// - Services can use X-User-* headers for fast path (trust gateway)
+		// - Or validate JWT themselves for defense in depth
+		// - When jwtSecret is nil, prefer reading from gateway headers
 		if jwtSecret == nil {
+			if userID := c.GetHeader("X-User-ID"); userID != "" {
+				c.Set("user_id", userID)
+				c.Set("user_email", c.GetHeader("X-User-Email"))
+				if rolesHeader := c.GetHeader("X-User-Roles"); rolesHeader != "" {
+					// Parse comma-separated roles: ",role1,role2,"
+					rolesHeader = strings.Trim(rolesHeader, ",")
+					if rolesHeader != "" {
+						roles := strings.Split(rolesHeader, ",")
+						c.Set("user_roles", roles)
+					}
+				}
+				logger.WithFields(logrus.Fields{
+					"request_id": requestID,
+					"path":       c.Request.URL.Path,
+					"method":     c.Request.Method,
+					"user_id":    userID,
+				}).Debug("JWT middleware: Using user info from gateway headers")
+				c.Next()
+				return
+			}
+
 			logger.WithFields(logrus.Fields{
 				"request_id": requestID,
 				"path":       c.Request.URL.Path,
 				"method":     c.Request.Method,
-			}).Debug("JWT middleware: Skipping authentication (no JWT secret)")
+			}).Debug("JWT middleware: Skipping authentication (no JWT secret and no gateway headers)")
 			c.Next()
 			return
 		}
 
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
+			// No Authorization header - try gateway headers as fallback
+			if userID := c.GetHeader("X-User-ID"); userID != "" {
+				c.Set("user_id", userID)
+				c.Set("user_email", c.GetHeader("X-User-Email"))
+				if rolesHeader := c.GetHeader("X-User-Roles"); rolesHeader != "" {
+					rolesHeader = strings.Trim(rolesHeader, ",")
+					if rolesHeader != "" {
+						roles := strings.Split(rolesHeader, ",")
+						c.Set("user_roles", roles)
+					}
+				}
+				logger.WithFields(logrus.Fields{
+					"request_id": requestID,
+					"path":       c.Request.URL.Path,
+					"method":     c.Request.Method,
+					"user_id":    userID,
+				}).Debug("JWT middleware: Using user info from gateway headers (fallback)")
+				c.Next()
+				return
+			}
+
 			// No auth header - continue without authentication
 			logger.WithFields(logrus.Fields{
 				"request_id": requestID,
