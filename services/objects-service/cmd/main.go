@@ -182,8 +182,8 @@ func main() {
 		// Object Type endpoints (only if database is available)
 		if objectTypeHandler != nil {
 			// Object Types - Admin only (create, update, delete)
+			// Note: RequireAuth removed - gateway already validates JWT and forwards user info via X-User-* headers
 			objectTypesAdmin := v1.Group("/object-types")
-			objectTypesAdmin.Use(middleware.RequireAuth())
 			objectTypesAdmin.Use(permissionMiddleware("object-types:create", "object-types:update", "object-types:delete"))
 			{
 				objectTypesAdmin.POST("", objectTypeHandler.Create)
@@ -192,8 +192,8 @@ func main() {
 			}
 
 			// Object Types - Read (authenticated users)
+			// Note: RequireAuth removed - gateway forwards user info via X-User-* headers
 			objectTypesRead := v1.Group("/object-types")
-			objectTypesRead.Use(middleware.RequireAuth())
 			objectTypesRead.Use(permissionMiddleware("object-types:read"))
 			{
 				objectTypesRead.GET("/:id", objectTypeHandler.GetByID)
@@ -213,16 +213,16 @@ func main() {
 		// Object endpoints (only if database is available)
 		if objectHandler != nil {
 			// Objects - Create
+			// Note: RequireAuth removed - gateway forwards user info via X-User-* headers
 			objectsCreate := v1.Group("/objects")
-			objectsCreate.Use(middleware.RequireAuth())
 			objectsCreate.Use(permissionMiddleware("objects:create"))
 			{
 				objectsCreate.POST("", objectHandler.Create)
 			}
 
 			// Objects - Read
+			// Note: RequireAuth removed - gateway forwards user info via X-User-* headers
 			objectsRead := v1.Group("/objects")
-			objectsRead.Use(middleware.RequireAuth())
 			objectsRead.Use(permissionMiddleware("objects:read:all", "objects:read:own"))
 			{
 				objectsRead.GET("/:id", objectHandler.GetByID)
@@ -238,8 +238,8 @@ func main() {
 			}
 
 			// Objects - Update
+			// Note: RequireAuth removed - gateway forwards user info via X-User-* headers
 			objectsUpdate := v1.Group("/objects")
-			objectsUpdate.Use(middleware.RequireAuth())
 			objectsUpdate.Use(permissionMiddleware("objects:update:all", "objects:update:own"))
 			{
 				objectsUpdate.PUT("/:id", objectHandler.Update)
@@ -249,8 +249,8 @@ func main() {
 			}
 
 			// Objects - Delete
+			// Note: RequireAuth removed - gateway forwards user info via X-User-* headers
 			objectsDelete := v1.Group("/objects")
-			objectsDelete.Use(middleware.RequireAuth())
 			objectsDelete.Use(permissionMiddleware("objects:delete:all", "objects:delete:own"))
 			{
 				objectsDelete.DELETE("/:id", objectHandler.Delete)
