@@ -245,9 +245,14 @@ dev-bootstrap: create-volumes-dirs build-migration-orchestrator  ## Bootstrap de
 	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) up
 
 .PHONY: dev
-dev: create-volumes-dirs  ## Start services in development mode with hot reload
+dev: create-volumes-dirs  ## Start services in development mode with hot reload (blocks - use dev-detached for automation)
 	@echo "Starting development environment with hot reload..."
 	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) up
+
+.PHONY: dev-detached
+dev-detached: create-volumes-dirs  ## Start services in development mode (detached, for automation)
+	@echo "Starting development environment (detached)..."
+	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) up -d
 
 .PHONY: build-dev
 build-dev: ## Build development images with Air
