@@ -27,9 +27,29 @@
   - `make test-<service-name>` - run tests for service-name
 - each service produces it's own log, accessible via mounted folder on a host: ./docker/volumes/[service-name]/logs/[service-name].log - these logs available for inspection via tail/grep etc
 - if after changing any YAML files (including docker-compose\*.yml) you'll encounter errors - stop and transfer control to user for inspection
-- do not make 'quick and dirty' fixes in the database for any configuration-level data. These data (including data seeded for dev/debug purposes) should be popuated via database migrations
-- most important database-related Makefile targets:
-  - `make db-migrate SERVICE_NAME=<service-name>` - apply all pending migrations
-  - `make db-migrate-down SERVICE_NAME=<service-name>` - rollback one migration
-  - `docker exec service-boilerplate-postgres psql -U postgres -d service_db -c "<SQL STATEMENT>" 2>&1` - run SQL STATEMENT against database
+## Database Migrations
+
+The project uses migration-orchestrator (golang-migrate + custom tracking) to manage database schema changes.
+
+### Migration Files Location
+- Service migrations: `services/<service-name>/migrations/`
+- Development migrations: `services/<service-name>/migrations/development/`
+- Naming: `NNNN_dev_<description>.up.sql` and `.down.sql`
+
+### Configuration Files (required for each new migration)
+Each new migration requires updates to TWO files in the service's migrations folder:
+1. **dependencies.json** - add migration entry with description, depends_on, affects_tables, estimated_duration, risk_level, rollback_safe, environment
+2. **environments.json** - add migration file path to target environment's migrations array
+
+### Applying Migrations
+- `make db-migrate SERVICE_NAME=<service-name>` - apply all pending migrations
+- `make db-migrate-down SERVICE_NAME=<service-name>` - rollback one migration
+
+### Important Rules
+- NEVER apply migrations directly via psql - always use migration orchestrator
+- Always use migration orchestrator for both applying and rolling back
+- Configuration-level data should be seeded via migrations, not direct SQL
+
+## Tests
+
 - tests should be implemented using testify framework. Overview of testing approach for project described in ./docs/testify-overview.md
