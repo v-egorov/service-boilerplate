@@ -50,29 +50,35 @@ A microservice for managing generic object taxonomies with hierarchical relation
 ```bash
 # Clone repository
 git clone <repository-url>
-cd service-boilerplate/services/objects-service
+cd service-boilerplate
 
 # Install dependencies
 go mod download
 
 # Run migrations
-go run cmd/migrate/main.go up
+make db-migrate SERVICE_NAME=objects-service
 
-# Start service
-go run cmd/main.go
+# Start services via API Gateway
+make dev-detached
 ```
 
+The service is accessed via API Gateway at http://localhost:8080
+
 ### Docker
+
+The service is typically run as part of the Docker Compose stack. To run individually:
 
 ```bash
 # Build image
 docker build -t objects-service .
 
-# Run container
+# Run container (requires postgres and auth-service)
 docker run -p 8085:8085 \
-  -e DATABASE_URL="postgresql://postgres:password@postgres:5432/objects_service" \
+  -e DATABASE_URL="postgresql://postgres:password@postgres:5432/service_db" \
   objects-service
 ```
+
+Note: In production, always access via API Gateway.
 
 ## Configuration
 
@@ -84,7 +90,6 @@ docker run -p 8085:8085 \
 | `PORT` | Service port | 8085 |
 | `ENVIRONMENT` | Environment (development/staging/production) | development |
 | `LOG_LEVEL` | Log level (debug/info/warn/error) | info |
-| `JWT_SECRET` | JWT secret for authentication | - |
 | `ENABLE_CORS` | Enable CORS | true |
 
 ### Configuration File
@@ -102,10 +107,11 @@ database:
   port: 5432
   user: "postgres"
   password: "postgres"
-  database: "objects_service"
+  database: "service_db"
   ssl_mode: "disable"
   max_conns: 25
   min_conns: 5
+  schema: "objects_service"
 
 logging:
   level: "info"
@@ -115,6 +121,10 @@ logging:
 server:
   host: "0.0.0.0"
   port: 8085
+
+auth_service:
+  url: "http://auth-service:8081"
+  timeout_seconds: 5
 ```
 
 ## API Documentation
@@ -122,16 +132,19 @@ server:
 ### Base URL
 
 ```
-Development: http://localhost:8085
+Development (via API Gateway): http://localhost:8080
+Direct (not recommended): http://localhost:8085
 ```
 
 ### Authentication
 
-Include JWT token in Authorization header:
+All requests should go through the API Gateway (port 8080) which handles JWT validation. The gateway forwards user identity via headers:
 
-```
-Authorization: Bearer <token>
-```
+- `X-User-ID`: User's unique identifier
+- `X-User-Email`: User's email address
+- `X-User-Roles`: Comma-separated list of user roles
+
+In development mode (JWT_SECRET is nil), internal services trust these headers from the gateway.
 
 ### Health Endpoints
 
@@ -191,7 +204,9 @@ Response:
     "is_sealed": false,
     "metadata": {"icon": "product", "color": "#FF5722"},
     "created_at": "2024-01-01T00:00:00Z",
-    "updated_at": "2024-01-01T00:00:00Z"
+    "updated_at": "2024-01-01T00:00:00Z",
+    "created_by": "user-123",
+    "updated_by": "user-123"
   },
   "message": "Object type created successfully"
 }
@@ -304,22 +319,53 @@ Content-Type: application/json
 ]
 ```
 
+## Permissions (RBAC)
+
+The service implements Role-Based Access Control (RBAC). Permissions are checked via auth-service.
+
+### Object Types Permissions
+
+| Permission | Description | Roles |
+|------------|-------------|-------|
+| `object-types:create` | Create new object types | admin, object-type-admin |
+| `object-types:read` | View object types | admin, object-type-admin, user |
+| `object-types:update` | Modify object types | admin, object-type-admin |
+| `object-types:delete` | Delete object types | admin, object-type-admin |
+
+### Objects Permissions
+
+| Permission | Description | Roles |
+|------------|-------------|-------|
+| `objects:create` | Create new objects | admin, user |
+| `objects:read:all` | Read all objects | admin, object-type-admin |
+| `objects:read:own` | Read only own objects | admin, user |
+| `objects:update:all` | Update any object | admin, object-type-admin |
+| `objects:update:own` | Update own objects only | admin, user |
+| `objects:delete:all` | Delete any object | admin, object-type-admin |
+| `objects:delete:own` | Delete own objects only | admin, user |
+
+### Ownership
+
+Users can only read/update/delete their own objects unless they have `:*:all` permissions. Ownership is determined by the `created_by` field.
+
 ## Usage Examples
 
 ### Creating a Product Category Hierarchy
 
 ```bash
 # Create root category
-curl -X POST http://localhost:8085/api/v1/object-types \
+curl -X POST http://localhost:8080/api/v1/object-types \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
   -d '{
     "name": "Product Category",
     "description": "Root category for products"
   }'
 
 # Create sub-category
-curl -X POST http://localhost:8085/api/v1/object-types \
+curl -X POST http://localhost:8080/api/v1/object-types \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
   -d '{
     "name": "Electronics",
     "parent_type_id": 1,
@@ -327,8 +373,9 @@ curl -X POST http://localhost:8085/api/v1/object-types \
   }'
 
 # Create product object
-curl -X POST http://localhost:8085/api/v1/objects \
+curl -X POST http://localhost:8080/api/v1/objects \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
   -d '{
     "object_type_id": 2,
     "name": "Smartphone",
@@ -344,46 +391,57 @@ curl -X POST http://localhost:8085/api/v1/objects \
 
 ```bash
 # Get all children of a category
-curl http://localhost:8085/api/v1/object-types/1/children
+curl http://localhost:8080/api/v1/object-types/1/children \
+  -H "Authorization: Bearer <token>"
 
 # Get full tree from root
-curl http://localhost:8085/api/v1/object-types/1/tree
+curl http://localhost:8080/api/v1/object-types/1/tree \
+  -H "Authorization: Bearer <token>"
 
 # Get ancestors of a type
-curl http://localhost:8085/api/v1/object-types/2/ancestors
+curl http://localhost:8080/api/v1/object-types/2/ancestors \
+  -H "Authorization: Bearer <token>"
 
 # Get descendants with max depth of 2
-curl "http://localhost:8085/api/v1/object-types/1/descendants?max_depth=2"
+curl "http://localhost:8080/api/v1/object-types/1/descendants?max_depth=2" \
+  -H "Authorization: Bearer <token>"
 ```
 
 ### Searching Objects
 
 ```bash
 # Search by name
-curl "http://localhost:8085/api/v1/objects/search?q=phone"
+curl "http://localhost:8080/api/v1/objects/search?q=phone" \
+  -H "Authorization: Bearer <token>"
 
 # Filter by type and status
-curl "http://localhost:8085/api/v1/objects?object_type_id=2&status=active"
+curl "http://localhost:8080/api/v1/objects?object_type_id=2&status=active" \
+  -H "Authorization: Bearer <token>"
 
 # Filter by tags (any match)
-curl "http://localhost:8085/api/v1/objects?tags=mobile,electronics"
+curl "http://localhost:8080/api/v1/objects?tags=mobile,electronics" \
+  -H "Authorization: Bearer <token>"
 
 # Filter by tags (all match)
-curl "http://localhost:8085/api/v1/objects?tags=mobile,electronics&tags_mode=all"
+curl "http://localhost:8080/api/v1/objects?tags=mobile,electronics&tags_mode=all" \
+  -H "Authorization: Bearer <token>"
 
 # Get statistics
-curl http://localhost:8085/api/v1/objects/stats
+curl http://localhost:8080/api/v1/objects/stats \
+  -H "Authorization: Bearer <token>"
 ```
 
 ### Version Control (Optimistic Locking)
 
 ```bash
 # Get object with version
-curl http://localhost:8085/api/v1/objects/1
+curl http://localhost:8080/api/v1/objects/1 \
+  -H "Authorization: Bearer <token>"
 
 # Update with version (must match current version)
-curl -X PUT http://localhost:8085/api/v1/objects/1 \
+curl -X PUT http://localhost:8080/api/v1/objects/1 \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
   -d '{
     "name": "Updated Name",
     "version": 0
@@ -413,15 +471,19 @@ go test ./tests/...
 
 ### Database Migrations
 
+Migrations are managed via the migration orchestrator:
+
 ```bash
 # Run migrations
-go run cmd/migrate/main.go up
+make db-migrate SERVICE_NAME=objects-service
 
-# Rollback migrations
-go run cmd/migrate/main.go down
+# Rollback one migration
+make db-migrate-down SERVICE_NAME=objects-service
+```
 
-# Run migrations for specific environment
-go run cmd/migrate/main.go up --env=development
+Alternatively, use the orchestrator directly:
+```bash
+docker exec migration-orchestrator ./migrate -service=objects-service up
 ```
 
 ### Code Quality
@@ -486,9 +548,9 @@ Active alerts can be viewed at `/api/v1/alerts`.
 - Check logs for specific error messages
 
 **Authentication errors**
-- Ensure JWT_SECRET is set
-- Verify token format is correct
-- Check token expiration
+- Ensure requests go through API Gateway (port 8080)
+- Verify user has required permissions in auth-service
+- Check auth-service is running and accessible
 
 ## License
 
