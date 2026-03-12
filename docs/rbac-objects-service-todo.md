@@ -17,8 +17,8 @@
 | Phase 3: Auth-Client Wrapper | ✅ | 4 | 4/4 |
 | Phase 4: Objects-Service Integration | ✅ | 4 | 4/4 |
 | Phase 5: Ownership Validation | ✅ | 4 | 4/4 |
-| Phase 6: Testing & Documentation | 🔄 | 4 | 3/4 |
-| **Total** | ✅ | **25** | **22/25** |
+| Phase 6: Testing & Documentation | ✅ | 4 | 4/4 |
+| **Total** | ✅ | **25** | **25/25** |
 
 ---
 
@@ -237,7 +237,7 @@
 
 **Goal**: Comprehensive testing and documentation
 **Estimated Time**: 3-4 hours
-**Status**: ⬜ Not Started
+**Status**: ✅ COMPLETED
 
 ### Tasks
 
@@ -260,14 +260,15 @@
   - Document permission requirements
   - ✅ DONE
 
-- [ ] **6.4** Create test script (0.5h)
+- [x] **6.4** Create test script (0.5h)
   - File: `scripts/test-rbac-objects-service.sh`
   - End-to-end RBAC test
+  - ✅ 26 tests passing
 
 ### Deliverables
-- [ ] All tests passing
-- [ ] Documentation complete
-- [ ] Swagger updated
+- [x] All tests passing
+- [x] Documentation complete
+- [x] Swagger updated
 
 ---
 
@@ -402,3 +403,9 @@ psql -U postgres -d service_db -f services/auth-service/migrations/development/0
 | 2026-03-05 | 6.1 | Implemented Phase 6.1 (RBAC integration tests - 11 tests) | - |
 | 2026-03-05 | 6.2 | Created user-focused documentation (docs/rbac-objects-service.md) | - |
 | 2026-03-05 | 6.3 | Updated swagger.yaml with permission requirements | - |
+| 2026-03-12 | 6.4 | Created test script, all 26 RBAC tests passing | - |
+| 2026-03-12 | - | Fixed schema-qualified table names in objects-service | - |
+| 2026-03-12 | - | Added ownership checks to GET operations (GetByID, GetByPublicID, GetByName) | - |
+| 2026-03-12 | - | Added ownership checks to UpdateMetadata, AddTags, RemoveTags | - |
+| 2026-03-12 | - | Fixed SQL bug in RemoveTags (array_remove instead of array - operator) | - |
+| 2026-03-12 | - | Added created_by/updated_by to object_types table | - |

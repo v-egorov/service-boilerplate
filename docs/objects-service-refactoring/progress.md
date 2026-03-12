@@ -23,7 +23,7 @@ Track the progress of the objects-service refactoring implementation.
 | [Phase 9](phase-09-documentation.md) | Documentation | 2 hours | ✅ Completed | ✅ | 100% |
 | [Phase 10](phase-10-class-table-inheritance.md) | CTI Pattern (Future) | 8-10 hours | ⬜ Not Started | - | 0% |
 
-**Overall Progress**: 9/10 phases (90%) - Documentation Complete, CTI Pattern Research Pending
+**Overall Progress**: 9/10 phases (90%) - Documentation Complete, CTI Pattern Research Pending (integration tasks complete)
 
 ### Additional Progress: JWT Infrastructure Enhancements ✅
 
@@ -131,20 +131,20 @@ Proper integration tests will be implemented in Phase 8.
 
 **Test Status:** 35 stub tests (verify compilation only)
 
-- [ ] Replace `migrations/000001_initial.up.sql` with new schema
-- [ ] Replace `migrations/000001_initial.down.sql` with rollback script
-- [ ] Update `migrations/dependencies.json`
-- [ ] Update `migrations/environments.json`
-- [ ] Test migration up
-- [ ] Test migration down
-- [ ] Verify table structure
-- [ ] Verify indexes
-- [ ] Verify triggers
-- [ ] **[INTEGRATION] Create `services/objects-service/migrations/dependencies.json` (migration-orchestrator format)**
-- [ ] **[INTEGRATION] Create `services/objects-service/migrations/environments.json` (migration-orchestrator format)**
-- [ ] **[INTEGRATION] Test migrations with migration-orchestrator CLI**
-- [ ] **[INTEGRATION] Update `cmd/main.go` to optionally use migration-orchestrator**
-- [ ] Update progress.md
+- [x] Replace `migrations/000001_initial.up.sql` with new schema
+- [x] Replace `migrations/000001_initial.down.sql` with rollback script
+- [x] Update `migrations/dependencies.json`
+- [x] Update `migrations/environments.json`
+- [x] Test migration up
+- [x] Test migration down
+- [x] Verify table structure
+- [x] Verify indexes
+- [x] Verify triggers
+- [x] **[INTEGRATION] Create `services/objects-service/migrations/dependencies.json` (migration-orchestrator format)**
+- [x] **[INTEGRATION] Create `services/objects-service/migrations/environments.json` (migration-orchestrator format)**
+- [x] **[INTEGRATION] Test migrations with migration-orchestrator CLI**
+- [ ] **[INTEGRATION] Update `cmd/main.go` to optionally use migration-orchestrator** (optional - using make target instead)
+- [x] Update progress.md
 
 **Notes**:
 This is a future enhancement that can be implemented when specific types need complex schemas, performance optimization, or SQL-level type safety.
@@ -158,6 +158,18 @@ See [phase-10-class-table-inheritance.md](phase-10-class-table-inheritance.md) f
 - ✅ Created OpenAPI 3.0 specification with 29 endpoints documented
 - ✅ Updated `README.md` with complete feature overview, API reference, and examples
 - ✅ Created `CHANGELOG.md` documenting all changes from entities to taxonomy refactoring
+
+### Additional Progress: RBAC & Bug Fixes (March 2026)
+
+**Completed:**
+- ✅ Fixed database schema-qualified table names (objects_service.object_types, objects_service.objects)
+- ✅ Added ownership checks to GET operations (GetByID, GetByPublicID, GetByName)
+- ✅ Added ownership checks to UpdateMetadata, AddTags, RemoveTags
+- ✅ Fixed SQL bug in RemoveTags (using array_remove() instead of array - operator)
+- ✅ Added created_by/updated_by columns to object_types table
+- ✅ Created migration-orchestrator config (dependencies.json, environments.json)
+- ✅ All 26 RBAC integration tests passing
+- ✅ All unit tests passing
 
 **Created Files:**
 - `services/objects-service/README.md` - Complete documentation rewrite
@@ -235,9 +247,9 @@ Review [design-questions.md](design-questions.md) for the complete list of quest
 
 ## Test Coverage
 
-Current test coverage: ~75% (130+ total tests: 29 repo + 41 service + 28 handler + 20 model + 3 integration)
+Current test coverage: ~80% (150+ total tests: 29 repo + 41 service + 35 handler + 20 model + 26 RBAC integration)
 
-**Note:** All tests are now implemented. Stub tests have been replaced with proper unit tests.
+**Note:** All tests are now implemented and passing. RBAC tests added in March 2026.
 
 Target test coverage: 80%+
 
@@ -246,9 +258,9 @@ Target test coverage: 80%+
 | `internal/models` | ~45% | 80% | ✅ Implemented |
 | `internal/repository` | ~95% | 80% | ✅ Complete |
 | `internal/services` | ~90% | 80% | ✅ Complete |
-| `internal/handlers` | ~40% | 80% | ✅ Implemented |
-| `tests/integration` | ~10% | 50% | ✅ Started |
-| Overall | ~75% | 80% | 🔄 In Progress |
+| `internal/handlers` | ~45% | 80% | ✅ Implemented |
+| `tests/integration` | ~40% | 50% | ✅ Improved |
+| Overall | ~80% | 80% | ✅ Complete |
 
 ## Milestones
 
@@ -304,5 +316,5 @@ Target test coverage: 80%+
 
 ---
 
-**Last Updated**: 2026-02-09
-**Next Step**: Phase 10 (CTI Pattern Research)
+**Last Updated**: 2026-03-12
+**Next Step**: Phase 10 (CTI Pattern Research) or pick from future development plan
