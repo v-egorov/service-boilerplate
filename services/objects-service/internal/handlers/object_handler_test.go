@@ -235,12 +235,14 @@ func TestObjectHandler_GetByID(t *testing.T) {
 		ObjectTypeID: 1,
 		Name:         "TestObject",
 		Status:       models.StatusActive,
+		CreatedBy:    "test-user-id",
 	}
 
 	mockService.On("GetByID", mock.Anything, int64(1)).Return(object, nil)
 
 	c, w := createTestGinContext("GET", "/api/v1/objects/1", nil)
 	c.Params = gin.Params{{Key: "id", Value: "1"}}
+	c.Set("user_id", "test-user-id")
 
 	handler.GetByID(c)
 
@@ -277,12 +279,14 @@ func TestObjectHandler_GetByPublicID(t *testing.T) {
 		PublicID:     publicID,
 		ObjectTypeID: 1,
 		Name:         "TestObject",
+		CreatedBy:    "test-user-id",
 	}
 
 	mockService.On("GetByPublicID", mock.Anything, publicID).Return(object, nil)
 
 	c, w := createTestGinContext("GET", "/api/v1/objects/public-id/"+publicID.String(), nil)
 	c.Params = gin.Params{{Key: "public_id", Value: publicID.String()}}
+	c.Set("user_id", "test-user-id")
 
 	handler.GetByPublicID(c)
 
@@ -301,12 +305,14 @@ func TestObjectHandler_GetByName(t *testing.T) {
 		ID:           1,
 		ObjectTypeID: 1,
 		Name:         "TestObject",
+		CreatedBy:    "test-user-id",
 	}
 
 	mockService.On("GetByName", mock.Anything, "TestObject").Return(object, nil)
 
 	c, w := createTestGinContext("GET", "/api/v1/objects/name/TestObject", nil)
 	c.Params = gin.Params{{Key: "name", Value: "TestObject"}}
+	c.Set("user_id", "test-user-id")
 
 	handler.GetByName(c)
 
@@ -548,10 +554,17 @@ func TestObjectHandler_AddTags(t *testing.T) {
 
 	handler := NewObjectHandlerWithInterface(mockService, logger)
 
+	object := &models.Object{
+		ID:        1,
+		Name:      "TestObject",
+		CreatedBy: "test-user-id",
+	}
+	mockService.On("GetByID", mock.Anything, int64(1)).Return(object, nil)
 	mockService.On("AddTags", mock.Anything, int64(1), []string{"tag1", "tag2"}, mock.Anything).Return(nil)
 
 	c, w := createTestGinContext("POST", "/api/v1/objects/1/tags", map[string]interface{}{"tags": []string{"tag1", "tag2"}})
 	c.Params = gin.Params{{Key: "id", Value: "1"}}
+	c.Set("user_id", "test-user-id")
 
 	handler.AddTags(c)
 
@@ -566,10 +579,17 @@ func TestObjectHandler_RemoveTags(t *testing.T) {
 
 	handler := NewObjectHandlerWithInterface(mockService, logger)
 
+	object := &models.Object{
+		ID:        1,
+		Name:      "TestObject",
+		CreatedBy: "test-user-id",
+	}
+	mockService.On("GetByID", mock.Anything, int64(1)).Return(object, nil)
 	mockService.On("RemoveTags", mock.Anything, int64(1), []string{"tag1"}, mock.Anything).Return(nil)
 
 	c, w := createTestGinContext("DELETE", "/api/v1/objects/1/tags", map[string]interface{}{"tags": []string{"tag1"}})
 	c.Params = gin.Params{{Key: "id", Value: "1"}}
+	c.Set("user_id", "test-user-id")
 
 	handler.RemoveTags(c)
 

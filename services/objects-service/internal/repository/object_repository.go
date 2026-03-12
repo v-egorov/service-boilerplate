@@ -900,10 +900,10 @@ func (r *objectRepository) RemoveTags(ctx context.Context, id int64, tags []stri
 
 	query := `
 		UPDATE objects_service.objects
-		SET tags = tags - $1::text[], updated_at = CURRENT_TIMESTAMP, updated_by = $3
+		SET tags = array_remove(tags, $1), updated_at = CURRENT_TIMESTAMP, updated_by = $3
 		WHERE id = $2 AND deleted_at IS NULL`
 
-	_, err := r.db.Exec(ctx, query, tags, id, userToSet)
+	_, err := r.db.Exec(ctx, query, tags[0], id, userToSet)
 	if err != nil {
 		r.metrics.ErrorCount++
 		return fmt.Errorf("failed to remove tags: %w", err)

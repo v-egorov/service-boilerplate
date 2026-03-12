@@ -181,6 +181,11 @@ func (h *ObjectHandler) GetByID(c *gin.Context) {
 		return
 	}
 
+	if !h.checkOwnership(c, object, "objects:read:all") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You can only access your own objects"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"data": object,
 	})
@@ -207,6 +212,11 @@ func (h *ObjectHandler) GetByPublicID(c *gin.Context) {
 		return
 	}
 
+	if !h.checkOwnership(c, object, "objects:read:all") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You can only access your own objects"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"data": object,
 	})
@@ -228,6 +238,11 @@ func (h *ObjectHandler) GetByName(c *gin.Context) {
 	object, err := h.service.GetByName(c.Request.Context(), name)
 	if err != nil {
 		h.handleServiceError(c, err, "Failed to get object by name", requestID)
+		return
+	}
+
+	if !h.checkOwnership(c, object, "objects:read:all") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You can only access your own objects"})
 		return
 	}
 
@@ -455,6 +470,17 @@ func (h *ObjectHandler) UpdateMetadata(c *gin.Context) {
 		return
 	}
 
+	existingObj, err := h.service.GetByID(c.Request.Context(), id)
+	if err != nil {
+		h.handleServiceError(c, err, "Failed to get object", requestID)
+		return
+	}
+
+	if !h.checkOwnership(c, existingObj, "objects:update:all") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You can only update your own objects"})
+		return
+	}
+
 	userID := middleware.GetAuthenticatedUserID(c)
 	err = h.service.UpdateMetadata(c.Request.Context(), id, metadata, userID)
 	if err != nil {
@@ -494,6 +520,17 @@ func (h *ObjectHandler) AddTags(c *gin.Context) {
 		return
 	}
 
+	existingObj, err := h.service.GetByID(c.Request.Context(), id)
+	if err != nil {
+		h.handleServiceError(c, err, "Failed to get object", requestID)
+		return
+	}
+
+	if !h.checkOwnership(c, existingObj, "objects:update:all") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You can only update your own objects"})
+		return
+	}
+
 	userID := middleware.GetAuthenticatedUserID(c)
 	err = h.service.AddTags(c.Request.Context(), id, req.Tags, userID)
 	if err != nil {
@@ -512,6 +549,11 @@ func (h *ObjectHandler) RemoveTags(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"id_str":     idStr,
+			"parse_err":  err,
+		}).Error("Invalid ID format in RemoveTags")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid ID format",
 			"details": "ID must be a positive integer",
@@ -524,7 +566,13 @@ func (h *ObjectHandler) RemoveTags(c *gin.Context) {
 	var req struct {
 		Tags []string `json:"tags"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
+	// Try ShouldBind instead of ShouldBindJSON for DELETE requests
+	if err := c.ShouldBind(&req); err != nil {
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"bind_err":   err,
+			"body":       c.Request.Body,
+		}).Error("Failed to bind request in RemoveTags")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
 			"details": err.Error(),
@@ -533,12 +581,47 @@ func (h *ObjectHandler) RemoveTags(c *gin.Context) {
 		return
 	}
 
+	// Check if tags were parsed
+	if len(req.Tags) == 0 {
+		h.logger.WithFields(logrus.Fields{
+			"request_id": requestID,
+			"object_id":  id,
+		}).Warn("No tags provided in RemoveTags")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No tags provided"})
+		return
+	}
+
+	existingObj, err := h.service.GetByID(c.Request.Context(), id)
+	if err != nil {
+		h.handleServiceError(c, err, "Failed to get object", requestID)
+		return
+	}
+
+	if !h.checkOwnership(c, existingObj, "objects:update:all") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You can only update your own objects"})
+		return
+	}
+
 	userID := middleware.GetAuthenticatedUserID(c)
 	err = h.service.RemoveTags(c.Request.Context(), id, req.Tags, userID)
 	if err != nil {
+		h.logger.WithFields(logrus.Fields{
+			"request_id":  requestID,
+			"object_id":   id,
+			"user_id":     userID,
+			"tags":        req.Tags,
+			"service_err": err,
+		}).Error("Failed to remove tags")
 		h.handleServiceError(c, err, "Failed to remove tags", requestID)
 		return
 	}
+
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"object_id":  id,
+		"user_id":    userID,
+		"tags":       req.Tags,
+	}).Info("Tags removed successfully")
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Tags removed successfully",
