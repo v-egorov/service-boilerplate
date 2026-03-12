@@ -100,18 +100,27 @@ func (r *objectTypeRepository) Create(ctx context.Context, input *models.CreateO
 		}
 	}
 
+	// Set created_by and updated_by
+	createdBy := input.CreatedBy
+	if createdBy == "" {
+		createdBy = "system"
+	}
+	updatedBy := createdBy
+
 	query := `
 		INSERT INTO objects_service.object_types (
-			name, parent_type_id, concrete_table_name, description, is_sealed, metadata
+			name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_by, updated_by
 		) VALUES (
-			$1, $2, $3, $4, $5, $6
-		) RETURNING id, created_at, updated_at`
+			$1, $2, $3, $4, $5, $6, $7, $8
+		) RETURNING id, created_at, updated_at, created_by, updated_by`
 
 	var objectType models.ObjectType
 	objectType.Name = input.Name
 	objectType.ParentTypeID = input.ParentTypeID
 	objectType.ConcreteTableName = input.ConcreteTableName
 	objectType.Description = input.Description
+	objectType.CreatedBy = createdBy
+	objectType.UpdatedBy = updatedBy
 
 	// Set defaults
 	isSealed := false
@@ -131,7 +140,8 @@ func (r *objectTypeRepository) Create(ctx context.Context, input *models.CreateO
 	err := r.db.QueryRow(ctx, query,
 		objectType.Name, objectType.ParentTypeID, objectType.ConcreteTableName,
 		objectType.Description, objectType.IsSealed, objectType.Metadata,
-	).Scan(&objectType.ID, &objectType.CreatedAt, &objectType.UpdatedAt)
+		objectType.CreatedBy, objectType.UpdatedBy,
+	).Scan(&objectType.ID, &objectType.CreatedAt, &objectType.UpdatedAt, &objectType.CreatedBy, &objectType.UpdatedBy)
 	if err != nil {
 		r.metrics.ErrorCount++
 		return nil, fmt.Errorf("failed to create object type: %w", err)
@@ -304,14 +314,20 @@ func (r *objectTypeRepository) Update(ctx context.Context, id int64, input *mode
 		return current, nil // No changes
 	}
 
-	// Add updated_at
-	setClauses = append(setClauses, "updated_at = CURRENT_TIMESTAMP")
+	// Add updated_at and updated_by
+	updatedBy := input.UpdatedBy
+	if updatedBy == "" {
+		updatedBy = "system"
+	}
+	setClauses = append(setClauses, "updated_at = CURRENT_TIMESTAMP", fmt.Sprintf("updated_by = $%d", argIndex))
+	args = append(args, updatedBy)
+	argIndex++
 
 	query := fmt.Sprintf(`
 		UPDATE objects_service.object_types 
 		SET %s 
 		WHERE id = $%d
-		RETURNING updated_at`,
+		RETURNING updated_at, updated_by`,
 		strings.Join(setClauses, ", "),
 		argIndex,
 	)
@@ -319,7 +335,8 @@ func (r *objectTypeRepository) Update(ctx context.Context, id int64, input *mode
 	args = append(args, id)
 
 	var updatedAt sql.NullTime
-	err = r.db.QueryRow(ctx, query, args...).Scan(&updatedAt)
+	var returnedUpdatedBy string
+	err = r.db.QueryRow(ctx, query, args...).Scan(&updatedAt, &returnedUpdatedBy)
 	if err != nil {
 		r.metrics.ErrorCount++
 		return nil, fmt.Errorf("failed to update object type: %w", err)

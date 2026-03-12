@@ -25,6 +25,19 @@
       "risk_level": "low",
       "rollback_safe": true,
       "environment": "development"
+    },
+    "000003": {
+      "description": "Add created_by and updated_by columns to object_types for audit tracking",
+      "depends_on": [
+        "000001"
+      ],
+      "affects_tables": [
+        "objects_service.object_types"
+      ],
+      "estimated_duration": "10s",
+      "risk_level": "low",
+      "rollback_safe": true,
+      "environment": "development"
     }
   },
   "global_config": {

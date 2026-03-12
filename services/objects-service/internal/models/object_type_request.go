@@ -13,6 +13,8 @@ type CreateObjectTypeRequest struct {
 	Description       string                 `json:"description,omitempty" validate:"max=1000"`
 	IsSealed          *bool                  `json:"is_sealed,omitempty"`
 	Metadata          map[string]interface{} `json:"metadata,omitempty"`
+	CreatedBy         string                 `json:"-"`
+	UpdatedBy         string                 `json:"-"`
 }
 
 // UpdateObjectTypeRequest represents the request payload for updating an object type
@@ -23,6 +25,7 @@ type UpdateObjectTypeRequest struct {
 	Description       *string                 `json:"description,omitempty" validate:"omitempty,max=1000"`
 	IsSealed          *bool                   `json:"is_sealed,omitempty"`
 	Metadata          *map[string]interface{} `json:"metadata,omitempty"`
+	UpdatedBy         string                  `json:"-"`
 }
 
 // ReplaceObjectTypeRequest represents the request payload for replacing an object type
@@ -59,6 +62,8 @@ type ObjectTypeResponse struct {
 	Metadata          map[string]interface{} `json:"metadata,omitempty"`
 	CreatedAt         string                 `json:"created_at"`
 	UpdatedAt         string                 `json:"updated_at"`
+	CreatedBy         string                 `json:"created_by"`
+	UpdatedBy         string                 `json:"updated_by"`
 	Children          []ObjectTypeResponse   `json:"children,omitempty"`
 	ObjectCount       *int64                 `json:"object_count,omitempty"`
 }
@@ -112,6 +117,8 @@ func (ot *ObjectType) ToResponse() *ObjectTypeResponse {
 		Metadata:          metadata,
 		CreatedAt:         ot.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:         ot.UpdatedAt.Format(time.RFC3339),
+		CreatedBy:         ot.CreatedBy,
+		UpdatedBy:         ot.UpdatedBy,
 		Children:          children,
 		ObjectCount:       objectCount,
 	}
@@ -146,5 +153,7 @@ func (ot *ObjectType) ToMinimalResponse() *ObjectTypeResponse {
 		Metadata:          metadata,
 		CreatedAt:         ot.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:         ot.UpdatedAt.Format(time.RFC3339),
+		CreatedBy:         ot.CreatedBy,
+		UpdatedBy:         ot.UpdatedBy,
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"github.com/v-egorov/service-boilerplate/common/logging"
+	"github.com/v-egorov/service-boilerplate/common/middleware"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/models"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/services"
 )
@@ -89,6 +90,11 @@ func (h *ObjectTypeHandler) Create(c *gin.Context) {
 		})
 		return
 	}
+
+	// Set created_by and updated_by from authenticated user
+	userID := middleware.GetAuthenticatedUserID(c)
+	req.CreatedBy = userID
+	req.UpdatedBy = userID
 
 	objectType, err := h.service.Create(c.Request.Context(), &req)
 	if err != nil {
@@ -206,6 +212,10 @@ func (h *ObjectTypeHandler) Update(c *gin.Context) {
 		})
 		return
 	}
+
+	// Set updated_by from authenticated user
+	userID := middleware.GetAuthenticatedUserID(c)
+	req.UpdatedBy = userID
 
 	objectType, err := h.service.Update(c.Request.Context(), id, &req)
 	if err != nil {
