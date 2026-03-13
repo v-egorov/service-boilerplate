@@ -95,6 +95,17 @@ The auth-service communicates with the user-service for user data management:
 - User lookup for authentication
 - User updates and profile management
 
+### Permission Endpoints
+
+Used by other services (e.g., objects-service) to check permissions:
+
+- `POST /api/v1/auth/permissions/check` - Check if user has permission
+  - Request: `{"user_id": "uuid", "permission": "objects:create"}`
+  - Response: `{"allowed": true, "user_id": "uuid", "permission": "objects:create"}`
+
+- `GET /api/v1/auth/users/{user_id}/permissions` - Get user's permissions list
+- `GET /api/v1/auth/users/{user_id}/roles` - Get user's roles
+
 ## JWT Key Management
 
 ### Automatic Rotation
@@ -254,17 +265,16 @@ CREATE TABLE auth_service.refresh_tokens (
 2. **Start dependencies:**
 
    ```bash
-   make up-postgres
-   make db-migrate-up SERVICE_NAME=auth-service
+   make db-migrate SERVICE_NAME=auth-service
    ```
 
 3. **Run the service:**
 
    ```bash
-   # With hot reload
-   make air-auth-service
+   # With Docker Compose (recommended for development)
+   make dev-detached
 
-   # Or regular run
+   # Or run directly on host
    make run-auth-service
    ```
 
@@ -286,7 +296,7 @@ CREATE TABLE auth_service.refresh_tokens (
 
 1. **Code Changes**: Modify handlers, services, or utilities
 2. **Testing**: Run unit tests with `make test-auth-service`
-3. **Integration**: Test with full stack using `make dev`
+3. **Integration**: Test with full stack using `make dev-detached`
 4. **Migrations**: Add database changes in `migrations/` directory
 
 ### Project Structure
