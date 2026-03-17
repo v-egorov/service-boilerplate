@@ -24,7 +24,7 @@ brevity is good
 - Air hot-reload inside containers - source changes trigger automatic rebuild/restart
 - Key Makefile targets:
   - `make dev` - start services in development mode (blocks, tails logs - do not use in agentic mode)
-  - `make dev-detached` - start services in development mode (detached, returns immediately)
+  - `make dev-detached` - start services in development mode (detached, returns once services started)
   - `make down` - stop all services
   - `make logs` - stream logs from all containers (can be large)
   - `make status` - output status of services
