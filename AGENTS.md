@@ -66,3 +66,24 @@ Each new migration requires updates to TWO files:
 ## Testing
 - Tests use testify framework
 - See `./docs/testify-overview.md` for testing approach
+
+## Service Development Patterns
+
+This boilerplate follows consistent patterns across all services. See detailed guides:
+
+- [Service Patterns Reference](docs/service-patterns-reference.md) - Code examples for all layers
+- [Tracing Implementation Guide](docs/tracing-implementation-guide.md) - HTTP, DB, and business tracing
+
+### Quick Reference
+
+| Layer | Location | Pattern |
+|-------|----------|---------|
+| Models | `internal/models/` | Domain struct + Request/Response DTOs |
+| Repository | `internal/repository/` | Interface + schema-qualified queries |
+| Service | `internal/services/` | Two constructors + validation |
+| Handler | `internal/handlers/` | Error mapping + logging |
+| Tests | `internal/*/*_test.go` | Manual mocks + testify |
+
+### Future Improvements
+
+See [Service Patterns Differences](docs/service-patterns-differences.md) for planned standardization work.
