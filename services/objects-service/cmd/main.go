@@ -84,6 +84,7 @@ func main() {
 	// Initialize repository and service only if database is available
 	var objectTypeHandler *handlers.ObjectTypeHandler
 	var objectHandler *handlers.ObjectHandler
+	var relationshipTypeHandler *handlers.RelationshipTypeHandler
 	var healthHandler *handlers.HealthHandler
 
 	if db != nil {
@@ -94,14 +95,17 @@ func main() {
 		// Initialize repositories
 		objectTypeRepo := repository.NewObjectTypeRepository(pgDatabase, repoOptions)
 		objectRepo := repository.NewObjectRepository(pgDatabase, repoOptions)
+		relationshipTypeRepo := repository.NewRelationshipTypeRepository(pgDatabase, repoOptions)
 
 		// Initialize services
 		objectTypeService := services.NewObjectTypeService(objectTypeRepo)
 		objectService := services.NewObjectService(objectRepo, objectTypeRepo)
+		relationshipTypeService := services.NewRelationshipTypeService(relationshipTypeRepo)
 
 		// Initialize handlers
 		objectTypeHandler = handlers.NewObjectTypeHandler(objectTypeService, logger.Logger)
 		objectHandler = handlers.NewObjectHandler(objectService, logger.Logger)
+		relationshipTypeHandler = handlers.NewRelationshipTypeHandler(relationshipTypeService, logger.Logger)
 		healthHandler = handlers.NewHealthHandler(db.GetPool(), logger.Logger, cfg)
 	} else {
 		// Initialize handlers without database
@@ -264,6 +268,26 @@ func main() {
 				objectsBulk.POST("/bulk", objectHandler.BulkCreate)
 				objectsBulk.PUT("/bulk", objectHandler.BulkUpdate)
 				objectsBulk.DELETE("/bulk", objectHandler.BulkDelete)
+			}
+
+			// Relationship Types endpoints
+			if relationshipTypeHandler != nil {
+				// Relationship Types - Admin only (create, update, delete)
+				relationshipTypesAdmin := v1.Group("/relationship-types")
+				relationshipTypesAdmin.Use(permissionMiddleware("relationship-types:create", "relationship-types:update", "relationship-types:delete"))
+				{
+					relationshipTypesAdmin.POST("", relationshipTypeHandler.Create)
+					relationshipTypesAdmin.PUT("/:type_key", relationshipTypeHandler.Update)
+					relationshipTypesAdmin.DELETE("/:type_key", relationshipTypeHandler.Delete)
+				}
+
+				// Relationship Types - Read (authenticated users)
+				relationshipTypesRead := v1.Group("/relationship-types")
+				relationshipTypesRead.Use(permissionMiddleware("relationship-types:read"))
+				{
+					relationshipTypesRead.GET("/:type_key", relationshipTypeHandler.GetByTypeKey)
+					relationshipTypesRead.GET("", relationshipTypeHandler.List)
+				}
 			}
 		}
 	}
