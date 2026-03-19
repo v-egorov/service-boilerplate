@@ -216,7 +216,7 @@ Follow existing objects-service patterns:
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| R1: Relationship Types | Not Started | |
+| R1: Relationship Types | **COMPLETED** | 14 unit tests passing |
 | R2: Relationship Instances | Not Started | |
 | R3: Advanced Features | Not Started | Future work |
 
