@@ -791,6 +791,43 @@ Indexes created:
 
 ---
 
+## Definition of Done
+
+**All items must be verified before phase is marked complete.**
+
+### Required Verification
+
+- [ ] Migrations applied successfully to database
+- [ ] Database schema verified: `objects_relationships` table exists with correct columns
+- [ ] Seed data verified: relationships created between test objects
+- [ ] API endpoint: POST creates new relationship
+- [ ] API endpoint: GET lists relationships with filters
+- [ ] API endpoint: GET by public_id returns relationship
+- [ ] API endpoint: DELETE removes relationship
+- [ ] API endpoint: GET `/objects/{id}/relationships` returns relationships for object
+- [ ] API endpoint: GET `/objects/{id}/relationships/{type_key}` returns by type
+- [ ] Validation: circular detection prevents cycles
+- [ ] Validation: cardinality constraints enforced
+- [ ] Unit tests pass
+- [ ] Code compiles without errors
+
+### Implementation Checklist
+
+- [ ] R2.1 Create Relationship marker migration
+- [ ] R2.2 Create objects_relationships CTI table
+- [ ] R2.3 Add Go models
+- [ ] R2.4 Add repository layer
+- [ ] R2.5 Add service layer
+- [ ] R2.6 Add HTTP handlers
+- [ ] R2.7 Register routes
+- [ ] R2.8 Implement validation logic
+- [ ] R2.9 Add query methods
+- [ ] R2.10 Add unit tests
+- [ ] R2.11 Dev migration: seed relationships
+- [ ] R2.12 End-to-end test script
+
+---
+
 ## Next Steps
 
 After completing Phase R2, consider Phase R3: Advanced Features.

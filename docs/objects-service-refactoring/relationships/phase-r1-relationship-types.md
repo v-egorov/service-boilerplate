@@ -567,6 +567,115 @@ var (
 
 ---
 
+## Definition of Done
+
+**All items must be verified before phase is marked complete.**
+
+### Required Verification
+
+- [ ] Migrations applied successfully to database
+- [ ] Database schema verified: `objects_relationship_types` table exists with correct columns
+- [ ] Seed data verified: `SELECT COUNT(*) FROM objects_service.objects_relationship_types` returns 5 rows
+- [ ] API endpoint: POST `/api/v1/relationship-types` creates new type
+- [ ] API endpoint: GET `/api/v1/relationship-types` lists all types
+- [ ] API endpoint: GET `/api/v1/relationship-types/:type_key` returns type
+- [ ] API endpoint: PUT `/api/v1/relationship-types/:type_key` updates type
+- [ ] API endpoint: DELETE `/api/v1/relationship-types/:type_key` deletes type
+- [ ] Error handling verified: duplicate type_key returns 409
+- [ ] Error handling verified: invalid cardinality returns 422
+- [ ] Error handling verified: invalid reverse_type_key returns 422
+- [ ] Unit tests pass: `go test ./internal/services/...`
+- [ ] Code compiles without errors: `go build ./...`
+
+### Implementation Checklist
+
+- [x] R1.1 Create RelationshipType marker migration
+- [x] R1.2 Create objects_relationship_types CTI table
+- [x] R1.3 Add Go models
+- [x] R1.4 Add repository layer
+- [x] R1.5 Add service layer
+- [x] R1.6 Add HTTP handlers
+- [x] R1.7 Register routes
+- [x] R1.8 Add unit tests
+- [x] R1.9 Dev migration: seed relationship types
+
+---
+
+## Verification Steps
+
+### 1. Apply Migrations
+
+```bash
+# Start services first
+make dev-detached
+
+# Apply migrations
+make db-migrate SERVICE_NAME=objects-service
+```
+
+### 2. Verify Database Schema
+
+```sql
+-- Check marker type exists
+SELECT * FROM objects_service.object_types WHERE name = 'RelationshipType';
+
+-- Check CTI table exists
+\d objects_service.objects_relationship_types
+
+-- Check seed data
+SELECT type_key, cardinality, reverse_type_key FROM objects_service.objects_relationship_types;
+```
+
+**Expected result:** 5 rows (contains, belongs_to, references, parent_of, depends_on)
+
+### 3. Verify API Endpoints
+
+```bash
+BASE_URL="http://localhost:8085"
+
+# List all relationship types
+curl -s "$BASE_URL/api/v1/relationship-types" | jq .
+
+# Get specific type
+curl -s "$BASE_URL/api/v1/relationship-types/contains" | jq .
+
+# Create new type
+curl -s -X POST "$BASE_URL/api/v1/relationship-types" \
+  -H "Content-Type: application/json" \
+  -d '{"type_key":"test_type","cardinality":"one_to_one"}' | jq .
+
+# Update type
+curl -s -X PUT "$BASE_URL/api/v1/relationship-types/test_type" \
+  -H "Content-Type: application/json" \
+  -d '{"relationship_name":"Test Type Updated"}' | jq .
+
+# Delete test type
+curl -s -X DELETE "$BASE_URL/api/v1/relationship-types/test_type"
+```
+
+### 4. Verify Error Handling
+
+```bash
+# Test duplicate (should return 409)
+curl -s -X POST "$BASE_URL/api/v1/relationship-types" \
+  -H "Content-Type: application/json" \
+  -d '{"type_key":"contains","cardinality":"one_to_many"}'
+
+# Test invalid cardinality (should return 422)
+curl -s -X POST "$BASE_URL/api/v1/relationship-types" \
+  -H "Content-Type: application/json" \
+  -d '{"type_key":"invalid_test","cardinality":"invalid"}'
+```
+
+### 5. Run Unit Tests
+
+```bash
+cd services/objects-service
+go test ./internal/services/relationship_type_service_test.go -v
+```
+
+---
+
 ## Testing Checklist
 
 - [ ] Create relationship type with valid data
