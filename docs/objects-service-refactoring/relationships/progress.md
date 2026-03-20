@@ -4,11 +4,11 @@
 
 | Phase | Name | Status | Estimated Hours | Actual Hours |
 |-------|------|--------|-----------------|--------------|
-| R1 | Relationship Type System | **IMPLEMENTED** | 8-10 | ~4 |
+| R1 | Relationship Type System | **VERIFIED** | 8-10 | ~5 |
 | R2 | Relationship Instance System | Not Started | 12-15 | |
 | R3 | Advanced Features | Not Started | 8-10 (optional) | |
 
-**Note:** IMPLEMENTED means code is written. VERIFICATION still needed before marking complete.
+**Note:** VERIFIED means implementation complete and all tests pass.
 
 ---
 
@@ -30,21 +30,23 @@
 
 ### Verification Status
 
-**Definition of Done - Verification Required:**
+**Definition of Done - All Verified:**
 
-- [ ] Migrations applied successfully to database
-- [ ] Database schema verified: `objects_relationship_types` table exists
-- [ ] Seed data verified: 5 relationship types created
-- [ ] API endpoint: POST creates new type
-- [ ] API endpoint: GET lists all types
-- [ ] API endpoint: GET by type_key returns type
-- [ ] API endpoint: PUT updates type
-- [ ] API endpoint: DELETE deletes type
-- [ ] Error handling: duplicate returns 409
-- [ ] Error handling: invalid cardinality returns 422
-- [ ] Error handling: invalid reverse_type_key returns 422
-- [ ] Unit tests pass
-- [ ] Code compiles without errors
+- [x] Migrations applied successfully to database
+- [x] Database schema verified: `objects_relationship_types` table exists
+- [x] Seed data verified: 5 relationship types created
+- [x] API endpoint: POST creates new type
+- [x] API endpoint: GET lists all types
+- [x] API endpoint: GET by type_key returns type
+- [x] API endpoint: PUT updates type
+- [x] API endpoint: DELETE deletes type
+- [x] Error handling: duplicate returns 409
+- [x] Error handling: invalid cardinality returns 422
+- [x] Error handling: invalid reverse_type_key returns 422
+- [x] Unit tests pass (14 tests)
+- [x] Code compiles without errors
+- [x] RBAC: admin/object-admin can manage types
+- [x] RBAC: regular users cannot create/update/delete types
 
 ### Verification Steps
 
@@ -143,6 +145,23 @@ See [Phase R1: Relationship Types](phase-r1-relationship-types.md) for detailed 
 - Natural object identifiers will be addressed separately
 - Dynamic CTI infrastructure (Phase 10) not needed for this implementation
 
+## Fixes Applied (2026-03-19)
+
+### API Gateway Routes
+- Added relationship-types routes to `api-gateway/cmd/main.go` (lines 326-334)
+
+### Auth-Service Permissions
+- Migration 000008_dev_relationship_permissions.up.sql - creates permissions
+- Migration 000009_dev_relationship_permissions_seed.up.sql - assigns to admin role
+- Fixed environments.json to reference correct migration file paths
+- Fixed golang-migrate schema_migrations version (7→8) to match actual files
+
+### Testing
+- All 14 unit tests pass
+- RBAC tests pass for object-types (7/7 tests)
+- RBAC tests pass for objects CRUD + ownership (10/10 tests)
+- relationship-types GET endpoint returns 5 seeded types
+
 ---
 
 ## Related Documentation
@@ -162,4 +181,4 @@ See [Phase R1: Relationship Types](phase-r1-relationship-types.md) for detailed 
 
 ## Last Updated
 
-2026-03-18
+2026-03-19

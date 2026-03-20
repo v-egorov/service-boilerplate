@@ -5,7 +5,9 @@
       "migrations": [
         "development/000004_dev_admin_setup.up.sql",
         "000005_dev_object_permissions.up.sql",
-        "development/000006_dev_object_permissions_seed.up.sql"
+        "development/000006_dev_object_permissions_seed.up.sql",
+        "000008_dev_relationship_permissions.up.sql",
+        "development/000009_dev_relationship_permissions_seed.up.sql"
       ],
       "seed_files": [],
       "config": {
@@ -18,7 +20,9 @@
       "description": "Staging environment for pre-production testing",
       "migrations": [
         "000005_dev_object_permissions.up.sql",
-        "development/000006_dev_object_permissions_seed.up.sql"
+        "development/000006_dev_object_permissions_seed.up.sql",
+        "000007_dev_relationship_permissions.up.sql",
+        "development/000007_dev_relationship_permissions_seed.up.sql"
       ],
       "seed_files": [],
       "config": {
@@ -31,7 +35,8 @@
     "production": {
       "description": "Production environment with strict controls",
       "migrations": [
-        "000005_dev_object_permissions.up.sql"
+        "000005_dev_object_permissions.up.sql",
+        "000007_dev_relationship_permissions.up.sql"
       ],
       "seed_files": [],
       "config": {

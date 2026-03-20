@@ -66,25 +66,51 @@
          "rollback_safe": true,
          "environment": null
        },
-       "000006": {
-         "description": "Seed object-type-admin role and assign permissions for dev/staging",
-         "depends_on": [
-           "000005"
-         ],
-         "cross_service_depends_on": {
-           "user-service": ["000003"]
-         },
-         "affects_tables": [
-           "auth_service.roles",
-           "auth_service.role_permissions",
-           "auth_service.user_roles"
-         ],
-         "estimated_duration": "10s",
-         "risk_level": "low",
-         "rollback_safe": true,
-         "environment": "development"
-       }
-  },
+        "000006": {
+          "description": "Seed object-type-admin role and assign permissions for dev/staging",
+          "depends_on": [
+            "000005"
+          ],
+          "cross_service_depends_on": {
+            "user-service": ["000003"]
+          },
+          "affects_tables": [
+            "auth_service.roles",
+            "auth_service.role_permissions",
+            "auth_service.user_roles"
+          ],
+          "estimated_duration": "10s",
+          "risk_level": "low",
+          "rollback_safe": true,
+          "environment": "development"
+        },
+        "000008": {
+          "description": "Add relationship-types permissions for objects-service",
+          "depends_on": [
+            "000005"
+          ],
+          "affects_tables": [
+            "auth_service.permissions"
+          ],
+          "estimated_duration": "5s",
+          "risk_level": "low",
+          "rollback_safe": true,
+          "environment": null
+        },
+        "000009": {
+          "description": "Seed relationship-types permissions to admin roles",
+          "depends_on": [
+            "000008"
+          ],
+          "affects_tables": [
+            "auth_service.role_permissions"
+          ],
+          "estimated_duration": "5s",
+          "risk_level": "low",
+          "rollback_safe": true,
+          "environment": "development"
+        }
+      },
   "global_config": {
     "max_parallel_migrations": 1,
     "require_approval_for_high_risk": true,
