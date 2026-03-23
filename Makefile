@@ -422,7 +422,7 @@ db-drop: ## Drop database (with confirmation)
 	@echo ""
 	@read -p "Are you sure you want to drop the database? (yes/no): " confirm; \
 	if [ "$$confirm" = "yes" ]; then \
-		docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS $(DATABASE_NAME);"; \
+		docker compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS $(DATABASE_NAME);"; \
 		echo "✅ Database $(DATABASE_NAME) dropped successfully"; \
 	else \
 		echo "❌ Database drop cancelled"; \
@@ -661,7 +661,7 @@ db-migration-deps: ## Show migration dependency graph
 db-backup: ## Create timestamped database backup
 	@echo "💾 Creating database backup..."
 	@BACKUP_FILE="backup_$(shell date +%Y%m%d_%H%M%S).sql"; \
-	docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec postgres pg_dump -U $(DATABASE_USER) -d $(DATABASE_NAME) --no-owner --no-privileges > "$$BACKUP_FILE" 2>/dev/null; \
+	docker compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) -f $(DOCKER_COMPOSE_OVERRIDE_FILE) exec postgres pg_dump -U $(DATABASE_USER) -d $(DATABASE_NAME) --no-owner --no-privileges > "$$BACKUP_FILE" ; \
 	if [ $$? -eq 0 ]; then \
 		echo "✅ Database backup created: $$BACKUP_FILE"; \
 		echo "   Size: $$(du -h "$$BACKUP_FILE" | cut -f1)"; \
@@ -701,7 +701,7 @@ db-restore: ## Restore database from dump (usage: make db-restore FILE=dump.sql)
 .PHONY: db-clean
 db-clean: ## Clean all data from tables (keep schema)
 	@echo "🧹 Cleaning database data..."
-	@cat scripts/clean.sql | docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null
+	@cat scripts/clean.sql | docker compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null
 	@if [ $$? -eq 0 ]; then \
 		echo "✅ Database data cleaned (schema preserved)"; \
 	else \
@@ -720,9 +720,9 @@ db-schema: ## Show database schema and tables
 .PHONY: db-tables
 db-tables: ## List all tables and their structure
 	@echo "📊 Table Structures:"
-	@cat scripts/list_tables.sql | docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null || echo "❌ Cannot list tables"
+	@cat scripts/list_tables.sql | docker compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null || echo "❌ Cannot list tables"
 	@echo ""
-	@if docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\d user_service.users" 2>/dev/null; then \
+	@if docker compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "\d user_service.users" 2>/dev/null; then \
 		echo "✅ Users table structure displayed above"; \
 	else \
 		echo "⚠️  Users table not found or cannot display structure"; \
@@ -731,7 +731,7 @@ db-tables: ## List all tables and their structure
 .PHONY: db-counts
 db-counts: ## Show row counts and sizes for all tables
 	@echo "🔢 Table Statistics:"
-	@cat scripts/table_stats.sql | docker-compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null || echo "❌ Cannot query table statistics"
+	@cat scripts/table_stats.sql | docker compose --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) 2>/dev/null || echo "❌ Cannot query table statistics"
 
 ## Development Workflow Targets
 .PHONY: db-setup
@@ -1311,10 +1311,10 @@ health-services: ## Check HTTP health endpoints
 .PHONY: health-database
 health-database: ## Check database connectivity
 	@echo "🗄️  Database Connectivity:"
-	@DB_STATUS=$$(docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres pg_isready -U $(DATABASE_USER) -d $(DATABASE_NAME) -h $(DATABASE_HOST) -p $(DATABASE_PORT) 2>/dev/null || echo "failed"); \
+	@DB_STATUS=$$(docker compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres pg_isready -U $(DATABASE_USER) -d $(DATABASE_NAME) -h $(DATABASE_HOST) -p $(DATABASE_PORT) 2>/dev/null || echo "failed"); \
 	if echo "$$DB_STATUS" | grep -q "accepting connections"; then \
 		echo "  ✅ PostgreSQL accepting connections"; \
-		CONNECTIONS=$$(docker-compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT count(*) as active_connections FROM pg_stat_activity;" 2>/dev/null | tail -3 | head -1 | tr -d ' ' || echo "unknown"); \
+		CONNECTIONS=$$(docker compose --env-file .env -f $(DOCKER_COMPOSE_FILE) exec -T postgres psql -U $(DATABASE_USER) -d $(DATABASE_NAME) -c "SELECT count(*) as active_connections FROM pg_stat_activity;" 2>/dev/null | tail -3 | head -1 | tr -d ' ' || echo "unknown"); \
 		echo "  📊 Active connections: $$CONNECTIONS"; \
 	else \
 		echo "  ❌ PostgreSQL not accepting connections"; \
