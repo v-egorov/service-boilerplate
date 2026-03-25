@@ -4,11 +4,11 @@
 
 | Phase | Name | Status | Estimated Hours | Actual Hours |
 |-------|------|--------|-----------------|--------------|
-| R1 | Relationship Type System | **VERIFIED** | 8-10 | ~5 |
+| R1 | Relationship Type System | **COMPLETE** | 8-10 | ~5 |
 | R2 | Relationship Instance System | Not Started | 12-15 | |
 | R3 | Advanced Features | Not Started | 8-10 (optional) | |
 
-**Note:** VERIFIED means implementation complete and all tests pass.
+**Note:** COMPLETE means implementation verified and all tests pass.
 
 ---
 
@@ -145,7 +145,19 @@ See [Phase R1: Relationship Types](phase-r1-relationship-types.md) for detailed 
 - Natural object identifiers will be addressed separately
 - Dynamic CTI infrastructure (Phase 10) not needed for this implementation
 
-## Fixes Applied (2026-03-19)
+## Fixes Applied
+
+### 2026-03-25: 404 Error Handling Fix
+- Fixed `relationship_type_repository.go` to check for `sql.ErrNoRows` in `GetByTypeKey`, `GetByID`, and `GetByReverseTypeKey`
+- Changed from returning 500 Internal Server Error to 404 Not Found for non-existent relationship types
+- Added `database/sql` and `errors` imports to repository file
+
+### 2026-03-19: Migration Orchestrator Sync Fixes
+- Fixed `environments.json` referencing wrong migration files (000007 → 000008)
+- Fixed golang-migrate schema_migrations version (7→8) to match actual files
+- Removed incorrect migration tracking records from `migration_executions` tables
+- Recreated objects-service schema with fresh migrations
+- Applied auth-service migrations (000008, 000009) for relationship-types permissions
 
 ### API Gateway Routes
 - Added relationship-types routes to `api-gateway/cmd/main.go` (lines 326-334)
@@ -154,13 +166,14 @@ See [Phase R1: Relationship Types](phase-r1-relationship-types.md) for detailed 
 - Migration 000008_dev_relationship_permissions.up.sql - creates permissions
 - Migration 000009_dev_relationship_permissions_seed.up.sql - assigns to admin role
 - Fixed environments.json to reference correct migration file paths
-- Fixed golang-migrate schema_migrations version (7→8) to match actual files
 
 ### Testing
 - All 14 unit tests pass
 - RBAC tests pass for object-types (7/7 tests)
 - RBAC tests pass for objects CRUD + ownership (10/10 tests)
 - relationship-types GET endpoint returns 5 seeded types
+- All CRUD endpoints verified working (list, get, create, update, delete)
+- All error handling verified (409 duplicate, 422 invalid cardinality, 404 not found)
 
 ---
 
@@ -181,4 +194,4 @@ See [Phase R1: Relationship Types](phase-r1-relationship-types.md) for detailed 
 
 ## Last Updated
 
-2026-03-19
+2026-03-25

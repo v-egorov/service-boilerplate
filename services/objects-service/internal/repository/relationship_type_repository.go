@@ -2,7 +2,9 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -193,6 +195,9 @@ func (r *relationshipTypeRepository) GetByID(ctx context.Context, id int64) (*mo
 	)
 	if err != nil {
 		r.metrics.ErrorCount++
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf("failed to get relationship type by id: %w", err)
 	}
 
@@ -221,6 +226,9 @@ func (r *relationshipTypeRepository) GetByTypeKey(ctx context.Context, typeKey s
 	)
 	if err != nil {
 		r.metrics.ErrorCount++
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf("failed to get relationship type by type_key: %w", err)
 	}
 
@@ -498,6 +506,9 @@ func (r *relationshipTypeRepository) GetByReverseTypeKey(ctx context.Context, re
 	)
 	if err != nil {
 		r.metrics.ErrorCount++
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf("failed to get relationship type by reverse_type_key: %w", err)
 	}
 
