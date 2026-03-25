@@ -109,6 +109,19 @@
           "risk_level": "low",
           "rollback_safe": true,
           "environment": "development"
+        },
+        "000010": {
+          "description": "Add relationship-types read permission to user role",
+          "depends_on": [
+            "000009"
+          ],
+          "affects_tables": [
+            "auth_service.role_permissions"
+          ],
+          "estimated_duration": "5s",
+          "risk_level": "low",
+          "rollback_safe": true,
+          "environment": "development"
         }
       },
   "global_config": {

@@ -7,7 +7,8 @@
         "000005_dev_object_permissions.up.sql",
         "development/000006_dev_object_permissions_seed.up.sql",
         "000008_dev_relationship_permissions.up.sql",
-        "development/000009_dev_relationship_permissions_seed.up.sql"
+        "development/000009_dev_relationship_permissions_seed.up.sql",
+        "development/000010_dev_relationship_read_permission_for_users.up.sql"
       ],
       "seed_files": [],
       "config": {
