@@ -41,6 +41,35 @@ brevity is good
 - **Internal Services**: Trust gateway headers when JWT secret is nil (development mode)
 - **Common Middleware**: `common/middleware/auth.go` handles header parsing
 
+## Development credentials
+
+All accounts use password: `devadmin123`
+
+| Email | Name | Roles |
+|-------|------|-------|
+| dev.admin@example.com | Dev Admin | admin, user |
+| object.admin@example.com | Object Admin | object-type-admin, user |
+| test.user@example.com | Test User | user |
+
+
+## Database objects and development database access
+
+**No local psql** - use Docker:
+```bash
+docker exec service-boilerplate-postgres psql -U postgres -d service_db
+```
+
+**Schemas:**
+- `auth_service` - users, roles, permissions, JWT keys
+- `objects_service` - object_types, objects, objects_relationship_types
+- `user_service` - users, user_profiles, user_settings
+
+**Always use schema-qualified table names:**
+```sql
+SELECT * FROM objects_service.objects;
+SELECT * FROM auth_service.permissions;
+```
+
 ## Database Migrations
 
 The project uses migration-orchestrator (golang-migrate + custom tracking) to manage database schema changes.
