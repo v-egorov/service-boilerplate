@@ -1,0 +1,636 @@
+# Migration System Refactoring Plan - Option 4 (Hybrid Approach)
+
+**Status:** PENDING_REVIEW  
+**Created:** 2026-04-09  
+**Goal:** Simplify migration system by using `environments.json` as single source of truth
+
+---
+
+## Executive Summary
+
+This plan outlines the steps to simplify the migration system by:
+1. Keeping `environments.json` per service as the source of truth for execution order
+2. Removing `dependencies.json` from all services (redundant)
+3. Removing `migration_executions` table logic (eliminates dual-tracking complexity)
+4. Renaming orchestrator binary from `migration-orchestrator` to `migrate-wrapper`
+5. Keeping logging/audit functionality
+6. Adding validation to ensure migration files exist
+
+---
+
+## Architecture Decisions
+
+### What We're Keeping
+- ✅ `environments.json` - Single source of truth for migration execution order
+- ✅ Logging/audit functionality - Important for production reliability
+- ✅ Environment tags in SQL files - Documentation and safety net
+
+### What We're Removing
+- ❌ `dependencies.json` - Redundant with environments.json
+- ❌ `migration_executions` table - Dual tracking causes race conditions
+- ❌ Custom dependency resolution - golang-migrate handles version ordering natively
+- ❌ Subdirectories in migrations - All files in root for simplicity
+
+### What We're Changing
+- 🔄 Binary rename: `migration-orchestrator` → `migrate-wrapper`
+- 🔄 Migration file standardization - Add `-- Environment:` tags to all files
+- 🔄 File renaming - Remove "dev" prefix from migrations that apply to all environments
+
+---
+
+## Environment Matrix
+
+### Auth-service
+
+| Migration | Description | All Envs | Staging | Production | Development |
+|-----------|-------------|----------|---------|------------|-------------|
+| 000001 | Initial schema | ✅ | ✅ | ✅ | ✅ |
+| 000002 | JWT keys | ✅ | ✅ | ✅ | ✅ |
+| 000003 | Key rotation | ✅ | ✅ | ✅ | ✅ |
+| 000004 | Dev admin setup | ❌ | ❌ | ❌ | ✅ |
+| 000005 | Object permissions | ✅ | ✅ | ✅ | ✅ |
+| 000006 | Object permissions seed | ❌ | ❌ | ❌ | ✅ |
+| 000008 | Relationship permissions | ✅ | ✅ | ✅ | ✅ |
+| 000009 | Relationship permissions seed | ❌ | ❌ | ❌ | ✅ |
+| 000010 | Relationship read permission | ❌ | ❌ | ❌ | ✅ |
+
+**Files to rename:**
+- `000005_dev_object_permissions.*` → `000005_object_permissions.*`
+- `000008_dev_relationship_permissions.*` → `000008_relationship_permissions.*`
+
+**Files to move from development/:**
+- `000004_dev_admin_setup.*`
+- `000006_dev_object_permissions_seed.*`
+- `000009_dev_relationship_permissions_seed.*`
+- `000010_dev_relationship_read_permission_for_users.*`
+
+---
+
+### Objects-service
+
+| Migration | Description | All Envs | Staging | Production | Development |
+|-----------|-------------|----------|---------|------------|-------------|
+| 000001 | Initial schema | ✅ | ✅ | ✅ | ✅ |
+| 000002 | Dev tax test data | ❌ | ❌ | ❌ | ✅ |
+| 000003 | Add created_by/updated_by | ✅ | ✅ | ✅ | ✅ |
+| 000004 | Add relationship type marker | ✅ | ✅ | ✅ | ✅ |
+| 000005 | Create objects relationship types | ✅ | ✅ | ✅ | ✅ |
+| 000006 | Seed relationship types | ✅ | ✅ | ✅ | ✅ |
+
+**Files to rename:**
+- `000003_dev_add_created_by_updated_by_to_object_types.*` → `000003_add_created_by_updated_by_to_object_types.*`
+- `000004_dev_add_relationship_type_marker.*` → `000004_add_relationship_type_marker.*`
+- `000005_dev_create_objects_relationship_types.*` → `000005_create_objects_relationship_types.*`
+- `000006_dev_seed_relationship_types.*` → `000006_seed_relationship_types.*`
+
+**Files to move from development/:**
+- ALL development migrations (000002-000006)
+
+---
+
+### User-service
+
+| Migration | Description | All Envs | Staging | Production | Development |
+|-----------|-------------|----------|---------|------------|-------------|
+| 000001 | Initial schema | ✅ | ✅ | ✅ | ✅ |
+| 000002 | Add user profiles | ✅ | ✅ | ✅ | ✅ |
+| 000003 | Dev test data | ❌ | ❌ | ❌ | ✅ |
+| 000004 | Add user settings | ✅ | ✅ | ✅ | ✅ |
+| 000005 | Add object admin | ❌ | ✅ | ❌ | ✅ |
+| 000006 | Set test user password | ❌ | ❌ | ❌ | ✅ |
+
+**Files to move from development/:**
+- `000003_dev_test_data.*`
+- `000005_dev_add_object_admin.*`
+- `000006_dev_set_test_user_password.*`
+
+---
+
+## Phase 1: Configuration Cleanup
+
+### TODOs
+
+#### Delete redundant configuration files
+
+- [ ] Delete `services/auth-service/migrations/dependencies.json`
+- [ ] Delete `services/objects-service/migrations/dependencies.json`
+- [ ] Delete `services/user-service/migrations/dependencies.json`
+- [ ] Delete `templates/service-template/migrations/dependencies.json`
+
+#### Update environments.json files
+
+**File: `services/auth-service/migrations/environments.json`**
+
+```json
+{
+  "environments": {
+    "development": {
+      "description": "Development environment with test data and debug features",
+      "migrations": [
+        "000001_initial.up.sql",
+        "000002_jwt_keys.up.sql",
+        "000003_key_rotation.up.sql",
+        "000004_dev_admin_setup.up.sql",
+        "000005_object_permissions.up.sql",
+        "000006_dev_object_permissions_seed.up.sql",
+        "000008_relationship_permissions.up.sql",
+        "000009_dev_relationship_permissions_seed.up.sql",
+        "000010_dev_relationship_read_permission_for_users.up.sql"
+      ],
+      "seed_files": [],
+      "config": {
+        "allow_destructive_operations": true,
+        "skip_validation": false,
+        "auto_rollback_on_failure": true
+      }
+    },
+    "staging": {
+      "description": "Staging environment for pre-production testing",
+      "migrations": [
+        "000001_initial.up.sql",
+        "000002_jwt_keys.up.sql",
+        "000003_key_rotation.up.sql",
+        "000005_object_permissions.up.sql",
+        "000008_relationship_permissions.up.sql"
+      ],
+      "seed_files": [],
+      "config": {
+        "allow_destructive_operations": false,
+        "skip_validation": false,
+        "auto_rollback_on_failure": true,
+        "require_approval": true
+      }
+    },
+    "production": {
+      "description": "Production environment with strict controls",
+      "migrations": [
+        "000001_initial.up.sql",
+        "000002_jwt_keys.up.sql",
+        "000003_key_rotation.up.sql",
+        "000005_object_permissions.up.sql",
+        "000008_relationship_permissions.up.sql"
+      ],
+      "seed_files": [],
+      "config": {
+        "allow_destructive_operations": false,
+        "skip_validation": false,
+        "auto_rollback_on_failure": false,
+        "require_approval": true,
+        "maintenance_window_required": true,
+        "backup_required": true
+      }
+    }
+  },
+  "current_environment": "development",
+  "migration_locking": {
+    "enabled": true,
+    "timeout_seconds": 300,
+    "max_concurrent_migrations": 1
+  }
+}
+```
+
+- [ ] Update `services/auth-service/migrations/environments.json` with new structure
+- [ ] Update `services/objects-service/migrations/environments.json` with new structure
+- [ ] Update `services/user-service/migrations/environments.json` with new structure
+- [ ] Update `templates/service-template/migrations/environments.json` with new structure
+
+---
+
+## Phase 2: Migration File Restructuring
+
+### TODOs
+
+#### Auth-service file operations
+
+```bash
+# Rename files in root
+- [ ] Rename `services/auth-service/migrations/000005_dev_object_permissions.up.sql` → `000005_object_permissions.up.sql`
+- [ ] Rename `services/auth-service/migrations/000005_dev_object_permissions.down.sql` → `000005_object_permissions.down.sql`
+- [ ] Rename `services/auth-service/migrations/000008_dev_relationship_permissions.up.sql` → `000008_relationship_permissions.up.sql`
+- [ ] Rename `services/auth-service/migrations/000008_dev_relationship_permissions.down.sql` → `000008_relationship_permissions.down.sql`
+
+# Move files from development/ to root
+- [ ] Move `services/auth-service/migrations/development/000004_dev_admin_setup.up.sql` → root
+- [ ] Move `services/auth-service/migrations/development/000004_dev_admin_setup.down.sql` → root
+- [ ] Move `services/auth-service/migrations/development/000006_dev_object_permissions_seed.up.sql` → root
+- [ ] Move `services/auth-service/migrations/development/000006_dev_object_permissions_seed.down.sql` → root
+- [ ] Move `services/auth-service/migrations/development/000009_dev_relationship_permissions_seed.up.sql` → root
+- [ ] Move `services/auth-service/migrations/development/000009_dev_relationship_permissions_seed.down.sql` → root
+- [ ] Move `services/auth-service/migrations/development/000010_dev_relationship_read_permission_for_users.up.sql` → root
+- [ ] Move `services/auth-service/migrations/development/000010_dev_relationship_read_permission_for_users.down.sql` → root
+
+# Remove empty directory
+- [ ] Delete `services/auth-service/migrations/development/` directory
+```
+
+#### Objects-service file operations
+
+```bash
+# Move and rename files from development/ to root
+- [ ] Move `services/objects-service/migrations/development/000002_dev_tax_test_data.up.sql` → root
+- [ ] Move `services/objects-service/migrations/development/000002_dev_tax_test_data.down.sql` → root
+- [ ] Move and rename `services/objects-service/migrations/development/000003_dev_add_created_by_updated_by_to_object_types.up.sql` → `000003_add_created_by_updated_by_to_object_types.up.sql`
+- [ ] Move and rename `services/objects-service/migrations/development/000003_dev_add_created_by_updated_by_to_object_types.down.sql` → `000003_add_created_by_updated_by_to_object_types.down.sql`
+- [ ] Move and rename `services/objects-service/migrations/development/000004_dev_add_relationship_type_marker.up.sql` → `000004_add_relationship_type_marker.up.sql`
+- [ ] Move and rename `services/objects-service/migrations/development/000004_dev_add_relationship_type_marker.down.sql` → `000004_add_relationship_type_marker.down.sql`
+- [ ] Move and rename `services/objects-service/migrations/development/000005_dev_create_objects_relationship_types.up.sql` → `000005_create_objects_relationship_types.up.sql`
+- [ ] Move and rename `services/objects-service/migrations/development/000005_dev_create_objects_relationship_types.down.sql` → `000005_create_objects_relationship_types.down.sql`
+- [ ] Move and rename `services/objects-service/migrations/development/000006_dev_seed_relationship_types.up.sql` → `000006_seed_relationship_types.up.sql`
+- [ ] Move and rename `services/objects-service/migrations/development/000006_dev_seed_relationship_types.down.sql` → `000006_seed_relationship_types.down.sql`
+
+# Remove empty directory
+- [ ] Delete `services/objects-service/migrations/development/` directory
+```
+
+#### User-service file operations
+
+```bash
+# Move files from development/ to root
+- [ ] Move `services/user-service/migrations/development/000003_dev_test_data.up.sql` → root
+- [ ] Move `services/user-service/migrations/development/000003_dev_test_data.down.sql` → root
+- [ ] Move `services/user-service/migrations/development/000005_dev_add_object_admin.up.sql` → root
+- [ ] Move `services/user-service/migrations/development/000005_dev_add_object_admin.down.sql` → root
+- [ ] Move `services/user-service/migrations/development/000006_dev_set_test_user_password.up.sql` → root
+- [ ] Move `services/user-service/migrations/development/000006_dev_set_test_user_password.down.sql` → root
+
+# Remove empty directory
+- [ ] Delete `services/user-service/migrations/development/` directory
+```
+
+---
+
+## Phase 3: Add Environment Tags to Migration Files
+
+### TODOs
+
+**Standard format for all migration files:**
+
+```sql
+-- Environment: all
+-- OR
+-- Environment: development
+```
+
+#### Auth-service (9 .up.sql + 9 .down.sql files)
+
+- [ ] Add `-- Environment: all` to `000001_initial.up.sql`
+- [ ] Add `-- Environment: all` to `000001_initial.down.sql`
+- [ ] Add `-- Environment: all` to `000002_jwt_keys.up.sql`
+- [ ] Add `-- Environment: all` to `000002_jwt_keys.down.sql`
+- [ ] Add `-- Environment: all` to `000003_key_rotation.up.sql`
+- [ ] Add `-- Environment: all` to `000003_key_rotation.down.sql`
+- [ ] Add `-- Environment: development` to `000004_dev_admin_setup.up.sql`
+- [ ] Add `-- Environment: development` to `000004_dev_admin_setup.down.sql`
+- [ ] Add `-- Environment: all` to `000005_object_permissions.up.sql`
+- [ ] Add `-- Environment: all` to `000005_object_permissions.down.sql`
+- [ ] Add `-- Environment: development` to `000006_dev_object_permissions_seed.up.sql`
+- [ ] Add `-- Environment: development` to `000006_dev_object_permissions_seed.down.sql`
+- [ ] Add `-- Environment: all` to `000008_relationship_permissions.up.sql`
+- [ ] Add `-- Environment: all` to `000008_relationship_permissions.down.sql`
+- [ ] Add `-- Environment: development` to `000009_dev_relationship_permissions_seed.up.sql`
+- [ ] Add `-- Environment: development` to `000009_dev_relationship_permissions_seed.down.sql`
+- [ ] Add `-- Environment: development` to `000010_dev_relationship_read_permission_for_users.up.sql`
+- [ ] Add `-- Environment: development` to `000010_dev_relationship_read_permission_for_users.down.sql`
+
+#### Objects-service (6 .up.sql + 6 .down.sql files)
+
+- [ ] Add `-- Environment: all` to `000001_initial.up.sql`
+- [ ] Add `-- Environment: all` to `000001_initial.down.sql`
+- [ ] Add `-- Environment: development` to `000002_dev_tax_test_data.up.sql`
+- [ ] Add `-- Environment: development` to `000002_dev_tax_test_data.down.sql`
+- [ ] Add `-- Environment: all` to `000003_add_created_by_updated_by_to_object_types.up.sql`
+- [ ] Add `-- Environment: all` to `000003_add_created_by_updated_by_to_object_types.down.sql`
+- [ ] Add `-- Environment: all` to `000004_add_relationship_type_marker.up.sql`
+- [ ] Add `-- Environment: all` to `000004_add_relationship_type_marker.down.sql`
+- [ ] Add `-- Environment: all` to `000005_create_objects_relationship_types.up.sql`
+- [ ] Add `-- Environment: all` to `000005_create_objects_relationship_types.down.sql`
+- [ ] Add `-- Environment: all` to `000006_seed_relationship_types.up.sql`
+- [ ] Add `-- Environment: all` to `000006_seed_relationship_types.down.sql`
+
+#### User-service (6 .up.sql + 6 .down.sql files)
+
+- [ ] Add `-- Environment: all` to `000001_initial.up.sql`
+- [ ] Add `-- Environment: all` to `000001_initial.down.sql`
+- [ ] Add `-- Environment: all` to `000002_add_user_profiles.up.sql`
+- [ ] Add `-- Environment: all` to `000002_add_user_profiles.down.sql`
+- [ ] Add `-- Environment: development` to `000003_dev_test_data.up.sql`
+- [ ] Add `-- Environment: development` to `000003_dev_test_data.down.sql`
+- [ ] Add `-- Environment: all` to `000004_add_user_settings.up.sql`
+- [ ] Add `-- Environment: all` to `000004_add_user_settings.down.sql`
+- [ ] Add `-- Environment: development` to `000005_dev_add_object_admin.up.sql`
+- [ ] Add `-- Environment: development` to `000005_dev_add_object_admin.down.sql`
+- [ ] Add `-- Environment: development` to `000006_dev_set_test_user_password.up.sql`
+- [ ] Add `-- Environment: development` to `000006_dev_set_test_user_password.down.sql`
+
+---
+
+## Phase 4: Orchestrator Code Refactoring
+
+### TODOs
+
+#### Create simplified orchestrator
+
+- [ ] Replace `migration-orchestrator/internal/orchestrator/orchestrator.go` with simplified version
+  - Remove methods:
+    - [ ] `LoadMigrationConfig()` - remove dependencies.json loading
+    - [ ] `GetMigrationState()` - use golang-migrate native tracking
+    - [ ] `syncOrchestratorTrackingWithGolangMigrate()`
+    - [ ] `updateMigrationStatus()`
+    - [ ] `createMigrationRecord()`
+    - [ ] `recordMigrationStart()`
+    - [ ] `recordMigrationSuccess()`
+    - [ ] `recordMigrationFailure()`
+    - [ ] `recordMigrationRollback()`
+    - [ ] `getRecentExecutions()`
+    - [ ] `migrationExecutionsTableExists()`
+    - [ ] `CreateMigrationExecutionsTable()`
+    - [ ] `MigrationExecutionsTableExists()`
+    - [ ] `resolveDependencies()`
+    - [ ] `assessMigrationRisks()`
+    - [ ] `checkRollbackDependencies()`
+    - [ ] `executeBaseMigrationUp()`
+    - [ ] `executeEnvironmentMigrationUp()`
+    - [ ] `isBaseMigration()`
+  
+  - Simplify methods:
+    - [ ] `RunMigrationsUp()` - load only environments.json, filter by environment tag, delegate to golang-migrate
+    - [ ] `RunMigrationsDown()` - use golang-migrate native rollback
+  
+  - Add new methods:
+    - [ ] `isMigrationForEnvironment()` - parse SQL headers
+    - [ ] `validateMigrationFilesExist()` - ensure files exist
+    - [ ] `extractMigrationID()` - extract version from filename
+    - [ ] `findMigrationPath()` - find file path for migration ID
+
+#### Update type definitions
+
+- [ ] Update `migration-orchestrator/pkg/types/migration.go`
+  - Keep `MigrationStatus`, `MigrationExecution`, `EnvironmentConfig`, `MigrationConfig`
+  - Remove or mark as deprecated: `DependencyConfig`, `MigrationInfo`
+
+- [ ] Mark `migration-orchestrator/pkg/types/service_dependencies.go` as deprecated
+
+#### Update command files
+
+- [ ] Update `migration-orchestrator/cmd/migrate_wrapper/main.go` (or equivalent)
+  - Update binary name references
+  - Update command-line interface if needed
+
+---
+
+## Phase 5: Service Template Updates
+
+### TODOs
+
+- [ ] Update `templates/service-template/migrations/environments.json`
+  - Ensure it follows new structure
+  - Include example migrations
+
+- [ ] Delete `templates/service-template/migrations/dependencies.json`
+
+- [ ] Update `templates/service-template/migrations/README.md`
+  - Add migration file standards
+  - Explain environment tags
+  - Document how to add new migrations
+
+---
+
+## Phase 6: Build and Binary Rename
+
+### TODOs
+
+- [ ] Update `Makefile` build targets
+  - Rename `build-migration-orchestrator` → `build-migrate-wrapper`
+  - Update binary output path
+
+- [ ] Update all references in Makefile
+  - Search and replace `migration-orchestrator` → `migrate-wrapper`
+
+- [ ] Update `docker/docker-compose.yml` if needed
+  - Check for binary path references
+  - Update service names if needed
+
+- [ ] Build the new binary
+  - [ ] Run `make build-migrate-wrapper`
+  - [ ] Verify binary is created at expected location
+  - [ ] Test binary runs without errors
+
+---
+
+## Phase 7: Testing Strategy
+
+### TODOs
+
+#### Unit Testing
+
+- [ ] Write tests for `validateMigrationFilesExist()`
+  - Test with existing files
+  - Test with missing files
+
+- [ ] Write tests for `isMigrationForEnvironment()`
+  - Test with `-- Environment: all`
+  - Test with `-- Environment: development`
+  - Test with `-- Environment: staging`
+  - Test with missing tag (should default to true with warning)
+
+- [ ] Write tests for `extractMigrationID()`
+  - Test with various filename formats
+  - Test with paths containing subdirectories
+  - Test with invalid filenames
+
+- [ ] Write tests for `RunMigrationsUp()`
+  - Test full migration flow
+  - Test with no pending migrations
+  - Test with environment filtering
+
+- [ ] Write tests for `RunMigrationsDown()`
+  - Test rollback flow
+  - Test with no migrations to rollback
+  - Test with environment filtering
+
+#### Integration Testing
+
+- [ ] Write integration tests for fresh start
+  - Drop all service schemas
+  - Run migrations for all services
+  - Verify all tables created
+
+- [ ] Write integration tests for partial migrations
+  - Apply some migrations
+  - Run migration again
+  - Verify no duplicates
+
+- [ ] Write integration tests for environment filtering
+  - Run dev migrations
+  - Verify dev-only migrations not in staging/production
+
+- [ ] Write integration tests for rollback
+  - Apply migrations
+  - Rollback
+  - Verify correct state
+
+#### Manual Testing Checklist
+
+**Auth-service:**
+- [ ] Run `make db-migrate SERVICE_NAME=auth-service`
+- [ ] Verify all migrations applied
+- [ ] Run again - verify no duplicates
+- [ ] Run `make db-migrate-down SERVICE_NAME=auth-service`
+- [ ] Verify rollback works
+- [ ] Test staging environment
+
+**Objects-service:**
+- [ ] Run `make db-migrate SERVICE_NAME=objects-service`
+- [ ] Verify migration file locations correct
+- [ ] Verify environment tags correct
+
+**User-service:**
+- [ ] Run `make db-migrate SERVICE_NAME=user-service`
+- [ ] Verify environment-specific migrations work
+- [ ] Test staging environment (includes 000005)
+
+**RBAC Tests:**
+- [ ] Run `./scripts/test-rbac-objects-service.sh`
+- [ ] Verify all 26 tests pass
+- [ ] Run `./scripts/test-rbac-relationship-types.sh`
+- [ ] Verify all tests pass
+
+---
+
+## Phase 8: Documentation
+
+### TODOs
+
+- [ ] Create `docs/migration-guidelines.md`
+  - Migration file naming conventions
+  - Environment tag format
+  - How to add new migrations
+  - Environment-specific best practices
+  - Rollback procedures
+  - Common pitfalls and solutions
+
+- [ ] Update each service's `migrations/README.md`
+  - Add migration standards section
+  - Explain environment tags
+  - Document file organization
+
+- [ ] Update AGENTS.md if needed
+  - Add migration system section
+  - Document new processes
+
+---
+
+## Execution Order
+
+### Step 1: Backup (15 minutes)
+```bash
+cd /home/vegorov/ai/service-boilerplate
+tar -czf migrations-backup-$(date +%Y%m%d).tar.gz ./services/*/migrations
+```
+- [ ] Create backup
+
+### Step 2: Remove dependencies.json (5 minutes)
+- [ ] Delete 4 dependencies.json files
+
+### Step 3: Update environments.json (30 minutes)
+- [ ] Update auth-service environments.json
+- [ ] Update objects-service environments.json
+- [ ] Update user-service environments.json
+- [ ] Update template environments.json
+
+### Step 4: Move and rename migration files (45 minutes)
+- [ ] Auth-service file operations
+- [ ] Objects-service file operations
+- [ ] User-service file operations
+
+### Step 5: Add Environment tags (60 minutes)
+- [ ] Auth-service (18 files)
+- [ ] Objects-service (12 files)
+- [ ] User-service (12 files)
+
+### Step 6: Update orchestrator code (90 minutes)
+- [ ] Create simplified orchestrator.go
+- [ ] Update type definitions
+- [ ] Mark deprecated files
+- [ ] Update command files
+
+### Step 7: Update service template (15 minutes)
+- [ ] Update template environments.json
+- [ ] Delete template dependencies.json
+- [ ] Update template README.md
+
+### Step 8: Build and test (30 minutes)
+- [ ] Update Makefile
+- [ ] Build migrate-wrapper binary
+- [ ] Run unit tests
+
+### Step 9: Validate (30 minutes)
+- [ ] Run validation on all services
+- [ ] Fix any issues
+
+### Step 10: Final integration test (60 minutes)
+- [ ] Full migration cycle for each service
+- [ ] RBAC tests
+- [ ] Create docs
+
+---
+
+## Risk Assessment
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| Migration files not found after move | Low | High | Comprehensive test plan with validation |
+| Environment filtering breaks | Medium | High | Thorough testing of isMigrationForEnvironment |
+| Binary rename breaks Docker compose | Low | Medium | Update docker-compose.yml references |
+| Rollback doesn't work correctly | Medium | High | Test rollback for each service |
+| Staging environment misconfigured | Low | Medium | Verify staging migrations manually |
+| RBAC tests fail | Low | Critical | Test after each major change |
+
+---
+
+## Timeline Estimate
+
+| Phase | Duration |
+|-------|----------|
+| Backup | 15 min |
+| Remove dependencies.json | 5 min |
+| Update environments.json | 30 min |
+| Move and rename migration files | 45 min |
+| Add Environment tags | 60 min |
+| Update orchestrator code | 90 min |
+| Update service template | 15 min |
+| Build and test | 30 min |
+| Validate existing migrations | 30 min |
+| Final integration test | 60 min |
+| **Total** | **~5.5 hours** |
+
+---
+
+## Success Criteria
+
+1. ✅ All `dependencies.json` files removed
+2. ✅ All files in root migrations directory (no subdirectories)
+3. ✅ All migration files have `-- Environment:` tags
+4. ✅ `environments.json` correctly lists all migrations per environment
+5. ✅ `migrate-wrapper` binary builds and runs
+6. ✅ Fresh migration runs work for all services
+7. ✅ Rollback works correctly
+8. ✅ Environment filtering works (dev-only migrations not in staging/production)
+9. ✅ RBAC tests pass (26/26)
+10. ✅ Documentation created and updated
+
+---
+
+## Notes
+
+- Always test in development mode first
+- Keep the backup until all tests pass
+- Document any issues encountered during refactoring
+- Update this plan with any deviations from the original plan
+
+---
+
+**Last Updated:** 2026-04-09  
+**Review Status:** PENDING_REVIEW  
+**Implementation Status:** NOT_STARTED
