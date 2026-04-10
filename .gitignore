@@ -197,3 +197,4 @@ cli/boilerplate-cli
 prompt*.md
 .ai-ignore
 ignore/
+.opencode
