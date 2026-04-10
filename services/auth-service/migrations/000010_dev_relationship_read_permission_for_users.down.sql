@@ -1,3 +1,4 @@
+-- Environment: development
 -- Remove read permission for relationship-types from user role
 
 DELETE FROM auth_service.role_permissions

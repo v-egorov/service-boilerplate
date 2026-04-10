@@ -1,3 +1,4 @@
+-- Environment: development
 -- Remove development test data from objects_service taxonomy system
 -- This migration removes sample object types and objects
 

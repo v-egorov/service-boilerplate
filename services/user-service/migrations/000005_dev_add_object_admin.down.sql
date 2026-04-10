@@ -1,3 +1,4 @@
+-- Environment: development
 -- Development Migration: Remove object admin user (rollback)
 -- Description: Remove dedicated admin account for objects management
 

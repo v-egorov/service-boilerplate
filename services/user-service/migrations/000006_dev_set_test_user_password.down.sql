@@ -1,3 +1,4 @@
+-- Environment: development
 -- Rollback: Reset test.user password to placeholder
 
 UPDATE user_service.users 

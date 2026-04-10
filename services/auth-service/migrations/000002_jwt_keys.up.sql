@@ -1,3 +1,4 @@
+-- Environment: all
 -- JWT keys table for persistent RSA key storage
 CREATE TABLE IF NOT EXISTS auth_service.jwt_keys (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

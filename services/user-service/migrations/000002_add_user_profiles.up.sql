@@ -1,3 +1,4 @@
+-- Environment: all
 -- Migration: 000002_add_user_profiles
 -- Description: Add user profiles table with extended user information
 -- Created: Auto-generated

@@ -1,3 +1,4 @@
+-- Environment: all
 -- Remove created_by and updated_by columns from object_types
 ALTER TABLE objects_service.object_types 
 DROP COLUMN IF EXISTS created_by,

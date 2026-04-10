@@ -1,3 +1,4 @@
+-- Environment: all
 -- Create objects_service schema
 CREATE SCHEMA IF NOT EXISTS objects_service;
 

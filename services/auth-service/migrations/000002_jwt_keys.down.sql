@@ -1,3 +1,4 @@
+-- Environment: all
 -- Drop JWT keys table
 DROP TABLE IF EXISTS auth_service.jwt_keys;
 

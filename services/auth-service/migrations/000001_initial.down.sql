@@ -1,3 +1,4 @@
+-- Environment: all
 -- Drop triggers and functions
 DROP TRIGGER IF EXISTS update_auth_tokens_updated_at ON auth_service.auth_tokens;
 DROP FUNCTION IF EXISTS auth_service.update_auth_tokens_updated_at_column();

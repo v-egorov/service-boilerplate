@@ -1,3 +1,4 @@
+-- Environment: development
 -- Development Migration: Set known password for test.user
 -- Description: Set test.user password to known value for RBAC testing
 -- Uses same hash as dev.admin (password: devadmin123)

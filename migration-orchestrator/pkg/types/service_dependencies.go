@@ -1,5 +1,8 @@
 package types
 
+// DEPRECATED: Service dependencies are now handled via environments.json and environment tags
+// This file is kept for reference during transition but should not be used for new code.
+
 // ServiceDependencyGraph represents dependencies between services
 type ServiceDependencyGraph struct {
 	Services      map[string]*ServiceDependencyInfo `json:"services"`
@@ -8,10 +11,10 @@ type ServiceDependencyGraph struct {
 
 // ServiceDependencyInfo represents dependency information for a single service
 type ServiceDependencyInfo struct {
-	ServiceName            string                   `json:"service_name"`
-	DependsOnServices      []string                 `json:"depends_on_services"`
-	CrossServiceMigrations map[string][]string      `json:"cross_service_migrations"`
-	MigrationDependencies  map[string]MigrationInfo `json:"migration_dependencies"`
+	ServiceName            string                 `json:"service_name"`
+	DependsOnServices      []string               `json:"depends_on_services"`
+	CrossServiceMigrations map[string][]string    `json:"cross_service_migrations"`
+	MigrationDependencies  map[string]interface{} `json:"migration_dependencies"` // Deprecated: use environments.json
 }
 
 // ServiceExecutionPlan represents the plan for executing services in dependency order

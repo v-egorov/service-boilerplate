@@ -1,3 +1,4 @@
+-- Environment: all
 -- Migration Rollback: 000002_add_user_profiles
 -- Description: Remove user profiles table
 -- Created: Auto-generated

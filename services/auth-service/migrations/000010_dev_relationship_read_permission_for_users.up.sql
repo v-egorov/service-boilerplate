@@ -1,3 +1,4 @@
+-- Environment: development
 -- Add read permission for relationship-types to user role
 -- This allows regular users to view/list relationship types but not modify them
 

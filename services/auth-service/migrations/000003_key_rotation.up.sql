@@ -1,3 +1,4 @@
+-- Environment: all
 -- Key rotation enhancements for auth-service
 -- Migration: 000003_key_rotation.up.sql
 

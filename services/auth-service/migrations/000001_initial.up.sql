@@ -1,3 +1,4 @@
+-- Environment: all
 -- Create auth_service schema
 CREATE SCHEMA IF NOT EXISTS auth_service;
 

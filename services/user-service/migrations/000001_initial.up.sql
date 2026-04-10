@@ -1,3 +1,4 @@
+-- Environment: all
 -- Create user_service schema
 CREATE SCHEMA IF NOT EXISTS user_service;
 

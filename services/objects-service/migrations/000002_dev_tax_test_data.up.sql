@@ -1,3 +1,4 @@
+-- Environment: development
 -- Development test data for objects_service taxonomy system
 -- This migration creates sample object types and objects for testing
 

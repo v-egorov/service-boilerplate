@@ -1,3 +1,5 @@
+-- Environment: all
+-- Environment: all
 -- Migration: 000004_add_user_settings
 -- Description: Add new table to user_service schema
 -- Created: Вс 07 сен 2025 23:54:28 MSK

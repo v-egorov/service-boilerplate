@@ -1,3 +1,4 @@
+-- Environment: all
 -- Add created_by and updated_by columns to object_types
 ALTER TABLE objects_service.object_types 
 ADD COLUMN IF NOT EXISTS created_by VARCHAR(255) DEFAULT 'system',

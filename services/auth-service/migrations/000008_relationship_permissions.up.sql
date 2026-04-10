@@ -1,3 +1,4 @@
+-- Environment: all
 -- Migration: Add relationship-types permissions
 -- Description: Insert permissions for relationship-types management
 -- Applies to: All environments

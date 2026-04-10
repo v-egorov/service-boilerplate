@@ -1,3 +1,4 @@
+-- Environment: all
 -- Remove seeded relationship types
 DELETE FROM objects_service.objects_relationship_types;
 

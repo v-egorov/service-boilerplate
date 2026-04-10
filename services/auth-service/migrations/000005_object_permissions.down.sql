@@ -1,3 +1,4 @@
+-- Environment: all
 -- Migration: Remove objects-service permissions (rollback)
 -- Description: Remove fine-grained permissions for objects-service RBAC
 -- Applies to: All environments (development, staging, production)

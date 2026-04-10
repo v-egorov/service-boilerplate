@@ -1,3 +1,4 @@
+-- Environment: development
 -- Development Migration: Seed object-type-admin role and assign permissions
 -- Description: Create object-type-admin role and assign permissions for dev/staging
 -- Applies to: Development and Staging environments

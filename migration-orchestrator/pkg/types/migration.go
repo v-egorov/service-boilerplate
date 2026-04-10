@@ -35,20 +35,6 @@ type MigrationExecution struct {
 	UpdatedAt        time.Time       `json:"updated_at" db:"updated_at"`
 }
 
-// MigrationInfo represents information about a migration file
-type MigrationInfo struct {
-	ID                    string              `json:"id"`
-	Version               string              `json:"version"`
-	Description           string              `json:"description"`
-	DependsOn             []string            `json:"depends_on"`
-	CrossServiceDependsOn map[string][]string `json:"cross_service_depends_on,omitempty"`
-	AffectsTables         []string            `json:"affects_tables"`
-	EstimatedDuration     string              `json:"estimated_duration"`
-	RiskLevel             string              `json:"risk_level"`
-	RollbackSafe          bool                `json:"rollback_safe"`
-	Environment           *string             `json:"environment,omitempty"`
-}
-
 // EnvironmentConfig represents the configuration for a specific environment
 type EnvironmentConfig struct {
 	Description string                 `json:"description"`
@@ -65,9 +51,23 @@ type MigrationConfig struct {
 }
 
 // DependencyConfig represents the migration dependencies configuration
+// DEPRECATED: This type is no longer used. Dependencies are managed via environments.json
 type DependencyConfig struct {
-	Migrations   map[string]MigrationInfo `json:"migrations"`
-	GlobalConfig map[string]interface{}   `json:"global_config"`
+	Migrations   map[string]interface{} `json:"migrations"` // Deprecated
+	GlobalConfig map[string]interface{} `json:"global_config"`
+}
+
+// MigrationInfo - DEPRECATED: No longer used, kept for backwards compatibility
+type MigrationInfo struct {
+	ID                string   `json:"id"`
+	Version           string   `json:"version"`
+	Description       string   `json:"description"`
+	DependsOn         []string `json:"depends_on"`
+	AffectsTables     []string `json:"affects_tables"`
+	EstimatedDuration string   `json:"estimated_duration"`
+	RiskLevel         string   `json:"risk_level"`
+	RollbackSafe      bool     `json:"rollback_safe"`
+	Environment       *string  `json:"environment,omitempty"`
 }
 
 // ServiceMigrationState represents the current state of migrations for a service

@@ -1,3 +1,4 @@
+-- Environment: development
 -- Development Migration: Add object admin user
 -- Description: Create dedicated admin account for objects management
 -- Applies to: Development and Staging environments

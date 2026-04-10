@@ -1,3 +1,4 @@
+-- Environment: all
 -- Drop users table and indexes
 DROP TABLE IF EXISTS user_service.users CASCADE;
 

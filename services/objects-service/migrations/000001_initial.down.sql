@@ -1,3 +1,4 @@
+-- Environment: all
 -- Drop triggers
 DROP TRIGGER IF EXISTS update_object_types_updated_at ON objects_service.object_types;
 DROP TRIGGER IF EXISTS update_objects_updated_at ON objects_service.objects;

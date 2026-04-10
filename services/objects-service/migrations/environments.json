@@ -3,11 +3,12 @@
     "development": {
       "description": "Development environment with test data and debug features",
       "migrations": [
-        "development/000002_dev_tax_test_data.up.sql",
-        "development/000003_dev_add_created_by_updated_by_to_object_types.up.sql",
-        "development/000004_dev_add_relationship_type_marker.up.sql",
-        "development/000005_dev_create_objects_relationship_types.up.sql",
-        "development/000006_dev_seed_relationship_types.up.sql"
+        "000001_initial.up.sql",
+        "000002_dev_tax_test_data.up.sql",
+        "000003_add_created_by_updated_by_to_object_types.up.sql",
+        "000004_add_relationship_type_marker.up.sql",
+        "000005_create_objects_relationship_types.up.sql",
+        "000006_seed_relationship_types.up.sql"
       ],
       "seed_files": [],
       "config": {
@@ -18,7 +19,13 @@
     },
     "staging": {
       "description": "Staging environment for pre-production testing",
-      "migrations": [],
+      "migrations": [
+        "000001_initial.up.sql",
+        "000003_add_created_by_updated_by_to_object_types.up.sql",
+        "000004_add_relationship_type_marker.up.sql",
+        "000005_create_objects_relationship_types.up.sql",
+        "000006_seed_relationship_types.up.sql"
+      ],
       "seed_files": [],
       "config": {
         "allow_destructive_operations": false,
@@ -29,7 +36,13 @@
     },
     "production": {
       "description": "Production environment with strict controls",
-      "migrations": [],
+      "migrations": [
+        "000001_initial.up.sql",
+        "000003_add_created_by_updated_by_to_object_types.up.sql",
+        "000004_add_relationship_type_marker.up.sql",
+        "000005_create_objects_relationship_types.up.sql",
+        "000006_seed_relationship_types.up.sql"
+      ],
       "seed_files": [],
       "config": {
         "allow_destructive_operations": false,

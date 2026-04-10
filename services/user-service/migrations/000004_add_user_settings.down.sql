@@ -1,3 +1,5 @@
+-- Environment: all
+-- Environment: all
 -- Migration Rollback: 000004_add_user_settings
 -- Description: Remove user_settings table from user_service schema
 -- Created: Вс 07 сен 2025 23:54:28 MSK

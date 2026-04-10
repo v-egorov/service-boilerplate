@@ -1,3 +1,4 @@
+-- Environment: development
 -- Development Migration: Seed relationship-types permissions
 -- Description: Assign relationship-types permissions to admin and object-type-admin roles
 -- Applies to: Development environment

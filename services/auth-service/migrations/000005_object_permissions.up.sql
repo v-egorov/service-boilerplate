@@ -1,3 +1,4 @@
+-- Environment: all
 -- Migration: Add objects-service permissions
 -- Description: Insert fine-grained permissions for objects-service RBAC
 -- Applies to: All environments (development, staging, production)

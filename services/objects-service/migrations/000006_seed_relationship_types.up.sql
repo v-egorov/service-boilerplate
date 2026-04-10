@@ -1,3 +1,4 @@
+-- Environment: all
 -- Seed standard relationship types for development
 -- This migration creates base objects for relationship types and then the relationship type entries
 

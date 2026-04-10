@@ -1,3 +1,4 @@
+-- Environment: all
 -- Rollback key rotation enhancements
 -- Migration: 000003_key_rotation.down.sql
 

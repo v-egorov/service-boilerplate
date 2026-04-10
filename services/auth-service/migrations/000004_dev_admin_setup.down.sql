@@ -1,3 +1,4 @@
+-- Environment: development
 -- Development Admin Account Setup - Down Migration
 -- This removes the dev admin account RBAC assignments
 -- Note: object.admin@example.com is NOT removed here - handled by 000005_dev_object_permissions_seed.down.sql

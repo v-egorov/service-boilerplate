@@ -1,3 +1,4 @@
+-- Environment: development
 -- Development Admin Account Setup
 -- This migration sets up the dev admin account with proper RBAC roles
 -- Created for development and testing purposes

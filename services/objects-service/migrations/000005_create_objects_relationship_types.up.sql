@@ -1,3 +1,4 @@
+-- Environment: all
 CREATE TABLE objects_service.objects_relationship_types (
     object_id BIGINT PRIMARY KEY REFERENCES objects_service.objects(id) ON DELETE CASCADE,
     type_key VARCHAR(100) NOT NULL UNIQUE,

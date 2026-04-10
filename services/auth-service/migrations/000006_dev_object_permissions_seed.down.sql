@@ -1,3 +1,4 @@
+-- Environment: development
 -- Development Migration: Remove object-type-admin role and assignments (rollback)
 -- Description: Rollback role assignments for dev/staging
 -- Applies to: Development and Staging environments

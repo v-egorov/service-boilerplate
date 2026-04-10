@@ -1,3 +1,4 @@
+-- Environment: development
 -- Development Migration Rollback: Remove test data
 -- This rollback only runs in development environment
 -- Created: $(date)

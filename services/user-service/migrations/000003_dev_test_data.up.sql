@@ -1,3 +1,4 @@
+-- Environment: development
 -- Development Migration: Add test data for development
 -- This migration only runs in development environment
 -- Created: $(date)
