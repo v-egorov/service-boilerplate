@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -28,22 +27,9 @@ func newInitCmd() *cobra.Command {
 
 			// Validate configuration exists
 			logger.Info("Validating migration configuration...")
-			_, _, err = orch.LoadMigrationConfig()
+			_, err = orch.LoadMigrationConfig()
 			if err != nil {
 				return fmt.Errorf("failed to load migration configuration: %w", err)
-			}
-
-			// Create migration tracking table
-			logger.Info("Creating migration tracking table...")
-			ctx := context.Background()
-			if err := orch.CreateMigrationExecutionsTable(ctx); err != nil {
-				return fmt.Errorf("failed to create migration tracking table: %w", err)
-			}
-
-			// Initialize golang-migrate tracking table
-			logger.Info("Initializing golang-migrate tracking table...")
-			if err := orch.InitializeGolangMigrateTable(ctx); err != nil {
-				return fmt.Errorf("failed to initialize golang-migrate tracking table: %w", err)
 			}
 
 			logger.Info("✅ Migration tracking initialized successfully for service:", serviceName)

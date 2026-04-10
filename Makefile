@@ -234,7 +234,7 @@ down: ## Stop all services
 	@echo "Services stopped."
 
 .PHONY: dev-bootstrap
-dev-bootstrap: create-volumes-dirs build-migration-orchestrator  ## Bootstrap development environment with database setup
+dev-bootstrap: create-volumes-dirs build-migrate-wrapper  ## Bootstrap development environment with database setup
 	@echo "🚀 Bootstrapping development environment..."
 	@echo "📁 Creating volume directories..."
 	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) up postgres -d
@@ -375,13 +375,13 @@ DATABASE_NAME ?= service_db
 DATABASE_SSL_MODE ?= disable
 # SERVICE_NAME defaults to empty (run all services) or can be set to specific service
 MIGRATION_IMAGE ?= migrate/migrate:latest
-ORCHESTRATOR_IMAGE ?= migration-orchestrator:latest
+ORCHESTRATOR_IMAGE ?= migrate-wrapper:latest
 
 # Auto-detect all services
 SERVICES := $(shell ls services/ | grep -E '.*-service$$' | sort)
 
 # Auto-detect services with migrations (exclude empty directories)
-SERVICES_WITH_MIGRATIONS := $(shell find services -name "migrations" -type d -exec test -f {}/dependencies.json \; -print 2>/dev/null | sed 's|/migrations||' | sed 's|services/||' | sort)
+SERVICES_WITH_MIGRATIONS := $(shell find services -name "migrations" -type d -exec test -f {}/environments.json \; -print 2>/dev/null | sed 's|/migrations||' | sed 's|services/||' | sort)
 POSTGRES_NAME ?= postgres
 
 # Database URL construction for targets
@@ -560,7 +560,7 @@ db-migrate: ## Run migrations for all services (or specific service if SERVICE_N
 	fi
 
 .PHONY: db-migrate-all
-db-migrate-all: build-migration-orchestrator ## Run migrations for all services with migrations using orchestrator (dependency-ordered)
+db-migrate-all: build-migrate-wrapper ## Run migrations for all services with migrations using wrapper
 	@echo "🔗 Resolving service dependencies..."
 	@SERVICES_ORDER=$$(docker run --rm \
 		--network $(NETWORK_NAME) \
@@ -614,10 +614,10 @@ db-migrate-file-list: ## List available migration files
 	@ls -la services/$(SERVICE_NAME)/migrations/ 2>/dev/null || echo "No migration files found"
 
 ## Migration Orchestrator Targets (Enhanced Migration System)
-# Build orchestrator image
-.PHONY: build-migration-orchestrator
-build-migration-orchestrator: ## Build migration orchestrator Docker image
-	@echo "🏗️  Building migration orchestrator..."
+# Build wrapper binary
+.PHONY: build-migrate-wrapper
+build-migrate-wrapper: ## Build migrate-wrapper binary
+	@echo "🏗️  Building migrate-wrapper..."
 	@docker build -t $(ORCHESTRATOR_IMAGE) -f migration-orchestrator/Dockerfile ./migration-orchestrator
 
 

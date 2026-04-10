@@ -66,6 +66,35 @@ func (o *Orchestrator) LoadMigrationConfig() (*types.MigrationConfig, error) {
 	return config, nil
 }
 
+// GetMigrationState returns the current migration state
+func (o *Orchestrator) GetMigrationState(ctx context.Context) (*types.ServiceMigrationState, error) {
+	appliedVersions := o.getAppliedVersionsFromGolangMigrate()
+
+	var executions []types.MigrationExecution
+	for _, version := range appliedVersions {
+		migrationID := fmt.Sprintf("%06d", version)
+		now := time.Now()
+		execution := types.MigrationExecution{
+			MigrationID: migrationID,
+			Status:      types.StatusCompleted,
+			CompletedAt: &now,
+		}
+		executions = append(executions, execution)
+	}
+
+	return &types.ServiceMigrationState{
+		ServiceName:  o.serviceName,
+		SchemaName:   o.schemaName,
+		Executions:   executions,
+		AppliedCount: len(executions),
+		FailedCount:  0,
+	}, nil
+}
+
+func timePtr(t time.Time) *time.Time {
+	return &t
+}
+
 // RunMigrationsUp executes pending migrations for the service
 func (o *Orchestrator) RunMigrationsUp(ctx context.Context, environment string) error {
 	o.logger.Info("Starting migration run up for environment:", environment)
@@ -83,7 +112,7 @@ func (o *Orchestrator) RunMigrationsUp(ctx context.Context, environment string) 
 	}
 
 	// Validate migration files exist
-	if err := o.validateMigrationFilesExist(envConfig.Migrations); err != nil {
+	if err := o.ValidateMigrationFilesExist(envConfig.Migrations); err != nil {
 		return err
 	}
 
@@ -174,8 +203,8 @@ func (o *Orchestrator) RunMigrationsDown(ctx context.Context, steps int, environ
 	return nil
 }
 
-// validateMigrationFilesExist checks that all migration files referenced in config exist
-func (o *Orchestrator) validateMigrationFilesExist(migrationPaths []string) error {
+// ValidateMigrationFilesExist checks that all migration files referenced in config exist
+func (o *Orchestrator) ValidateMigrationFilesExist(migrationPaths []string) error {
 	migrationsDir := filepath.Join(o.servicePath, "migrations")
 	var missingFiles []string
 

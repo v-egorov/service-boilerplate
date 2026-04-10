@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/v-egorov/service-boilerplate/migration-orchestrator/internal/orchestrator"
-	"github.com/v-egorov/service-boilerplate/migration-orchestrator/pkg/types"
 )
 
 func newValidateCmd() *cobra.Command {
@@ -30,13 +29,13 @@ func newValidateCmd() *cobra.Command {
 			ctx := context.Background()
 			var validationErrors []string
 
-			// 1. Validate configuration files exist and are valid
+			// 1. Validate configuration file exists and is valid
 			logger.Info("Checking configuration files...")
-			migrationConfig, depConfig, err := orch.LoadMigrationConfig()
+			migrationConfig, err := orch.LoadMigrationConfig()
 			if err != nil {
 				validationErrors = append(validationErrors, fmt.Sprintf("Configuration error: %v", err))
 			} else {
-				logger.Info("✅ Configuration files are valid")
+				logger.Info("✅ Configuration file is valid")
 			}
 
 			// 2. Validate environment exists in config
@@ -48,14 +47,7 @@ func newValidateCmd() *cobra.Command {
 				}
 			}
 
-			// 3. Validate migration tracking table exists
-			if !orch.MigrationExecutionsTableExists(ctx) {
-				validationErrors = append(validationErrors, "Migration tracking table does not exist - run 'init' command first")
-			} else {
-				logger.Info("✅ Migration tracking table exists")
-			}
-
-			// 4. Validate migration state consistency
+			// 3. Validate migration state
 			state, err := orch.GetMigrationState(ctx)
 			if err != nil {
 				validationErrors = append(validationErrors, fmt.Sprintf("Failed to get migration state: %v", err))
@@ -66,20 +58,15 @@ func newValidateCmd() *cobra.Command {
 				if state.FailedCount > 0 {
 					validationErrors = append(validationErrors, fmt.Sprintf("Found %d failed migrations", state.FailedCount))
 				}
-
-				// Validate dependencies if config available
-				if depConfig != nil {
-					depErrors := validateDependencies(state, depConfig)
-					validationErrors = append(validationErrors, depErrors...)
-				}
 			}
 
-			// 5. Validate migration files exist
+			// 4. Validate migration files exist
 			if migrationConfig != nil {
 				envConfig, exists := migrationConfig.Environments[appConfig.Environment]
 				if exists {
-					fileErrors := validateMigrationFiles(orch.ServicePath(), envConfig)
-					validationErrors = append(validationErrors, fileErrors...)
+					if err := orch.ValidateMigrationFilesExist(envConfig.Migrations); err != nil {
+						validationErrors = append(validationErrors, err.Error())
+					}
 				}
 			}
 
@@ -98,43 +85,4 @@ func newValidateCmd() *cobra.Command {
 	}
 
 	return cmd
-}
-
-func validateDependencies(state *types.ServiceMigrationState, depConfig *types.DependencyConfig) []string {
-	var errors []string
-
-	// Build map of applied migrations
-	applied := make(map[string]bool)
-	for _, exec := range state.Executions {
-		if exec.Status == types.StatusCompleted {
-			applied[exec.MigrationID] = true
-		}
-	}
-
-	// Check dependencies for applied migrations
-	for migrationID, info := range depConfig.Migrations {
-		if applied[migrationID] {
-			for _, dep := range info.DependsOn {
-				if !applied[dep] {
-					errors = append(errors, fmt.Sprintf("Migration %s is applied but dependency %s is not", migrationID, dep))
-				}
-			}
-		}
-	}
-
-	return errors
-}
-
-func validateMigrationFiles(servicePath string, envConfig types.EnvironmentConfig) []string {
-	var errors []string
-
-	for _, migrationPath := range envConfig.Migrations {
-		// For now, just check if the path pattern is valid
-		// Could be enhanced to check actual file existence
-		if migrationPath == "" {
-			errors = append(errors, "Empty migration path found in configuration")
-		}
-	}
-
-	return errors
 }

@@ -39,17 +39,17 @@ func newListCmd() *cobra.Command {
 				return fmt.Errorf("failed to get migration state: %w", err)
 			}
 
-			// Load configuration for additional details
-			migrationConfig, depConfig, err := orch.LoadMigrationConfig()
+			// Load environments configuration
+			migrationConfig, err := orch.LoadMigrationConfig()
 			if err != nil {
 				logger.Warnf("Could not load migration config: %v", err)
 			}
 
 			// Display list
 			if jsonOutput {
-				return displayListJSON(state, migrationConfig, depConfig)
+				return displayListJSON(state, migrationConfig)
 			} else {
-				return displayListTable(state, migrationConfig, depConfig)
+				return displayListTable(state, migrationConfig)
 			}
 		},
 	}
@@ -57,14 +57,12 @@ func newListCmd() *cobra.Command {
 	return cmd
 }
 
-func displayListJSON(state *types.ServiceMigrationState, migrationConfig *types.MigrationConfig, depConfig *types.DependencyConfig) error {
+func displayListJSON(state *types.ServiceMigrationState, migrationConfig *types.MigrationConfig) error {
 	type MigrationInfo struct {
-		ID          string `json:"id"`
-		Status      string `json:"status"`
-		Type        string `json:"type"`
-		Description string `json:"description,omitempty"`
-		RiskLevel   string `json:"risk_level,omitempty"`
-		AppliedAt   string `json:"applied_at,omitempty"`
+		ID        string `json:"id"`
+		Status    string `json:"status"`
+		Type      string `json:"type"`
+		AppliedAt string `json:"applied_at,omitempty"`
 	}
 
 	var migrations []MigrationInfo
@@ -82,41 +80,18 @@ func displayListJSON(state *types.ServiceMigrationState, migrationConfig *types.
 		migrations = append(migrations, info)
 	}
 
-	// Add pending migrations from config
-	if depConfig != nil {
-		for migrationID, info := range depConfig.Migrations {
-			// Check if already applied
-			alreadyApplied := false
-			for _, exec := range state.Executions {
-				if exec.MigrationID == migrationID && exec.Status == "completed" {
-					alreadyApplied = true
-					break
-				}
-			}
-			if !alreadyApplied {
-				migrations = append(migrations, MigrationInfo{
-					ID:          migrationID,
-					Status:      "pending",
-					Type:        "base",
-					Description: info.Description,
-					RiskLevel:   info.RiskLevel,
-				})
-			}
-		}
-	}
-
-	// Add environment-specific migrations
+	// Add pending migrations from environments.json
 	if migrationConfig != nil && migrationConfig.Environments != nil {
-		for envName, envConfig := range migrationConfig.Environments {
+		currentEnv := appConfig.Environment
+		envConfig, exists := migrationConfig.Environments[currentEnv]
+		if exists {
 			for _, migrationFile := range envConfig.Migrations {
-				// Extract migration ID from filename
 				parts := strings.Split(migrationFile, "/")
 				if len(parts) >= 2 {
 					filename := parts[len(parts)-1]
 					if strings.HasPrefix(filename, "000") && strings.HasSuffix(filename, ".up.sql") {
-						migrationID := filename[:6] // Extract "000XXX" from "000XXX_description.up.sql"
+						migrationID := filename[:6]
 
-						// Check if already applied
 						alreadyApplied := false
 						for _, exec := range state.Executions {
 							if exec.MigrationID == migrationID && exec.Status == "completed" {
@@ -128,7 +103,7 @@ func displayListJSON(state *types.ServiceMigrationState, migrationConfig *types.
 							migrations = append(migrations, MigrationInfo{
 								ID:     migrationID,
 								Status: "pending",
-								Type:   fmt.Sprintf("environment (%s)", envName),
+								Type:   fmt.Sprintf("env-%s", currentEnv),
 							})
 						}
 					}
@@ -143,21 +118,19 @@ func displayListJSON(state *types.ServiceMigrationState, migrationConfig *types.
 	})
 }
 
-func displayListTable(state *types.ServiceMigrationState, migrationConfig *types.MigrationConfig, depConfig *types.DependencyConfig) error {
+func displayListTable(state *types.ServiceMigrationState, migrationConfig *types.MigrationConfig) error {
 	fmt.Printf("📋 Migration List for %s\n", state.ServiceName)
 	fmt.Printf("Schema: %s\n", state.SchemaName)
 	fmt.Println(strings.Repeat("=", 60))
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "Migration ID\tStatus\tType\tDescription")
-	fmt.Fprintln(w, "------------\t------\t----\t-----------")
+	fmt.Fprintln(w, "Migration ID\tStatus\tType")
+	fmt.Fprintln(w, "------------\t------\t----")
 
-	// Collect all migrations
 	type MigrationEntry struct {
-		ID          string
-		Status      string
-		Type        string
-		Description string
+		ID     string
+		Status string
+		Type   string
 	}
 
 	var allMigrations []MigrationEntry
@@ -172,40 +145,18 @@ func displayListTable(state *types.ServiceMigrationState, migrationConfig *types
 		allMigrations = append(allMigrations, entry)
 	}
 
-	// Add pending migrations from config
-	if depConfig != nil {
-		for migrationID, info := range depConfig.Migrations {
-			// Check if already applied
-			alreadyApplied := false
-			for _, exec := range state.Executions {
-				if exec.MigrationID == migrationID && exec.Status == "completed" {
-					alreadyApplied = true
-					break
-				}
-			}
-			if !alreadyApplied {
-				allMigrations = append(allMigrations, MigrationEntry{
-					ID:          migrationID,
-					Status:      "pending",
-					Type:        "base",
-					Description: info.Description,
-				})
-			}
-		}
-	}
-
-	// Add environment-specific migrations
+	// Add pending migrations from environments.json
 	if migrationConfig != nil && migrationConfig.Environments != nil {
-		for envName, envConfig := range migrationConfig.Environments {
+		currentEnv := appConfig.Environment
+		envConfig, exists := migrationConfig.Environments[currentEnv]
+		if exists {
 			for _, migrationFile := range envConfig.Migrations {
-				// Extract migration ID from filename
 				parts := strings.Split(migrationFile, "/")
 				if len(parts) >= 2 {
 					filename := parts[len(parts)-1]
 					if strings.HasPrefix(filename, "000") && strings.HasSuffix(filename, ".up.sql") {
-						migrationID := filename[:6] // Extract "000XXX" from "000XXX_description.up.sql"
+						migrationID := filename[:6]
 
-						// Check if already applied
 						alreadyApplied := false
 						for _, exec := range state.Executions {
 							if exec.MigrationID == migrationID && exec.Status == "completed" {
@@ -217,7 +168,7 @@ func displayListTable(state *types.ServiceMigrationState, migrationConfig *types
 							allMigrations = append(allMigrations, MigrationEntry{
 								ID:     migrationID,
 								Status: "pending",
-								Type:   fmt.Sprintf("env-%s", envName),
+								Type:   fmt.Sprintf("env-%s", currentEnv),
 							})
 						}
 					}
@@ -233,11 +184,7 @@ func displayListTable(state *types.ServiceMigrationState, migrationConfig *types
 
 	// Display migrations
 	for _, migration := range allMigrations {
-		desc := migration.Description
-		if desc == "" {
-			desc = "-"
-		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", migration.ID, migration.Status, migration.Type, desc)
+		fmt.Fprintf(w, "%s\t%s\t%s\n", migration.ID, migration.Status, migration.Type)
 	}
 
 	w.Flush()

@@ -42,17 +42,17 @@ func newStatusCmd() *cobra.Command {
 				return fmt.Errorf("failed to get migration state: %w", err)
 			}
 
-			// Load configuration for additional details
-			migrationConfig, depConfig, err := orch.LoadMigrationConfig()
+			// Load environments configuration
+			migrationConfig, err := orch.LoadMigrationConfig()
 			if err != nil {
 				logger.Warnf("Could not load migration config: %v", err)
 			}
 
 			// Display status
 			if jsonOutput {
-				return displayStatusJSON(state, migrationConfig, depConfig)
+				return displayStatusJSON(state, migrationConfig)
 			} else {
-				return displayStatusTable(state, migrationConfig, depConfig, showHistory, showDependencies)
+				return displayStatusTable(state, migrationConfig, showHistory)
 			}
 		},
 	}
@@ -63,59 +63,44 @@ func newStatusCmd() *cobra.Command {
 	return cmd
 }
 
-func displayStatusJSON(state *types.ServiceMigrationState, migrationConfig *types.MigrationConfig, depConfig *types.DependencyConfig) error {
+func displayStatusJSON(state *types.ServiceMigrationState, migrationConfig *types.MigrationConfig) error {
 	status := map[string]interface{}{
-		"service_name":    state.ServiceName,
-		"schema_name":     state.SchemaName,
-		"current_version": state.CurrentVersion,
-		"applied_count":   state.AppliedCount,
-		"failed_count":    state.FailedCount,
-		"pending_count":   state.PendingCount,
-		"executions":      state.Executions,
+		"service_name":  state.ServiceName,
+		"schema_name":   state.SchemaName,
+		"applied_count": state.AppliedCount,
+		"failed_count":  state.FailedCount,
+		"executions":    state.Executions,
 	}
 
 	if migrationConfig != nil {
 		status["environments"] = migrationConfig.Environments
 	}
 
-	if depConfig != nil {
-		status["dependencies"] = depConfig
-	}
-
 	return json.NewEncoder(os.Stdout).Encode(status)
 }
 
-func displayStatusTable(state *types.ServiceMigrationState, migrationConfig *types.MigrationConfig, depConfig *types.DependencyConfig, showHistory, showDependencies bool) error {
+func displayStatusTable(state *types.ServiceMigrationState, migrationConfig *types.MigrationConfig, showHistory bool) error {
 	fmt.Printf("📊 Migration Status for %s\n", state.ServiceName)
 	fmt.Printf("Schema: %s\n", state.SchemaName)
 	fmt.Println(strings.Repeat("=", 50))
 
 	// Summary
-	fmt.Printf("Current Version: %s\n", state.CurrentVersion)
-	fmt.Printf("Applied: %d | Failed: %d | Pending: %d\n", state.AppliedCount, state.FailedCount, state.PendingCount)
-
-	if state.LastMigration != nil {
-		fmt.Printf("Last Migration: %s (%s)\n", state.LastMigration.MigrationID, state.LastMigration.Status)
-		if state.LastMigration.CompletedAt != nil {
-			fmt.Printf("Completed At: %s\n", state.LastMigration.CompletedAt.Format("2006-01-02 15:04:05"))
-		}
-	}
-
+	fmt.Printf("Applied: %d | Failed: %d\n", state.AppliedCount, state.FailedCount)
 	fmt.Println()
 
 	// Recent executions
 	if showHistory && len(state.Executions) > 0 {
 		fmt.Println("📝 Recent Migration History:")
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "Migration ID\tStatus\tApplied At\tDuration\tEnvironment")
-		fmt.Fprintln(w, "------------\t------\t----------\t--------\t-----------")
+		fmt.Fprintln(w, "Migration ID\tStatus\tApplied At")
+		fmt.Fprintln(w, "------------\t------\t----------")
 
-		// Sort executions by applied_at desc
+		// Sort executions by completed_at desc
 		executions := make([]types.MigrationExecution, len(state.Executions))
 		copy(executions, state.Executions)
 		sort.Slice(executions, func(i, j int) bool {
-			if executions[i].CreatedAt.After(executions[j].CreatedAt) {
-				return true
+			if executions[i].CompletedAt != nil && executions[j].CompletedAt != nil {
+				return executions[i].CompletedAt.After(*executions[j].CompletedAt)
 			}
 			return false
 		})
@@ -125,33 +110,13 @@ func displayStatusTable(state *types.ServiceMigrationState, migrationConfig *typ
 			if exec.CompletedAt != nil {
 				appliedAt = exec.CompletedAt.Format("2006-01-02 15:04:05")
 			}
-
-			duration := "N/A"
-			if exec.DurationMs != nil {
-				duration = fmt.Sprintf("%dms", *exec.DurationMs)
-			}
-
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", exec.MigrationID, exec.Status, appliedAt, duration, exec.Environment)
+			fmt.Fprintf(w, "%s\t%s\t%s\n", exec.MigrationID, exec.Status, appliedAt)
 		}
 		w.Flush()
 		fmt.Println()
 	}
 
-	// Dependencies
-	if showDependencies && depConfig != nil {
-		fmt.Println("🔗 Migration Dependencies:")
-		for migrationID, info := range depConfig.Migrations {
-			fmt.Printf("  %s: %s\n", migrationID, info.Description)
-			if len(info.DependsOn) > 0 {
-				fmt.Printf("    Depends on: %v\n", info.DependsOn)
-			}
-			if len(info.AffectsTables) > 0 {
-				fmt.Printf("    Affects: %v\n", info.AffectsTables)
-			}
-			fmt.Printf("    Risk: %s | Duration: %s\n", info.RiskLevel, info.EstimatedDuration)
-			fmt.Println()
-		}
-	}
+	fmt.Println("💡 Tip: Use 'list' command for pending migrations")
 
 	return nil
 }
