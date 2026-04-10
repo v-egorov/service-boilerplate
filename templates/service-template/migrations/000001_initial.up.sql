@@ -1,3 +1,4 @@
+-- Environment: all
 -- Create SCHEMA_NAME schema
 CREATE SCHEMA IF NOT EXISTS SCHEMA_NAME;
 

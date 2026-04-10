@@ -1,3 +1,4 @@
+-- Environment: all
 -- Drop entities table and related objects
 DROP TRIGGER IF EXISTS update_entities_updated_at ON SCHEMA_NAME.entities;
 DROP FUNCTION IF EXISTS SCHEMA_NAME.update_entities_updated_at_column();

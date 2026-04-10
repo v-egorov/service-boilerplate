@@ -1,8 +1,6 @@
+-- Environment: development
 -- Development test data for SERVICE_NAME service
 -- This file is used to populate the database with test data during development
-
--- Note: This migration should only be applied in development environments
--- The down migration will remove all test data
 
 -- Insert test entities
 INSERT INTO SCHEMA_NAME.entities (name, description, created_at, updated_at) VALUES

@@ -1,3 +1,4 @@
+-- Environment: development
 -- Remove development test data for SERVICE_NAME service
 
 -- Delete test entities
