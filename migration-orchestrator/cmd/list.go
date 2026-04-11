@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -47,9 +48,9 @@ func newListCmd() *cobra.Command {
 
 			// Display list
 			if jsonOutput {
-				return displayListJSON(state, migrationConfig)
+				return displayListJSON(state, migrationConfig, orch.ServicePath())
 			} else {
-				return displayListTable(state, migrationConfig)
+				return displayListTable(state, migrationConfig, orch.ServicePath())
 			}
 		},
 	}
@@ -57,7 +58,7 @@ func newListCmd() *cobra.Command {
 	return cmd
 }
 
-func displayListJSON(state *types.ServiceMigrationState, migrationConfig *types.MigrationConfig) error {
+func displayListJSON(state *types.ServiceMigrationState, migrationConfig *types.MigrationConfig, servicePath string) error {
 	type MigrationInfo struct {
 		ID        string `json:"id"`
 		Status    string `json:"status"`
@@ -85,11 +86,16 @@ func displayListJSON(state *types.ServiceMigrationState, migrationConfig *types.
 		currentEnv := appConfig.Environment
 		envConfig, exists := migrationConfig.Environments[currentEnv]
 		if exists {
-			for _, migrationFile := range envConfig.Migrations {
-				parts := strings.Split(migrationFile, "/")
-				if len(parts) >= 2 {
-					filename := parts[len(parts)-1]
-					if strings.HasPrefix(filename, "000") && strings.HasSuffix(filename, ".up.sql") {
+			// envConfig.Migrations is now a directory name (string)
+			migrationDir := envConfig.Migrations
+
+			// List files in the migration directory
+			migrationPath := filepath.Join(servicePath, "migrations", migrationDir)
+			files, err := os.ReadDir(migrationPath)
+			if err == nil {
+				for _, file := range files {
+					if !file.IsDir() && strings.HasPrefix(file.Name(), "000") && strings.HasSuffix(file.Name(), ".up.sql") {
+						filename := file.Name()
 						migrationID := filename[:6]
 
 						alreadyApplied := false
@@ -118,7 +124,7 @@ func displayListJSON(state *types.ServiceMigrationState, migrationConfig *types.
 	})
 }
 
-func displayListTable(state *types.ServiceMigrationState, migrationConfig *types.MigrationConfig) error {
+func displayListTable(state *types.ServiceMigrationState, migrationConfig *types.MigrationConfig, servicePath string) error {
 	fmt.Printf("📋 Migration List for %s\n", state.ServiceName)
 	fmt.Printf("Schema: %s\n", state.SchemaName)
 	fmt.Println(strings.Repeat("=", 60))
@@ -150,11 +156,16 @@ func displayListTable(state *types.ServiceMigrationState, migrationConfig *types
 		currentEnv := appConfig.Environment
 		envConfig, exists := migrationConfig.Environments[currentEnv]
 		if exists {
-			for _, migrationFile := range envConfig.Migrations {
-				parts := strings.Split(migrationFile, "/")
-				if len(parts) >= 2 {
-					filename := parts[len(parts)-1]
-					if strings.HasPrefix(filename, "000") && strings.HasSuffix(filename, ".up.sql") {
+			// envConfig.Migrations is now a directory name (string)
+			migrationDir := envConfig.Migrations
+
+			// List files in the migration directory
+			migrationPath := filepath.Join(servicePath, "migrations", migrationDir)
+			files, err := os.ReadDir(migrationPath)
+			if err == nil {
+				for _, file := range files {
+					if !file.IsDir() && strings.HasPrefix(file.Name(), "000") && strings.HasSuffix(file.Name(), ".up.sql") {
+						filename := file.Name()
 						migrationID := filename[:6]
 
 						alreadyApplied := false

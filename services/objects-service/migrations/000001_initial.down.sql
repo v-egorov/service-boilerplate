@@ -27,7 +27,6 @@ DROP INDEX IF EXISTS idx_object_types_sealed;
 DROP TABLE IF EXISTS objects_service.objects;
 DROP TABLE IF EXISTS objects_service.object_types;
 
-DELETE FROM objects_service.migration_executions;
 
 -- Keep objects_service schema for migration tracking
 -- Note: Schema cleanup should be handled separately if needed

@@ -22,7 +22,7 @@ var (
 // NewRootCmd creates the root command
 func NewRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:   "migration-orchestrator",
+		Use:   "migrate-wrapper",
 		Short: "Database migration orchestrator for service boilerplate",
 		Long: `A powerful migration orchestrator that provides enhanced tracking,
 dependency management, and rollback capabilities for database migrations
@@ -38,7 +38,7 @@ across multiple services in a schema-per-service architecture.`,
 	}
 
 	// Global flags
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.migration-orchestrator.yaml)")
+	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "", "config file (default is $HOME/.migrate-wrapper.yaml)")
 	rootCmd.PersistentFlags().StringVarP(&environment, "env", "e", "development", "environment (development/staging/production)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "output in JSON format")

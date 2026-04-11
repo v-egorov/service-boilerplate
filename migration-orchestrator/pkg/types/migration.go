@@ -38,7 +38,7 @@ type MigrationExecution struct {
 // EnvironmentConfig represents the configuration for a specific environment
 type EnvironmentConfig struct {
 	Description string                 `json:"description"`
-	Migrations  []string               `json:"migrations"`
+	Migrations  string                 `json:"migrations"`
 	SeedFiles   []string               `json:"seed_files"`
 	Config      map[string]interface{} `json:"config"`
 }

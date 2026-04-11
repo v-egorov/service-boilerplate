@@ -469,8 +469,9 @@ db-migrate-up: ## Run migrations up using orchestrator
 		-e DB_NAME=$(DATABASE_NAME) \
 		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
 		-v $(PWD)/services:/services \
+		-e APP_ENV="${ENV:?APP_ENV must be set via ENV=staging or APP_ENV=staging}" \
 		$(ORCHESTRATOR_IMAGE) \
-		up $(SERVICE_NAME) --env $(APP_ENV)
+		up $(SERVICE_NAME) --env "${ENV:?APP_ENV must be set via ENV=staging or APP_ENV=staging}"
 
 .PHONY: db-migrate-down
 db-migrate-down: ## Run migrations down using orchestrator

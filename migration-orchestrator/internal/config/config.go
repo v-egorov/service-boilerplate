@@ -73,8 +73,10 @@ func LoadConfig(configFile string) (*Config, error) {
 		}
 	}
 
-	// Override with environment variables
-	if env := os.Getenv("MIGRATION_ENV"); env != "" {
+	// Override with environment variables (support both APP_ENV for compatibility and MIGRATION_ENV)
+	if env := os.Getenv("APP_ENV"); env != "" {
+		config.Environment = env
+	} else if env := os.Getenv("MIGRATION_ENV"); env != "" {
 		config.Environment = env
 	}
 
