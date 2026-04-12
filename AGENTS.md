@@ -17,7 +17,7 @@ brevity is good
 - **services/** - Microservices (auth-service, objects-service, user-service, etc.)
 - **templates/service-template/** - Template for new services (do not compile/test directly)
 - **scripts/** - Utility scripts including `create-service.sh` to instantiate new services
-- **migration-orchestrator/** - Custom Go application for managing DB migrations
+- **migration-orchestrator/** - Go wrapper for managing DB migrations via golang-migrate CLI
 
 ## Development Workflow
 - Builds and tests run on host machine to simplify workflow
@@ -72,25 +72,37 @@ SELECT * FROM auth_service.permissions;
 
 ## Database Migrations
 
-The project uses migration-orchestrator (golang-migrate + custom tracking) to manage database schema changes.
+The project uses golang-migrate to manage database schema changes.
 
 ### Migration Files Location
 - Service migrations: `services/<service-name>/migrations/`
-- Development migrations: `services/<service-name>/migrations/development/`
-- Naming: `NNNN_dev_<description>.up.sql` and `.down.sql`
+- Environment directories: `development/`, `staging/`, `production/`
+- Each environment has its own sequential migration files (000001_, 000002_, etc.)
+- File naming: `000001_<description>.up.sql` and `.down.sql`
 
-### Configuration Files (required for each new migration)
-Each new migration requires updates to TWO files:
-1. **dependencies.json** - migration entry with description, depends_on, affects_tables, estimated_duration, risk_level, rollback_safe, environment
-2. **environments.json** - add migration file path to target environment's migrations array
+### Configuration Files
+Configuration is stored in ONE file:
+- **environments.json** - defines migrations directory per environment and config options
+- Note: dependencies.json is no longer used
 
 ### Applying Migrations
-- `make db-migrate SERVICE_NAME=<service-name>` - apply all pending migrations
-- `make db-migrate-down SERVICE_NAME=<service-name>` - rollback one migration
+
+**Always run in sequence:**
+1. `make db-migrate-init SERVICE_NAME=<service-name>` - initialize tracking table (run once per service)
+2. `make db-migrate-up SERVICE_NAME=<service-name>` - apply all pending migrations
+3. `make db-migrate-down SERVICE_NAME=<service-name>` - rollback one migration
+
+**Note:** `db-migrate-init` only needs to be run once when setting up a new service schema. Subsequent runs only need `db-migrate-up`.
+
+### Development vs Staging/Production
+- Development includes test data migrations (more migrations)
+- Staging and Production have fewer migrations (excludes dev-only test data)
+- Each environment directory contains the appropriate migrations for that environment
 
 ### Important Rules
 - NEVER apply migrations directly via psql - always use migration orchestrator
-- Configuration-level data should be seeded via migrations, not direct SQL
+- Migrations must be numbered sequentially within each environment (001, 002, 003...)
+- Each migration needs both .up.sql and .down.sql files
 
 ## Testing
 - Tests use testify framework

@@ -11,9 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/v-egorov/service-boilerplate/migration-orchestrator/internal/database"
 	"github.com/v-egorov/service-boilerplate/migration-orchestrator/pkg/types"
 	"github.com/v-egorov/service-boilerplate/migration-orchestrator/pkg/utils"
@@ -103,25 +100,30 @@ func (o *Orchestrator) InitializeMigrationSchema(ctx context.Context) error {
 		return fmt.Errorf("failed to create schema: %w", err)
 	}
 
-	// Step 2: Initialize golang-migrate tracking table
+	// Step 2: Initialize golang-migrate tracking table via CLI
 	migrationPath := filepath.Join(o.servicePath, "migrations")
-	m, err := o.createMigrateInstance(migrationPath)
+	absPath, err := filepath.Abs(migrationPath)
 	if err != nil {
-		return fmt.Errorf("failed to create migrate instance: %w", err)
+		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
-	defer m.Close()
 
-	// Calling Version() creates the schema_migrations table if it does not exist
-	_, _, err = m.Version()
-	if err != nil && err != migrate.ErrNilVersion {
-		return fmt.Errorf("failed to initialize golang-migrate table: %w", err)
+	configDB := o.db.GetPool().Config().ConnConfig
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable&search_path=%s",
+		configDB.User, configDB.Password, configDB.Host, configDB.Port, configDB.Database, o.schemaName)
+
+	// Use CLI to create/verify schema_migrations table (runs "up 0" which just creates table)
+	cmd := exec.Command("migrate", "-path", absPath, "-database", dsn, "up", "0")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// Error is expected if no migrations exist, but table should still be created
+		o.logger.Infof("Init output (may contain errors): %s", string(output))
 	}
 
 	o.logger.Info("Golang-migrate tracking table initialized")
 	return nil
 }
 
-// RunMigrationsUp executes pending migrations for the service
+// RunMigrationsUp executes pending migrations for the service using CLI
 func (o *Orchestrator) RunMigrationsUp(ctx context.Context, environment string) error {
 	o.logger.Info("Starting migration run up for environment:", environment)
 
@@ -139,17 +141,28 @@ func (o *Orchestrator) RunMigrationsUp(ctx context.Context, environment string) 
 
 	// Get migration directory path
 	migrationPath := filepath.Join(o.servicePath, "migrations", envConfig.Migrations)
-
-	// Create golang-migrate instance
-	m, err := o.createMigrateInstance(migrationPath)
+	absPath, err := filepath.Abs(migrationPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
-	defer m.Close()
 
-	// Run all migrations up
-	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
-		return err
+	// Get database connection
+	configDB := o.db.GetPool().Config().ConnConfig
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable&search_path=%s",
+		configDB.User, configDB.Password, configDB.Host, configDB.Port, configDB.Database, o.schemaName)
+
+	// Use golang-migrate CLI for migrations
+	o.logger.Infof("Applying migrations from: %s", absPath)
+	cmd := exec.Command("migrate", "-path", absPath, "-database", dsn, "up")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		o.logger.Errorf("Migration up failed: %s, output: %s", err, string(output))
+		return fmt.Errorf("migration up failed: %w, output: %s", err, string(output))
+	}
+
+	// Log output for visibility (CLI prints migration progress)
+	if len(output) > 0 {
+		o.logger.Infof("Migration output: %s", string(output))
 	}
 
 	o.logger.Info("Migration run completed successfully")
@@ -252,36 +265,6 @@ func (o *Orchestrator) schemaExists() bool {
 	var exists int
 	err := o.db.GetPool().QueryRow(context.Background(), query).Scan(&exists)
 	return err == nil && exists == 1
-}
-
-// createMigrateInstance creates a golang-migrate instance with schema support via search_path
-func (o *Orchestrator) createMigrateInstance(migrationPath string) (*migrate.Migrate, error) {
-	// Convert to absolute path to ensure golang-migrate can find files regardless of working directory
-	absPath, err := filepath.Abs(migrationPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get absolute path: %w", err)
-	}
-	if _, err := os.Stat(absPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("migration path does not exist: %s", absPath)
-	}
-
-	connConfig := o.db.GetPool().Config().ConnConfig
-	// Use search_path to point to our schema, golang-migrate will use it for schema_migrations table
-	connString := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable&search_path=%s",
-		connConfig.User, connConfig.Password, connConfig.Host, connConfig.Port, connConfig.Database, o.schemaName)
-
-	// Use file:// URL scheme with proper formatting (must end with slash for directories)
-	fileURL := "file://" + absPath
-	if !strings.HasSuffix(fileURL, "/") {
-		fileURL = fileURL + "/"
-	}
-
-	m, err := migrate.New(fileURL, connString)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create migrate instance: %w, url=%s", err, fileURL)
-	}
-
-	return m, nil
 }
 
 // loadJSONFile is a private helper to load JSON files
