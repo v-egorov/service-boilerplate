@@ -5,10 +5,11 @@ This directory contains database migrations for the objects-service service.
 ## Structure
 
 - `000001_initial.up.sql` / `000001_initial.down.sql` - Initial schema creation
-- `development/` - Development-specific migrations (test data, etc.)
+- `development/` - Development environment migrations (6 migrations including test data)
+- `staging/` - Staging environment migrations (5 migrations)
+- `production/` - Production environment migrations (5 migrations)
 - `docs/` - Migration documentation
-- `dependencies.json` - Migration dependencies and metadata
-- `environments.json` - Environment-specific migration configurations
+- `environments.json` - Environment configuration
 
 ## Running Migrations
 
