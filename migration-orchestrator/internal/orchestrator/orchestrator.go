@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -154,7 +156,7 @@ func (o *Orchestrator) RunMigrationsUp(ctx context.Context, environment string) 
 	return nil
 }
 
-// RunMigrationsDown rolls back the last N migrations
+// RunMigrationsDown rolls back the last N migrations using CLI
 func (o *Orchestrator) RunMigrationsDown(ctx context.Context, steps int, environment string) error {
 	o.logger.Infof("Starting migration rollback (%d steps) for environment: %s", steps, environment)
 
@@ -164,25 +166,30 @@ func (o *Orchestrator) RunMigrationsDown(ctx context.Context, steps int, environ
 		return fmt.Errorf("failed to load migration config: %w", err)
 	}
 
-	// Get environment migrations
+	// Validate environment exists
 	envConfig, exists := config.Environments[environment]
 	if !exists {
-		return fmt.Errorf("environment '%s' not found", environment)
+		return fmt.Errorf("environment '%s' not found in configuration", environment)
 	}
 
 	// Get migration directory path
 	migrationPath := filepath.Join(o.servicePath, "migrations", envConfig.Migrations)
-
-	// Create golang-migrate instance
-	m, err := o.createMigrateInstance(migrationPath)
+	absPath, err := filepath.Abs(migrationPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get absolute path: %w", err)
 	}
-	defer m.Close()
 
-	// Use golang-migrate native rollback
-	if err := m.Steps(steps); err != nil && err != migrate.ErrNoChange {
-		return err
+	// Get database connection
+	configDB := o.db.GetPool().Config().ConnConfig
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable&search_path=%s",
+		configDB.User, configDB.Password, configDB.Host, configDB.Port, configDB.Database, o.schemaName)
+
+	// Use golang-migrate CLI instead of library for rollback
+	cmd := exec.Command("migrate", "-path", absPath, "-database", dsn, "down", strconv.Itoa(steps))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		o.logger.Errorf("Migration rollback failed: %s, output: %s", err, string(output))
+		return fmt.Errorf("migration rollback failed: %w, output: %s", err, string(output))
 	}
 
 	o.logger.Info("Rollback completed successfully")
@@ -249,18 +256,29 @@ func (o *Orchestrator) schemaExists() bool {
 
 // createMigrateInstance creates a golang-migrate instance with schema support via search_path
 func (o *Orchestrator) createMigrateInstance(migrationPath string) (*migrate.Migrate, error) {
-	if _, err := os.Stat(migrationPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("migration path does not exist: %s", migrationPath)
+	// Convert to absolute path to ensure golang-migrate can find files regardless of working directory
+	absPath, err := filepath.Abs(migrationPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absolute path: %w", err)
+	}
+	if _, err := os.Stat(absPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("migration path does not exist: %s", absPath)
 	}
 
-	config := o.db.GetPool().Config().ConnConfig
+	connConfig := o.db.GetPool().Config().ConnConfig
 	// Use search_path to point to our schema, golang-migrate will use it for schema_migrations table
 	connString := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable&search_path=%s",
-		config.User, config.Password, config.Host, config.Port, config.Database, o.schemaName)
+		connConfig.User, connConfig.Password, connConfig.Host, connConfig.Port, connConfig.Database, o.schemaName)
 
-	m, err := migrate.New(fmt.Sprintf("file://%s", migrationPath), connString)
+	// Use file:// URL scheme with proper formatting (must end with slash for directories)
+	fileURL := "file://" + absPath
+	if !strings.HasSuffix(fileURL, "/") {
+		fileURL = fileURL + "/"
+	}
+
+	m, err := migrate.New(fileURL, connString)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create migrate instance: %w", err)
+		return nil, fmt.Errorf("failed to create migrate instance: %w, url=%s", err, fileURL)
 	}
 
 	return m, nil
