@@ -25,7 +25,7 @@ Recent improvements to the Makefile for better maintainability and dynamic servi
 
 ### Dynamic Service Detection
 - `SERVICES`: Auto-detects all services in `services/` directory (must end with `-service`).
-- `SERVICES_WITH_MIGRATIONS`: Detects services with `migrations/` and `dependencies.json`.
+- `SERVICES_WITH_MIGRATIONS`: Detects services with `migrations/` directory containing `environments.json`.
 - Supports automatic integration of new services without manual Makefile updates.
 
 ### Migration Improvements
@@ -45,7 +45,7 @@ To ensure services are automatically detected and integrated:
 ### Naming Rules
 - **Suffix Required**: All services must end with `-service` (e.g., `user-service`, `auth-service`).
 - **Directory Structure**: Services live in `services/{service-name}/`.
-- **Migration-Enabled**: For migrations, include `migrations/` with `dependencies.json` and `environments.json`.
+- **Migration-Enabled**: For migrations, include `migrations/` directory with `environments.json`.
 
 ### Examples
 ```
@@ -453,9 +453,11 @@ make build-dev         # Build development images with Air
 make build             # Build all services
 
 # Database Commands
-make db-migrate        # Run database migrations
-make db-setup          # Complete database setup
-make db-health         # Check database connectivity
+make db-migrate-init SERVICE_NAME=<service>   # Initialize migration tracking (run once per service)
+make db-migrate-up SERVICE_NAME=<service>      # Apply pending migrations
+make db-migrate-down SERVICE_NAME=<service>    # Rollback last migration
+
+> **Note**: Migrations use environment-specific directories (`development/`, `staging/`, `production/`). Each environment has its own sequential migration files.
 
 # Testing & Maintenance
 make test              # Run all tests
