@@ -1,5 +1,5 @@
--- Environment: development
--- Remove relationship-types and object permissions from roles
+-- Environment: staging
+-- Remove role permissions
 DELETE FROM auth_service.role_permissions
 WHERE permission_id IN (
     SELECT id FROM auth_service.permissions

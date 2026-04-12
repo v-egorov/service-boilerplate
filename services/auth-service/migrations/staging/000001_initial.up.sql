@@ -83,7 +83,8 @@ CREATE TRIGGER update_auth_tokens_updated_at
 -- Insert default roles
 INSERT INTO auth_service.roles (name, description) VALUES
     ('admin', 'Administrator with full access'),
-    ('user', 'Regular user with basic access')
+    ('user', 'Regular user with basic access'),
+    ('object-type-admin', 'Dedicated role for managing object types and objects')
 ON CONFLICT (name) DO NOTHING;
 
 -- Insert default permissions
