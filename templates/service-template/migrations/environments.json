@@ -2,11 +2,7 @@
   "environments": {
     "development": {
       "description": "Development environment with test data and debug features",
-      "migrations": [
-        "000001_initial.up.sql",
-        "000003_dev_test_data.up.sql"
-      ],
-      "seed_files": [],
+      "migrations": "development",
       "config": {
         "allow_destructive_operations": true,
         "skip_validation": false,
@@ -15,10 +11,7 @@
     },
     "staging": {
       "description": "Staging environment for pre-production testing",
-      "migrations": [
-        "000001_initial.up.sql"
-      ],
-      "seed_files": [],
+      "migrations": "staging",
       "config": {
         "allow_destructive_operations": false,
         "skip_validation": false,
@@ -28,10 +21,7 @@
     },
     "production": {
       "description": "Production environment with strict controls",
-      "migrations": [
-        "000001_initial.up.sql"
-      ],
-      "seed_files": [],
+      "migrations": "production",
       "config": {
         "allow_destructive_operations": false,
         "skip_validation": false,

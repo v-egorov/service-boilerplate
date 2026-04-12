@@ -422,7 +422,7 @@ if [ "$CREATE_DB_SCHEMA" = true ]; then
     docker-compose exec postgres psql -U postgres -d service_db -c "CREATE SCHEMA IF NOT EXISTS $SCHEMA_VALUE;" 2>/dev/null ||
         echo "Note: Database may not be running yet. Schema will be created when migrations run."
 
-    if [ -f "services/$SERVICE_NAME/migrations/000001_initial.up.sql" ]; then
+    if [ -f "services/$SERVICE_NAME/migrations/development/000001_initial.up.sql" ]; then
         echo "Database schema created. Run migrations with:"
         echo "  make db-migrate-init SERVICE_NAME=$SERVICE_NAME"
         echo "  make db-migrate-up SERVICE_NAME=$SERVICE_NAME"

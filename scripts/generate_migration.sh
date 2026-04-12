@@ -18,7 +18,7 @@ if [ -z "$SERVICE_NAME" ] || [ -z "$MIGRATION_NAME" ]; then
     exit 1
 fi
 
-MIGRATION_DIR="services/${SERVICE_NAME}/migrations"
+MIGRATION_DIR="services/${SERVICE_NAME}/migrations/development"
 TEMPLATES_DIR="${MIGRATION_DIR}/templates"
 
 # Create directories if they don't exist
@@ -166,33 +166,9 @@ EOF
         ;;
 esac
 
-# Update dependencies file
-DEPENDENCIES_FILE="${MIGRATION_DIR}/dependencies.json"
-
-if [ -f "$DEPENDENCIES_FILE" ]; then
-    # Get last migration ID for dependency
-    LAST_MIGRATION_ID=$(jq -r '.migrations | keys | last' "$DEPENDENCIES_FILE" 2>/dev/null || echo "")
-
-    # Add new migration to dependencies
-    jq --arg id "${MIGRATION_ID}" \
-       --arg name "${MIGRATION_NAME}" \
-       --arg type "${MIGRATION_TYPE}" \
-       --arg depends_on "${LAST_MIGRATION_ID:-[]}" \
-       '.migrations[$id] = {
-         "description": $name,
-         "depends_on": ($depends_on | if . == "[]" then [] else [$depends_on] end),
-         "migration_type": $type,
-         "affects_tables": [],
-         "estimated_duration": "30s",
-         "risk_level": "medium",
-         "rollback_safe": true,
-         "created_at": (now | strftime("%Y-%m-%dT%H:%M:%SZ"))
-       }' "$DEPENDENCIES_FILE" > "${DEPENDENCIES_FILE}.tmp" && mv "${DEPENDENCIES_FILE}.tmp" "$DEPENDENCIES_FILE"
-fi
-
-# Create documentation template
-DOC_FILE="${MIGRATION_DIR}/docs/migration_${MIGRATION_ID}.md"
-mkdir -p "${MIGRATION_DIR}/docs"
+# Create documentation template (in development docs directory)
+DOC_FILE="services/${SERVICE_NAME}/migrations/docs/migration_${MIGRATION_ID}.md"
+mkdir -p "services/${SERVICE_NAME}/migrations/docs"
 
 cat > "$DOC_FILE" << EOF
 # Migration: ${MIGRATION_ID}_${MIGRATION_NAME}
