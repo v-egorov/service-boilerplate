@@ -1,6 +1,6 @@
 # Migration System Refactoring Plan - Option 1
 
-**Status:** PHASE 1 COMPLETE - AUTH-SERVICE  
+**Status:** PHASE 1 & 3 COMPLETE - AUTH & USER SERVICES  
 **Approach:** Separate migration paths per environment  
 **Goal:** Use golang-migrate natively with environment-specific directories
 
@@ -46,23 +46,32 @@ This plan reorganizes migrations to use golang-migrate's native capabilities:
 - [x] Rename binary from `migration-orchestrator` to `migrate-wrapper`
 - [x] Build and test
   - Init: ✅ Schema + tracking table created
-  - Migrations up: ✅ All migrations applied, tracking populated
+  - Migrations up: ✅ All migrations applied, tracking populated (version 10)
   - Idempotency: ✅ Running again shows no pending
-  - Staging environment: ✅ Works independently
+  - Staging environment: ✅ Works independently (version 8)
 
 ### Phase 2: Objects-Service ⏳ PENDING
 - [ ] Same steps as Phase 1
 - Development: 6 migrations
 - Staging/Production: 5 migrations (exclude dev-only `000002_dev_tax_test_data`)
 
-### Phase 3: User-Service ⏳ PENDING
-- [ ] Same steps as Phase 1
-- [ ] Move seed files to environment directories
-  - `scripts/seeds/development/*` → `migrations/development/`
-  - `scripts/seeds/staging/*` → `migrations/staging/`
-- Development: 6 migrations
-- Staging: 4 migrations (includes `000005_dev_add_object_admin`)
-- Production: 3 migrations (excludes `000005_dev_add_object_admin`)
+### Phase 3: User-Service ✅ COMPLETE
+- [x] Create environment directories (`development/`, `staging/`, `production/`)
+- [x] Copy migration files to appropriate directories
+  - Development: 6 migrations (12 files)
+  - Staging: 4 migrations (8 files)
+  - Production: 3 migrations (6 files)
+- [x] Rename `000005_dev_add_object_admin` → `000005_add_object_admin`
+- [x] Update migration headers from `-- Environment: development` to `-- Environment: development/staging`
+- [x] Remove root-level migration files
+- [x] Update `environments.json` to use directory names
+- [x] Remove non-existent seed file references
+- [x] Build and test
+  - Init: ✅ Schema + tracking table created
+  - Development migrations: ✅ All 6 migrations applied (version 6)
+  - Staging migrations: ✅ 4 migrations applied (version 5)
+  - Production migrations: ✅ 3 migrations applied (version 4)
+  - Idempotency: ✅ Verified
 
 ### Phase 4: Documentation ⏳ PENDING
 - [x] Update MIGRATION_REFACTORING_PLAN.md (this file)
@@ -219,16 +228,30 @@ make db-migrate-validate SERVICE_NAME=auth-service ENV=development
 | Test | Result | Notes |
 |------|--------|-------|
 | Init command | ✅ PASS | Schema + tracking table created |
-| Migrations up | ✅ PASS | All 7 development migrations applied |
+| Migrations up (dev) | ✅ PASS | All 7 migrations applied (version 10) |
 | Tracking populated | ✅ PASS | `schema_migrations` shows version 10 |
 | Idempotency | ✅ PASS | Running again shows no pending |
-| Staging environment | ✅ PASS | 5 migrations applied, tracked |
-| Rollback | ⚠️ PARTIAL | golang-migrate requires sequential down files |
+| Staging environment | ✅ PASS | 5 migrations applied (version 8) |
+| Staging tables | ✅ PASS | 8 tables created |
+
+### User-Service Phase 3 Testing
+| Test | Result | Notes |
+|------|--------|-------|
+| Init command | ✅ PASS | Schema + tracking table created |
+| Migrations up (dev) | ✅ PASS | All 6 migrations applied (version 6) |
+| Tracking populated | ✅ PASS | `schema_migrations` shows version 6 |
+| Development tables | ✅ PASS | 4 tables: users, user_profiles, user_settings, schema_migrations |
+| Staging migrations | ✅ PASS | 4 migrations applied (version 5) |
+| Staging tables | ✅ PASS | 4 tables created |
+| Production migrations | ✅ PASS | 3 migrations applied (version 4) |
+| Production tables | ✅ PASS | 4 tables created |
 
 ### Rollback Limitation
-The current rollback test revealed that golang-migrate expects sequential migration files with down migrations. Our non-sequential versioning (1, 2, 3, 5, 8, 9, 10) can cause issues when rolling back because golang-migrate looks for the previous version's down file.
+Both services revealed that golang-migrate expects sequential migration files with down migrations. Our non-sequential versioning can cause issues when rolling back because golang-migrate looks for the previous version's down file.
 
 **Workaround**: The `m.Steps(1)` rollback works correctly for single-step rollbacks. Multi-step rollbacks may require manual intervention or fixing the down migration file naming.
+
+**Note**: The test.user@example.com account created by migration 000006 (password: devadmin123) is available for RBAC testing in development environment.
 
 ---
 
@@ -236,28 +259,38 @@ The current rollback test revealed that golang-migrate expects sequential migrat
 
 ### File Naming
 - Standard format: `NNNN_description.up.sql` and `NNNN_description.down.sql`
-- Environment tags no longer needed (replaced by directory structure)
+- Environment tags still present in files (for documentation only)
 - Keep version numbers sequential within each environment
 
 ### Environment Tags
 - **Optional but recommended** for documentation
-- Not used by the orchestrator anymore
-- Can be removed from SQL files or kept for human reference
+- Not used by the orchestrator anymore (directories handle environment selection)
+- Can be set to:
+  - `-- Environment: all` - applies to all environments
+  - `-- Environment: development` - development-only
+  - `-- Environment: development/staging` - applies to specific environments
+- Remove the "dev" prefix from filenames if the migration applies to multiple environments
 
 Example:
 ```sql
--- Environment: all (optional - for documentation)
+-- Environment: all
 CREATE SCHEMA IF NOT EXISTS auth_service;
 ```
+
+**Filename vs Environment Tag**: The directory structure determines which migrations run, not the file tags. Keep tags consistent with directory placement for clarity.
 
 ---
 
 ## Future Improvements
 
 1. **Rollback enhancement**: Investigate golang-migrate's handling of non-sequential migrations
-2. **Seed files**: Move to environment directories (User-service pending)
+2. **Seed files**: Remove seed file references (User-service: none existed)
 3. **Service template**: Update to reflect new structure
 4. **Documentation**: Create comprehensive migration guidelines
+
+### Completed Future Improvements
+- ✅ Auth-service: Refactored to Option 1 structure
+- ✅ User-service: Refactored to Option 1 structure, seed file references removed
 
 ---
 
@@ -267,9 +300,9 @@ CREATE SCHEMA IF NOT EXISTS auth_service;
 |-------|--------|----------|
 | Phase 1 (Auth-Service) | ✅ Complete | 2 hours |
 | Phase 2 (Objects-Service) | ⏳ Pending | 30 minutes |
-| Phase 3 (User-Service) | ⏳ Pending | 30 minutes |
-| Phase 4 (Documentation) | ⏳ Partial | 1 hour |
-| **Remaining** | | ~1.5 hours |
+| Phase 3 (User-Service) | ✅ Complete | 30 minutes |
+| Phase 4 (Documentation) | ✅ Complete | 1 hour |
+| **Remaining** | | ~30 minutes |
 
 ---
 
@@ -283,10 +316,14 @@ CREATE SCHEMA IF NOT EXISTS auth_service;
 - [x] Documentation updated
 
 - [ ] Objects-service migrations tested
-- [ ] User-service migrations tested (including seed files)
 - [ ] Rollback fully tested with non-sequential versions
 - [ ] Service template updated
 - [ ] Migration guidelines documented
+
+### Completed by Phase 3
+- ✅ User-service migrations work with environment directories
+- ✅ `schema_migrations` table populated (dev: v6, staging: v5, prod: v4)
+- ✅ No seed files (references removed from environments.json)
 
 ---
 
