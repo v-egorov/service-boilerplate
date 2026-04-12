@@ -35,9 +35,9 @@ The Makefile automatically detects services using these patterns:
 # Auto-detect all services
 SERVICES := $(shell ls services/ | grep -E '.*-service$$' | sort)
 
-# Auto-detect services with migrations
+# Auto-detect services with migrations (checks for environments.json)
 SERVICES_WITH_MIGRATIONS := $(shell find services -name "migrations" -type d \
-  -exec test -f {}/dependencies.json \; -print 2>/dev/null \
+  -exec test -f {}/environments.json \; -print 2>/dev/null \
   | sed 's|/migrations||' | sed 's|services/||' | sort)
 ```
 
@@ -47,10 +47,11 @@ For services to participate in database migrations, they must have:
 ```
 services/{service-name}/
 └── migrations/
-    ├── dependencies.json    # Required for detection
-    ├── environments.json    # Required for orchestrator
-    ├── README.md           # Optional documentation
-    └── *.sql               # Migration files
+    ├── environments.json    # Required for configuration
+    ├── development/         # Development migrations
+    ├── staging/            # Staging migrations
+    ├── production/          # Production migrations
+    └── README.md           # Optional documentation
 ```
 
 ## create-service.sh Integration
@@ -97,14 +98,14 @@ If a service isn't picked up by the Makefile:
 
 1. Check name ends with `-service`
 2. Verify directory exists in `services/`
-3. For migrations: ensure `migrations/dependencies.json` exists
+3. For migrations: ensure `migrations/environments.json` exists
 4. Run `make` to see if SERVICES variable includes it
 
 ### Migration Issues
 If migrations don't run:
 
-1. Verify `services/{name}/migrations/dependencies.json` exists
-2. Check `environments.json` is present
+1. Verify `services/{name}/migrations/environments.json` exists
+2. Ensure migration files are in environment directories (development/, staging/, production/)
 3. Ensure JSON files are valid
 4. Run `make db-migrate-validate SERVICE_NAME={name}`
 
@@ -129,10 +130,12 @@ services/user-service/
 │   ├── services/
 │   └── models/
 ├── migrations/
-│   ├── dependencies.json
 │   ├── environments.json
-│   ├── 000001_initial.up.sql
-│   └── 000001_initial.down.sql
+│   ├── development/
+│   │   ├── 000001_initial.up.sql
+│   │   └── 000001_initial.down.sql
+│   ├── staging/
+│   └── production/
 ├── Dockerfile
 ├── Dockerfile.dev
 ├── go.mod

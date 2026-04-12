@@ -117,9 +117,10 @@ Each service has an `environments.json` file that specifies which migration dire
 ## Documentation
 
 - **[Getting Started](./getting-started.md)**: Basic setup and first migration
-- **[Best Practices](./best-practices.md)**: Guidelines and recommendations
+- **[Best Practices](./guide.md)**: Guidelines and real-world examples
 - **[Troubleshooting](./troubleshooting.md)**: Common issues and solutions
 - **[Migration Types](./migration-types.md)**: Different migration categories
+- **[Advanced Features](./advanced-features.md)**: Environment-specific migrations
 
 ---
 

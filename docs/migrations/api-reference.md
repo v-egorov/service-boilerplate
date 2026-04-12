@@ -92,10 +92,9 @@ make db-migrate-generate NAME=migrate_user_data TYPE=data
 - `TYPE`: Migration type (table, index, data, schema)
 
 **Generated Files:**
-- `services/user-service/migrations/00000X_{name}.up.sql`
-- `services/user-service/migrations/00000X_{name}.down.sql`
+- `services/user-service/migrations/development/00000X_{name}.up.sql`
+- `services/user-service/migrations/development/00000X_{name}.down.sql`
 - `services/user-service/migrations/docs/migration_00000X.md`
-- Updates `dependencies.json`
 
 #### `make db-validate`
 Comprehensive validation of migration files and dependencies.
@@ -122,21 +121,16 @@ make db-validate
 **Validation Checks:**
 - SQL syntax validation
 - File structure (up/down pairs)
-- Dependency graph integrity
 - Schema qualification
-- Best practices compliance
+- JSON config validity
 
 #### `make db-migration-deps`
-Display the migration dependency graph.
+Display migration information (legacy command).
 
 ```bash
-# Show dependency relationships
+# Show migration info
 make db-migration-deps
-
-# Output:
-🔗 Migration Dependencies:
-000001: []
-000002: ["000001"]
+```
 000003: ["000001"]
 000004: ["000003"]
 ```
@@ -469,38 +463,22 @@ CREATE TABLE user_service.user_settings (...);
 DROP TABLE user_service.user_settings CASCADE;
 ```
 
-### Dependencies File (`dependencies.json`)
-
-```json
-{
-  "migrations": {
-    "000001": {
-      "description": "Initial schema setup",
-      "depends_on": [],
-      "affects_tables": ["user_service.users"],
-      "estimated_duration": "30s",
-      "risk_level": "low",
-      "rollback_safe": true
-    }
-  },
-  "global_config": {
-    "max_parallel_migrations": 1,
-    "require_approval_for_high_risk": true
-  }
-}
-```
-
 ### Environment Configuration (`environments.json`)
 
 ```json
 {
   "environments": {
     "development": {
-      "migrations": ["000003_dev_data.up.sql"],
+      "migrations": "development",
       "config": {
-        "allow_destructive_operations": true,
-        "skip_validation": false
+        "allow_destructive_operations": true
       }
+    },
+    "staging": {
+      "migrations": "staging"
+    },
+    "production": {
+      "migrations": "production"
     }
   },
   "current_environment": "development"
