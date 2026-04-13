@@ -382,6 +382,9 @@ SERVICES := $(shell ls services/ | grep -E '.*-service$$' | sort)
 
 # Auto-detect services with migrations (exclude empty directories)
 SERVICES_WITH_MIGRATIONS := $(shell find services -name "migrations" -type d -exec test -f {}/environments.json \; -print 2>/dev/null | sed 's|/migrations||' | sed 's|services/||' | sort)
+
+# Fixed migration order: auth-service must run first (creates roles/permissions that user-service depends on)
+SERVICE_MIGRATION_ORDER := auth-service user-service objects-service
 POSTGRES_NAME ?= postgres
 
 # Database URL construction for targets
@@ -556,43 +559,19 @@ db-migrate: ## Run migrations for all services (or specific service if SERVICE_N
 		$(MAKE) db-migrate-init SERVICE_NAME=$(SERVICE_NAME); \
 		$(MAKE) db-migrate-up SERVICE_NAME=$(SERVICE_NAME); \
 	else \
-		echo "📈 Running migrations for all services: $(SERVICES_WITH_MIGRATIONS)"; \
+		echo "📈 Running migrations for all services: $(SERVICE_MIGRATION_ORDER)"; \
 		$(MAKE) db-migrate-all; \
 	fi
 
 .PHONY: db-migrate-all
-db-migrate-all: build-migrate-wrapper ## Run migrations for all services with migrations using wrapper
-	@echo "🔗 Resolving service dependencies..."
-	@SERVICES_ORDER=$$(docker run --rm \
-		--network $(NETWORK_NAME) \
-		--env-file $(ENV_FILE) \
-		-e DB_HOST=$(POSTGRES_NAME) \
-		-e DB_PORT=$(DATABASE_PORT) \
-		-e DB_USER=$(DATABASE_USER) \
-		-e DB_PASSWORD=$(DATABASE_PASSWORD) \
-		-e DB_NAME=$(DATABASE_NAME) \
-		-e DB_SSL_MODE=$(DATABASE_SSL_MODE) \
-		-v $(PWD):/workspace \
-		-w /workspace \
-		$(ORCHESTRATOR_IMAGE) \
-		resolve-dependencies $(SERVICES_WITH_MIGRATIONS) 2>/dev/null | grep "SERVICES_ORDER:" | cut -d: -f2); \
-		if [ $$? -eq 0 ] && [ -n "$$SERVICES_ORDER" ]; then \
-			echo "📈 Running migrations in dependency order: $$SERVICES_ORDER"; \
-			for service in $$SERVICES_ORDER; do \
-				echo "📈 Running migrations for $$service..."; \
-				$(MAKE) db-migrate-init SERVICE_NAME=$$service; \
-				$(MAKE) db-migrate-up SERVICE_NAME=$$service || echo "❌ Failed to migrate $$service"; \
-			done; \
-			echo "✅ All service migrations completed successfully"; \
-		else \
-			echo "⚠️  Dependency resolution failed, falling back to alphabetical order: $(SERVICES_WITH_MIGRATIONS)"; \
-			for service in $(SERVICES_WITH_MIGRATIONS); do \
-				echo "📈 Running migrations for $$service..."; \
-				$(MAKE) db-migrate-init SERVICE_NAME=$$service; \
-				$(MAKE) db-migrate-up SERVICE_NAME=$$service || echo "❌ Failed to migrate $$service"; \
-			done; \
-			echo "✅ All service migrations completed successfully"; \
-		fi
+db-migrate-all: build-migrate-wrapper ## Run migrations for all services in correct order
+	@echo "📈 Running migrations in order: $(SERVICE_MIGRATION_ORDER)"
+	@for service in $(SERVICE_MIGRATION_ORDER); do \
+		echo "📈 Running migrations for $$service..."; \
+		$(MAKE) db-migrate-init SERVICE_NAME=$$service; \
+		$(MAKE) db-migrate-up SERVICE_NAME=$$service || echo "❌ Failed to migrate $$service"; \
+	done
+	@echo "✅ All service migrations completed successfully"
 
 .PHONY: db-rollback
 db-rollback: db-migrate-down ## Rollback last migration (alias for db-migrate-down)
@@ -649,14 +628,9 @@ db-validate: ## Validate migration files and dependencies
 	@echo "🔍 Validating migrations..."
 	@./scripts/validate_migration.sh $(SERVICE_NAME)
 
-.PHONY: db-migration-deps
-db-migration-deps: ## Show migration dependency graph
-	@echo "🔗 Migration Dependencies:"
-	@if command -v jq &> /dev/null; then \
-		jq -r '.migrations | to_entries[] | "\(.key): \(.value.depends_on)"' services/user-service/migrations/dependencies.json; \
-	else \
-		echo "❌ jq not installed. Install jq to view dependency graph."; \
-	fi
+.PHONY: db-migration-order
+db-migration-order: ## Show migration execution order
+	@echo "📋 Migration execution order: $(SERVICE_MIGRATION_ORDER)"
 
 .PHONY: db-backup
 db-backup: ## Create timestamped database backup
@@ -1571,7 +1545,7 @@ help-db: ## Show database commands
 	@echo ""
 	@echo "Advanced Features:"
 	@echo "  db-validate        - Validate migration files and dependencies"
-	@echo "  db-migration-deps  - Show migration dependency graph"
+	@echo "  db-migration-order - Show migration execution order"
 	@echo "  db-backup          - Create timestamped database backup"
 	@echo ""
 	@echo "Examples:"
