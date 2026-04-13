@@ -92,7 +92,11 @@ Configuration is stored in ONE file:
 2. `make db-migrate-up SERVICE_NAME=<service-name>` - apply all pending migrations
 3. `make db-migrate-down SERVICE_NAME=<service-name>` - rollback one migration
 
-**Note:** `db-migrate-init` only needs to be run once when setting up a new service schema. Subsequent runs only need `db-migrate-up`.
+**Or run all services at once:**
+- `make db-migrate` - runs all services in correct order (auth-service → user-service → objects-service)
+- `make db-migration-order` - show migration execution order
+
+**Note:** `db-migrate-init` only needs to be run once when setting up a new service schema. Subsequent runs only need `db-migrate-up`. auth-service must run first because user-service migrations depend on auth_service schema (roles, permissions).
 
 ### Development vs Staging/Production
 - Development includes test data migrations (more migrations)
