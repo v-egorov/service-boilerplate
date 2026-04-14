@@ -69,8 +69,11 @@ func (o *Orchestrator) GetMigrationState(ctx context.Context) (*types.ServiceMig
 	appliedVersions := o.getAppliedVersionsFromGolangMigrate()
 
 	var executions []types.MigrationExecution
-	for _, version := range appliedVersions {
-		migrationID := fmt.Sprintf("%06d", version)
+	for versionNumber, version := range appliedVersions {
+		if !version {
+			continue
+		}
+		migrationID := fmt.Sprintf("%06d", versionNumber)
 		now := time.Now()
 		execution := types.MigrationExecution{
 			MigrationID: migrationID,
