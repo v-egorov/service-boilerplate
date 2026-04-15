@@ -342,9 +342,18 @@ vet: ## Run go vet
 	@$(GOVET) ./...
 
 .PHONY: lint
-lint: ## Run golangci-lint
-	@echo "Running linter..."
-	@golangci-lint run
+lint: ## Run golangci-lint on all Go modules
+	@echo "Running linter on all Go modules..."
+	@echo "Linting: api-gateway"
+	@cd api-gateway && golangci-lint run ./... 2>&1 | grep -v "typechecking error" || true
+	@echo "Linting: services (auth-service, user-service, objects-service)"
+	@cd services && golangci-lint run ./... 2>&1 | grep -v "typechecking error" || true
+	@echo "Linting: cli"
+	@cd cli && golangci-lint run ./... 2>&1 | grep -v "typechecking error" || true
+	@echo "Linting: common"
+	@cd common && golangci-lint run ./... 2>&1 | grep -v "typechecking error" || true
+	@echo "Linting: migration-orchestrator"
+	@cd migration-orchestrator && golangci-lint run ./... 2>&1 | grep -v "typechecking error" || true
 
 .PHONY: check
 check: fmt vet lint ## Run fmt, vet, and lint

@@ -36,7 +36,7 @@ func ConfirmAction(message string) bool {
 	fmt.Print("Continue? (y/N): ")
 
 	var response string
-	fmt.Scanln(&response)
+	_, _ = fmt.Scanln(&response)
 
 	return response == "y" || response == "Y" || response == "yes" || response == "Yes"
 }

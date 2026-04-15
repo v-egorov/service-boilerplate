@@ -1,0 +1,54 @@
+# golangci-lint configuration
+# https://golangci-lint.run/usage/configuration/
+#
+# Usage:
+#   make lint              - Run linter on all source directories
+#
+# Note: docker/volumes contains Docker runtime data and is automatically excluded
+# from scanning. The lint target processes each Go module separately.
+
+run:
+  # Timeout for analysis
+  timeout: 5m
+
+  # Skip vendor directories
+  exclude-dirs:
+    - vendor
+    - .git
+    - docker/volumes
+
+  # Skip files patterns
+  exclude-files:
+    - ".*\\.pb\\.go$"
+
+  # Use build cache
+  build-tags:
+    - integration
+
+linters:
+  enable:
+    - errcheck
+    - gofmt
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - typecheck
+
+linters-settings:
+  errcheck:
+    # Ignore specific functions that may return errors we intentionally ignore
+    exclude-functions:
+      - fmt:.*,io:Close,os:Remove*
+
+issues:
+  # Maximum issues count per one linter
+  max-issues-per-linter: 10000
+
+  # Maximum count of issues with the same text
+  max-same-issues: 10000
+
+  # Excluding configuration
+  exclude:
+    - 'Error return value of `viper.BindEnv` is not checked'
+    - 'Error return value of `tx.Rollback` is not checked'

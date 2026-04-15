@@ -1,0 +1,27 @@
+# golangci-lint configuration for services
+# This config is shared by all services in the services/ directory
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck
+    - gofmt
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - typecheck
+
+linters-settings:
+  errcheck:
+    exclude-functions:
+      - fmt:.*,io:Close,os:Remove*
+
+issues:
+  max-issues-per-linter: 10000
+  max-same-issues: 10000
+  exclude:
+    - 'Error return value of `viper.BindEnv` is not checked'
+    - 'Error return value of `tx.Rollback` is not checked'
