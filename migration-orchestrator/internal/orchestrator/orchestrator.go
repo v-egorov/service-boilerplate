@@ -262,14 +262,6 @@ func (o *Orchestrator) tableExists(tableName string) bool {
 	return err == nil && exists
 }
 
-// schemaExists checks if a schema exists
-func (o *Orchestrator) schemaExists() bool {
-	query := fmt.Sprintf("SELECT 1 FROM information_schema.schemata WHERE schema_name = '%s'", o.schemaName)
-	var exists int
-	err := o.db.GetPool().QueryRow(context.Background(), query).Scan(&exists)
-	return err == nil && exists == 1
-}
-
 // loadJSONFile is a private helper to load JSON files
 func (o *Orchestrator) loadJSONFile(filename string, v interface{}) error {
 	data, err := os.ReadFile(filename)
