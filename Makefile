@@ -276,20 +276,10 @@ status: ## Show current environment status and running services
 logs: ## Show service logs
 	@$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(DOCKER_COMPOSE_FILE) logs -f
 
-
-
-
-
-
-
-
-
 .PHONY: run-cli
 run-cli: build-cli ## Build and run CLI utility
 	@echo "Running CLI utility..."
 	@./$(BUILD_DIR)/boilerplate-cli
-
-
 
 .PHONY: test
 test: ## Run all tests
@@ -312,7 +302,7 @@ test-cli: ## Run CLI tests
 	@cd $(CLI_DIR) && $(GOTEST) ./...
 
 .PHONY: test-all
-test-all: test test-cli ## Run all tests (services + CLI)
+test-all: test-gateway test-auth-service test-user-service test-user-service test-cli ## Run all tests (services + CLI)
 	@echo "✅ All tests completed"
 
 .PHONY: clean
