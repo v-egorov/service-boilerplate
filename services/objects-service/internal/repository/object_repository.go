@@ -349,7 +349,7 @@ func (r *objectRepository) Update(ctx context.Context, id int64, input *models.U
 	}
 
 	// Add version increment and timestamps
-	setClauses = append(setClauses, fmt.Sprintf("version = version + 1"))
+	setClauses = append(setClauses, "version = version + 1")
 	setClauses = append(setClauses, "updated_at = CURRENT_TIMESTAMP")
 	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", argIndex))
 	if input.UpdatedBy != "" {
@@ -605,9 +605,9 @@ func (r *objectRepository) loadObjectTypesForObjects(ctx context.Context, object
 		ids = append(ids, id)
 	}
 
-	query := fmt.Sprintf(`
+	query := `
 		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
-		FROM objects_service.object_types WHERE id = ANY($1::bigint[])`)
+		FROM objects_service.object_types WHERE id = ANY($1::bigint[])`
 
 	rows, err := r.db.Query(ctx, query, ids)
 	if err != nil {
@@ -1297,7 +1297,7 @@ func (r *objectRepository) BulkUpdate(ctx context.Context, ids []int64, updates 
 		return []*models.Object{}, nil
 	}
 
-	setClauses = append(setClauses, fmt.Sprintf("version = version + 1"))
+	setClauses = append(setClauses, "version = version + 1")
 	setClauses = append(setClauses, "updated_at = CURRENT_TIMESTAMP")
 	setClauses = append(setClauses, fmt.Sprintf("updated_by = $%d", argIndex))
 	args = append(args, "system")
@@ -1365,7 +1365,7 @@ func (r *objectRepository) BulkDelete(ctx context.Context, ids []int64) error {
 		return nil
 	}
 
-	idArray := fmt.Sprintf("$1::bigint[]")
+	idArray := "$1::bigint[]"
 	query := fmt.Sprintf(`
 		UPDATE objects_service.objects
 		SET deleted_at = CURRENT_TIMESTAMP, status = 'deleted', updated_at = CURRENT_TIMESTAMP
@@ -1443,7 +1443,7 @@ func (r *objectRepository) GetObjectStats(ctx context.Context, filter *models.Ob
 	}
 
 	if filter != nil && filter.ObjectTypeID != nil {
-		whereClauses = append(whereClauses, fmt.Sprintf("object_type_id = $1"))
+		whereClauses = append(whereClauses, "object_type_id = $1")
 	}
 
 	whereSQL := ""
@@ -1465,11 +1465,11 @@ func (r *objectRepository) GetObjectStats(ctx context.Context, filter *models.Ob
 	}
 	stats.Total = total
 
-	statusQuery := fmt.Sprintf(`
+	statusQuery := `
 		SELECT status, COUNT(*)
 		FROM objects_service.objects
 		WHERE deleted_at IS NULL
-		GROUP BY status`)
+		GROUP BY status`
 
 	rows, err := r.db.Query(ctx, statusQuery)
 	if err != nil {
@@ -1487,11 +1487,11 @@ func (r *objectRepository) GetObjectStats(ctx context.Context, filter *models.Ob
 		stats.ByStatus[status] = count
 	}
 
-	typeQuery := fmt.Sprintf(`
+	typeQuery := `
 		SELECT object_type_id, COUNT(*)
 		FROM objects_service.objects
 		WHERE deleted_at IS NULL
-		GROUP BY object_type_id`)
+		GROUP BY object_type_id`
 
 	rows, err = r.db.Query(ctx, typeQuery)
 	if err != nil {

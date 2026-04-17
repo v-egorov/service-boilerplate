@@ -158,35 +158,25 @@ func (m *MockRow) Scan(dest ...any) error {
 	return pgx.ErrNoRows
 }
 
-// Helper function to create string pointer
-func stringPtr(s string) *string {
-	return &s
-}
-
-// Helper function to create time pointer
-func timePtr(t time.Time) *time.Time {
-	return &t
-}
-
 func TestUserRepository_Create(t *testing.T) {
 	userID := uuid.New()
 	createdAt := time.Now()
 	updatedAt := time.Now()
 
 	tests := []struct {
-		name        string
-		user        *models.User
-		mockRow     *MockRow
+		name         string
+		user         *models.User
+		mockRow      *MockRow
 		expectedUser *models.User
-		expectError bool
+		expectError  bool
 	}{
 		{
 			name: "successful user creation",
 			user: &models.User{
-				Email:     "test@example.com",
+				Email:        "test@example.com",
 				PasswordHash: "hashedpassword",
-				FirstName: "John",
-				LastName:  "Doe",
+				FirstName:    "John",
+				LastName:     "Doe",
 			},
 			mockRow: &MockRow{
 				ScanFunc: func(dest ...any) error {
@@ -197,23 +187,23 @@ func TestUserRepository_Create(t *testing.T) {
 				},
 			},
 			expectedUser: &models.User{
-				ID:          userID,
-				Email:       "test@example.com",
+				ID:           userID,
+				Email:        "test@example.com",
 				PasswordHash: "hashedpassword",
-				FirstName:   "John",
-				LastName:    "Doe",
-				CreatedAt:   createdAt,
-				UpdatedAt:   updatedAt,
+				FirstName:    "John",
+				LastName:     "Doe",
+				CreatedAt:    createdAt,
+				UpdatedAt:    updatedAt,
 			},
 			expectError: false,
 		},
 		{
 			name: "database error",
 			user: &models.User{
-				Email:     "test@example.com",
+				Email:        "test@example.com",
 				PasswordHash: "hashedpassword",
-				FirstName: "John",
-				LastName:  "Doe",
+				FirstName:    "John",
+				LastName:     "Doe",
 			},
 			mockRow: &MockRow{
 				ScanFunc: func(dest ...any) error {
@@ -284,13 +274,13 @@ func TestUserRepository_GetByID(t *testing.T) {
 				},
 			},
 			expectedUser: &models.User{
-				ID:          userID,
-				Email:       "test@example.com",
+				ID:           userID,
+				Email:        "test@example.com",
 				PasswordHash: "hashedpassword",
-				FirstName:   "John",
-				LastName:    "Doe",
-				CreatedAt:   createdAt,
-				UpdatedAt:   updatedAt,
+				FirstName:    "John",
+				LastName:     "Doe",
+				CreatedAt:    createdAt,
+				UpdatedAt:    updatedAt,
 			},
 			expectError: false,
 		},
@@ -366,10 +356,10 @@ func TestUserRepository_Update(t *testing.T) {
 			name: "successful user update",
 			id:   userID,
 			user: &models.User{
-				Email:     "updated@example.com",
+				Email:        "updated@example.com",
 				PasswordHash: "newhashedpassword",
-				FirstName: "Jane",
-				LastName:  "Smith",
+				FirstName:    "Jane",
+				LastName:     "Smith",
 			},
 			mockRow: &MockRow{
 				ScanFunc: func(dest ...any) error {
@@ -384,13 +374,13 @@ func TestUserRepository_Update(t *testing.T) {
 				},
 			},
 			expectedUser: &models.User{
-				ID:          userID,
-				Email:       "updated@example.com",
+				ID:           userID,
+				Email:        "updated@example.com",
 				PasswordHash: "newhashedpassword",
-				FirstName:   "Jane",
-				LastName:    "Smith",
-				CreatedAt:   createdAt,
-				UpdatedAt:   updatedAt,
+				FirstName:    "Jane",
+				LastName:     "Smith",
+				CreatedAt:    createdAt,
+				UpdatedAt:    updatedAt,
 			},
 			expectError: false,
 		},
@@ -398,10 +388,10 @@ func TestUserRepository_Update(t *testing.T) {
 			name: "user not found",
 			id:   userID,
 			user: &models.User{
-				Email:     "updated@example.com",
+				Email:        "updated@example.com",
 				PasswordHash: "newhashedpassword",
-				FirstName: "Jane",
-				LastName:  "Smith",
+				FirstName:    "Jane",
+				LastName:     "Smith",
 			},
 			mockRow: &MockRow{
 				ScanFunc: func(dest ...any) error {
@@ -415,10 +405,10 @@ func TestUserRepository_Update(t *testing.T) {
 			name: "database error",
 			id:   userID,
 			user: &models.User{
-				Email:     "updated@example.com",
+				Email:        "updated@example.com",
 				PasswordHash: "newhashedpassword",
-				FirstName: "Jane",
-				LastName:  "Smith",
+				FirstName:    "Jane",
+				LastName:     "Smith",
 			},
 			mockRow: &MockRow{
 				ScanFunc: func(dest ...any) error {
@@ -545,22 +535,22 @@ func TestUserRepository_List(t *testing.T) {
 			},
 			expectedUsers: []*models.User{
 				{
-					ID:          userID1,
-					Email:       "user1@example.com",
+					ID:           userID1,
+					Email:        "user1@example.com",
 					PasswordHash: "hash1",
-					FirstName:   "John",
-					LastName:    "Doe",
-					CreatedAt:   createdAt,
-					UpdatedAt:   updatedAt,
+					FirstName:    "John",
+					LastName:     "Doe",
+					CreatedAt:    createdAt,
+					UpdatedAt:    updatedAt,
 				},
 				{
-					ID:          userID2,
-					Email:       "user2@example.com",
+					ID:           userID2,
+					Email:        "user2@example.com",
 					PasswordHash: "hash2",
-					FirstName:   "Jane",
-					LastName:    "Smith",
-					CreatedAt:   createdAt,
-					UpdatedAt:   updatedAt,
+					FirstName:    "Jane",
+					LastName:     "Smith",
+					CreatedAt:    createdAt,
+					UpdatedAt:    updatedAt,
 				},
 			},
 			expectError: false,
@@ -651,13 +641,13 @@ func TestUserRepository_GetByEmail(t *testing.T) {
 				},
 			},
 			expectedUser: &models.User{
-				ID:          userID,
-				Email:       "test@example.com",
+				ID:           userID,
+				Email:        "test@example.com",
 				PasswordHash: "hashedpassword",
-				FirstName:   "John",
-				LastName:    "Doe",
-				CreatedAt:   createdAt,
-				UpdatedAt:   updatedAt,
+				FirstName:    "John",
+				LastName:     "Doe",
+				CreatedAt:    createdAt,
+				UpdatedAt:    updatedAt,
 			},
 			expectError: false,
 		},

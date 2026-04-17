@@ -378,7 +378,10 @@ func TestMatchedPermissions_AllAndOwn(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	if err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
 
 	permsIfc := resp["permissions"]
 	perms, ok := permsIfc.([]interface{})

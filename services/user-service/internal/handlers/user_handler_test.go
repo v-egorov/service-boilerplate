@@ -407,10 +407,10 @@ func TestUserHandler_ReplaceUser(t *testing.T) {
 			},
 		},
 		{
-			name:   "invalid request body",
-			userID: userID.String(),
-			requestBody: "invalid json",
-			mockSetup: func(m *MockUserService) {},
+			name:           "invalid request body",
+			userID:         userID.String(),
+			requestBody:    "invalid json",
+			mockSetup:      func(m *MockUserService) {},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: map[string]interface{}{
 				"error": "Invalid request format",
@@ -652,9 +652,9 @@ func TestUserHandler_ListUsers(t *testing.T) {
 			expectedStatus: http.StatusOK,
 		},
 		{
-			name:        "limit too high",
-			queryParams: "?limit=200&offset=0",
-			mockSetup: func(m *MockUserService) {},
+			name:           "limit too high",
+			queryParams:    "?limit=200&offset=0",
+			mockSetup:      func(m *MockUserService) {},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: map[string]interface{}{
 				"error":   "Limit too high",

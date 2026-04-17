@@ -65,13 +65,13 @@ func (m *MockUserRepository) List(ctx context.Context, limit, offset int) ([]*mo
 
 func TestUserService_CreateUser(t *testing.T) {
 	tests := []struct {
-		name           string
-		request        *models.CreateUserRequest
-		mockGetByEmail *models.User
+		name              string
+		request           *models.CreateUserRequest
+		mockGetByEmail    *models.User
 		mockGetByEmailErr error
-		mockCreate     *models.User
-		mockCreateErr error
-		expectError    bool
+		mockCreate        *models.User
+		mockCreateErr     error
+		expectError       bool
 		expectedErrorType string
 	}{
 		{
@@ -82,7 +82,7 @@ func TestUserService_CreateUser(t *testing.T) {
 				FirstName: "John",
 				LastName:  "Doe",
 			},
-			mockGetByEmail: nil,
+			mockGetByEmail:    nil,
 			mockGetByEmailErr: errors.New("no rows"),
 			mockCreate: &models.User{
 				ID:        uuid.New(),
@@ -151,11 +151,11 @@ func TestUserService_CreateUser(t *testing.T) {
 				FirstName: "John",
 				LastName:  "Doe",
 			},
-			mockGetByEmail: nil,
+			mockGetByEmail:    nil,
 			mockGetByEmailErr: errors.New("no rows"),
-			mockCreate:     nil,
-			mockCreateErr:  errors.New("database connection failed"),
-			expectError:    true,
+			mockCreate:        nil,
+			mockCreateErr:     errors.New("database connection failed"),
+			expectError:       true,
 			expectedErrorType: "internal",
 		},
 	}
@@ -212,11 +212,11 @@ func TestUserService_CreateUser(t *testing.T) {
 
 func TestUserService_GetUserByEmail(t *testing.T) {
 	tests := []struct {
-		name          string
-		email         string
-		mockUser      *models.User
-		mockError     error
-		expectError   bool
+		name              string
+		email             string
+		mockUser          *models.User
+		mockError         error
+		expectError       bool
 		expectedErrorType string
 	}{
 		{
@@ -234,25 +234,25 @@ func TestUserService_GetUserByEmail(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:            "user not found",
-			email:           "notfound@example.com",
-			mockUser:        nil,
-			mockError:       errors.New("no rows"),
-			expectError:     true,
+			name:              "user not found",
+			email:             "notfound@example.com",
+			mockUser:          nil,
+			mockError:         errors.New("no rows"),
+			expectError:       true,
 			expectedErrorType: "not_found",
 		},
 		{
-			name:            "empty email",
-			email:           "",
-			expectError:     true,
+			name:              "empty email",
+			email:             "",
+			expectError:       true,
 			expectedErrorType: "validation",
 		},
 		{
-			name:            "database error",
-			email:           "test@example.com",
-			mockUser:        nil,
-			mockError:       errors.New("database connection failed"),
-			expectError:     true,
+			name:              "database error",
+			email:             "test@example.com",
+			mockUser:          nil,
+			mockError:         errors.New("database connection failed"),
+			expectError:       true,
 			expectedErrorType: "internal",
 		},
 	}
@@ -306,11 +306,11 @@ func TestUserService_GetUserByEmail(t *testing.T) {
 
 func TestUserService_GetUserWithPasswordByEmail(t *testing.T) {
 	tests := []struct {
-		name          string
-		email         string
-		mockUser      *models.User
-		mockError     error
-		expectError   bool
+		name              string
+		email             string
+		mockUser          *models.User
+		mockError         error
+		expectError       bool
 		expectedErrorType string
 	}{
 		{
@@ -329,17 +329,17 @@ func TestUserService_GetUserWithPasswordByEmail(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:            "user not found",
-			email:           "notfound@example.com",
-			mockUser:        nil,
-			mockError:       errors.New("no rows"),
-			expectError:     true,
+			name:              "user not found",
+			email:             "notfound@example.com",
+			mockUser:          nil,
+			mockError:         errors.New("no rows"),
+			expectError:       true,
 			expectedErrorType: "not_found",
 		},
 		{
-			name:            "empty email",
-			email:           "",
-			expectError:     true,
+			name:              "empty email",
+			email:             "",
+			expectError:       true,
 			expectedErrorType: "validation",
 		},
 	}
@@ -392,11 +392,11 @@ func TestUserService_GetUser(t *testing.T) {
 	userID := uuid.New()
 
 	tests := []struct {
-		name          string
-		userID        uuid.UUID
-		mockUser      *models.User
-		mockError     error
-		expectError   bool
+		name              string
+		userID            uuid.UUID
+		mockUser          *models.User
+		mockError         error
+		expectError       bool
 		expectedErrorType string
 	}{
 		{
@@ -414,25 +414,25 @@ func TestUserService_GetUser(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:            "user not found",
-			userID:          userID,
-			mockUser:        nil,
-			mockError:       errors.New("no rows"),
-			expectError:     true,
+			name:              "user not found",
+			userID:            userID,
+			mockUser:          nil,
+			mockError:         errors.New("no rows"),
+			expectError:       true,
 			expectedErrorType: "not_found",
 		},
 		{
-			name:            "nil user ID",
-			userID:          uuid.Nil,
-			expectError:     true,
+			name:              "nil user ID",
+			userID:            uuid.Nil,
+			expectError:       true,
 			expectedErrorType: "validation",
 		},
 		{
-			name:            "database error",
-			userID:          userID,
-			mockUser:        nil,
-			mockError:       errors.New("database connection failed"),
-			expectError:     true,
+			name:              "database error",
+			userID:            userID,
+			mockUser:          nil,
+			mockError:         errors.New("database connection failed"),
+			expectError:       true,
 			expectedErrorType: "internal",
 		},
 	}
@@ -495,14 +495,14 @@ func TestUserService_ReplaceUser(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		userID        uuid.UUID
-		request       *models.ReplaceUserRequest
-		mockGetByID   *models.User
-		mockGetByIDErr error
-		mockUpdate    *models.User
-		mockUpdateErr error
-		expectError   bool
+		name              string
+		userID            uuid.UUID
+		request           *models.ReplaceUserRequest
+		mockGetByID       *models.User
+		mockGetByIDErr    error
+		mockUpdate        *models.User
+		mockUpdateErr     error
+		expectError       bool
 		expectedErrorType string
 	}{
 		{
@@ -513,7 +513,7 @@ func TestUserService_ReplaceUser(t *testing.T) {
 				FirstName: "New",
 				LastName:  "User",
 			},
-			mockGetByID: existingUser,
+			mockGetByID:    existingUser,
 			mockGetByIDErr: nil,
 			mockUpdate: &models.User{
 				ID:        userID,
@@ -527,19 +527,19 @@ func TestUserService_ReplaceUser(t *testing.T) {
 			expectError:   false,
 		},
 		{
-			name:            "user not found",
-			userID:          userID,
-			request:         &models.ReplaceUserRequest{Email: "test@example.com", FirstName: "Test", LastName: "User"},
-			mockGetByID:     nil,
-			mockGetByIDErr:  errors.New("user not found"),
-			expectError:     true,
+			name:              "user not found",
+			userID:            userID,
+			request:           &models.ReplaceUserRequest{Email: "test@example.com", FirstName: "Test", LastName: "User"},
+			mockGetByID:       nil,
+			mockGetByIDErr:    errors.New("user not found"),
+			expectError:       true,
 			expectedErrorType: "not_found",
 		},
 		{
-			name:            "nil user ID",
-			userID:          uuid.Nil,
-			request:         &models.ReplaceUserRequest{Email: "test@example.com", FirstName: "Test", LastName: "User"},
-			expectError:     true,
+			name:              "nil user ID",
+			userID:            uuid.Nil,
+			request:           &models.ReplaceUserRequest{Email: "test@example.com", FirstName: "Test", LastName: "User"},
+			expectError:       true,
 			expectedErrorType: "validation",
 		},
 		{
@@ -561,11 +561,11 @@ func TestUserService_ReplaceUser(t *testing.T) {
 				FirstName: "Test",
 				LastName:  "User",
 			},
-			mockGetByID: existingUser,
-			mockGetByIDErr: nil,
-			mockUpdate:    nil,
-			mockUpdateErr: errors.New("duplicate key value violates unique constraint"),
-			expectError:   true,
+			mockGetByID:       existingUser,
+			mockGetByIDErr:    nil,
+			mockUpdate:        nil,
+			mockUpdateErr:     errors.New("duplicate key value violates unique constraint"),
+			expectError:       true,
 			expectedErrorType: "conflict",
 		},
 	}
@@ -632,14 +632,14 @@ func TestUserService_UpdateUser(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		userID        uuid.UUID
-		request       *models.UpdateUserRequest
-		mockGetByID   *models.User
-		mockGetByIDErr error
-		mockUpdate    *models.User
-		mockUpdateErr error
-		expectError   bool
+		name              string
+		userID            uuid.UUID
+		request           *models.UpdateUserRequest
+		mockGetByID       *models.User
+		mockGetByIDErr    error
+		mockUpdate        *models.User
+		mockUpdateErr     error
+		expectError       bool
 		expectedErrorType string
 	}{
 		{
@@ -649,7 +649,7 @@ func TestUserService_UpdateUser(t *testing.T) {
 				Email:     "new@example.com",
 				FirstName: "New",
 			},
-			mockGetByID: existingUser,
+			mockGetByID:    existingUser,
 			mockGetByIDErr: nil,
 			mockUpdate: &models.User{
 				ID:        userID,
@@ -663,25 +663,25 @@ func TestUserService_UpdateUser(t *testing.T) {
 			expectError:   false,
 		},
 		{
-			name:            "user not found",
-			userID:          userID,
-			request:         &models.UpdateUserRequest{Email: "test@example.com"},
-			mockGetByID:     nil,
-			mockGetByIDErr:  errors.New("user not found"),
-			expectError:     true,
+			name:              "user not found",
+			userID:            userID,
+			request:           &models.UpdateUserRequest{Email: "test@example.com"},
+			mockGetByID:       nil,
+			mockGetByIDErr:    errors.New("user not found"),
+			expectError:       true,
 			expectedErrorType: "not_found",
 		},
 		{
-			name:            "nil user ID",
-			userID:          uuid.Nil,
-			request:         &models.UpdateUserRequest{Email: "test@example.com"},
-			expectError:     true,
+			name:              "nil user ID",
+			userID:            uuid.Nil,
+			request:           &models.UpdateUserRequest{Email: "test@example.com"},
+			expectError:       true,
 			expectedErrorType: "validation",
 		},
 		{
-			name:   "empty update request",
-			userID: userID,
-			request: &models.UpdateUserRequest{},
+			name:              "empty update request",
+			userID:            userID,
+			request:           &models.UpdateUserRequest{},
 			expectError:       true,
 			expectedErrorType: "validation",
 		},
@@ -737,10 +737,10 @@ func TestUserService_DeleteUser(t *testing.T) {
 	userID := uuid.New()
 
 	tests := []struct {
-		name          string
-		userID        uuid.UUID
-		mockDeleteErr error
-		expectError   bool
+		name              string
+		userID            uuid.UUID
+		mockDeleteErr     error
+		expectError       bool
 		expectedErrorType string
 	}{
 		{
@@ -750,23 +750,23 @@ func TestUserService_DeleteUser(t *testing.T) {
 			expectError:   false,
 		},
 		{
-			name:            "user not found",
-			userID:          userID,
-			mockDeleteErr:   errors.New("no rows"),
-			expectError:     true,
+			name:              "user not found",
+			userID:            userID,
+			mockDeleteErr:     errors.New("no rows"),
+			expectError:       true,
 			expectedErrorType: "not_found",
 		},
 		{
-			name:            "nil user ID",
-			userID:          uuid.Nil,
-			expectError:     true,
+			name:              "nil user ID",
+			userID:            uuid.Nil,
+			expectError:       true,
 			expectedErrorType: "validation",
 		},
 		{
-			name:            "database error",
-			userID:          userID,
-			mockDeleteErr:   errors.New("database connection failed"),
-			expectError:     true,
+			name:              "database error",
+			userID:            userID,
+			mockDeleteErr:     errors.New("database connection failed"),
+			expectError:       true,
 			expectedErrorType: "internal",
 		},
 	}
@@ -911,9 +911,4 @@ func TestUserService_ListUsers(t *testing.T) {
 			mockRepo.AssertExpectations(t)
 		})
 	}
-}
-
-// Helper function to create string pointer
-func stringPtr(s string) *string {
-	return &s
 }

@@ -300,7 +300,7 @@ func (r *relationshipTypeRepository) Update(ctx context.Context, id int64, input
 	}
 
 	// Always update updated_at and updated_by
-	updates = append(updates, fmt.Sprintf("updated_at = NOW()"))
+	updates = append(updates, "updated_at = NOW()")
 	if input.UpdatedBy != "" {
 		updates = append(updates, fmt.Sprintf("updated_by = $%d", argNum))
 		args = append(args, input.UpdatedBy)

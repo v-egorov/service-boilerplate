@@ -333,7 +333,10 @@ func TestObjectTypeAPI_CreateAndGet(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 
 	var createResp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &createResp)
+	err := json.Unmarshal(w.Body.Bytes(), &createResp)
+	if err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
 	assert.NotNil(t, createResp["data"])
 
 	req2, _ := http.NewRequest("GET", "/api/v1/object-types/1", nil)
@@ -367,7 +370,10 @@ func TestObjectAPI_List(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	var listResp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &listResp)
+	err := json.Unmarshal(w.Body.Bytes(), &listResp)
+	if err != nil {
+		t.Fatalf("failed to unmarshal response: %v", err)
+	}
 	assert.NotNil(t, listResp["data"])
 
 	mockService.AssertExpectations(t)

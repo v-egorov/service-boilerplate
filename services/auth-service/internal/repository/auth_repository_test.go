@@ -173,10 +173,10 @@ func (m *MockRow) Scan(dest ...any) error {
 
 // MockTx is a mock implementation of pgx.Tx for testing
 type MockTx struct {
-	ExecFunc func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-	CommitFunc func(ctx context.Context) error
+	ExecFunc     func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	CommitFunc   func(ctx context.Context) error
 	RollbackFunc func(ctx context.Context) error
-	QueryFunc func(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryFunc    func(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRowFunc func(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
@@ -1965,11 +1965,11 @@ func TestAuthRepository_GetRolePermissions(t *testing.T) {
 	createdAt := time.Now()
 
 	tests := []struct {
-		name            string
-		roleID          uuid.UUID
-		mockRows        *MockRows
-		expectedPerms   []models.Permission
-		expectError     bool
+		name          string
+		roleID        uuid.UUID
+		mockRows      *MockRows
+		expectedPerms []models.Permission
+		expectError   bool
 	}{
 		{
 			name:   "successful permission retrieval",
@@ -1982,17 +1982,17 @@ func TestAuthRepository_GetRolePermissions(t *testing.T) {
 			},
 			expectedPerms: []models.Permission{
 				{
-					ID:       permissionID1,
-					Name:     "read_users",
-					Resource: "users",
-					Action:   "read",
+					ID:        permissionID1,
+					Name:      "read_users",
+					Resource:  "users",
+					Action:    "read",
 					CreatedAt: createdAt,
 				},
 				{
-					ID:       permissionID2,
-					Name:     "write_posts",
-					Resource: "posts",
-					Action:   "write",
+					ID:        permissionID2,
+					Name:      "write_posts",
+					Resource:  "posts",
+					Action:    "write",
 					CreatedAt: createdAt,
 				},
 			},
@@ -2059,10 +2059,10 @@ func TestAuthRepository_AssignRoleToUser(t *testing.T) {
 	roleID := uuid.New()
 
 	tests := []struct {
-		name    string
-		userID  uuid.UUID
-		roleID  uuid.UUID
-		mockExec func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+		name        string
+		userID      uuid.UUID
+		roleID      uuid.UUID
+		mockExec    func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 		expectError bool
 	}{
 		{
@@ -2113,10 +2113,10 @@ func TestAuthRepository_RemoveRoleFromUser(t *testing.T) {
 	roleID := uuid.New()
 
 	tests := []struct {
-		name    string
-		userID  uuid.UUID
-		roleID  uuid.UUID
-		mockExec func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+		name        string
+		userID      uuid.UUID
+		roleID      uuid.UUID
+		mockExec    func(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 		expectError bool
 	}{
 		{
@@ -2168,10 +2168,10 @@ func TestAuthRepository_UpdateUserRoles(t *testing.T) {
 	roleID2 := uuid.New()
 
 	tests := []struct {
-		name     string
-		userID   uuid.UUID
-		roleIDs  []uuid.UUID
-		mockTx   *MockTx
+		name        string
+		userID      uuid.UUID
+		roleIDs     []uuid.UUID
+		mockTx      *MockTx
 		expectError bool
 	}{
 		{
@@ -2203,10 +2203,10 @@ func TestAuthRepository_UpdateUserRoles(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:    "transaction begin error",
-			userID:  userID,
-			roleIDs: []uuid.UUID{roleID1},
-			mockTx:  nil, // This will cause Begin to return an error
+			name:        "transaction begin error",
+			userID:      userID,
+			roleIDs:     []uuid.UUID{roleID1},
+			mockTx:      nil, // This will cause Begin to return an error
 			expectError: true,
 		},
 		{
@@ -2276,10 +2276,10 @@ func TestAuthRepository_CountUsersWithRole(t *testing.T) {
 	roleID := uuid.New()
 
 	tests := []struct {
-		name     string
-		roleID   uuid.UUID
-		mockRow  *MockRow
-		expected int
+		name        string
+		roleID      uuid.UUID
+		mockRow     *MockRow
+		expected    int
 		expectError bool
 	}{
 		{

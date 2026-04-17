@@ -23,11 +23,14 @@ func TestCheckPermission_Allowed(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(checkPermissionResponse{
+		err = json.NewEncoder(w).Encode(checkPermissionResponse{
 			Allowed:    true,
 			UserID:     "user-123",
 			Permission: "objects:create",
 		})
+		if err != nil {
+			t.Logf("Failed to encode response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -44,7 +47,7 @@ func TestCheckPermission_Denied(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(checkPermissionResponse{
+		_ = json.NewEncoder(w).Encode(checkPermissionResponse{
 			Allowed:    false,
 			UserID:     "user-123",
 			Permission: "objects:delete:all",
@@ -83,7 +86,7 @@ func TestGetUserPermissions(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(struct {
+		_ = json.NewEncoder(w).Encode(struct {
 			Permissions []string `json:"permissions"`
 		}{
 			Permissions: []string{"objects:create", "objects:read:own", "object-types:read"},
@@ -106,7 +109,7 @@ func TestGetUserRoles(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(struct {
+		_ = json.NewEncoder(w).Encode(struct {
 			Roles []string `json:"roles"`
 		}{
 			Roles: []string{"user", "object-type-admin"},

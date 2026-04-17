@@ -24,6 +24,10 @@ import (
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/utils"
 )
 
+type contextKey string
+
+const requestIDKey contextKey = "request_id"
+
 // authServiceRevocationChecker implements TokenRevocationChecker for auth-service
 type authServiceRevocationChecker struct {
 	authService *services.AuthService
@@ -212,7 +216,7 @@ func main() {
 		return func(c *gin.Context) {
 			requestID := c.GetHeader("X-Request-ID")
 			if requestID != "" {
-				ctx := context.WithValue(c.Request.Context(), "request_id", requestID)
+				ctx := context.WithValue(c.Request.Context(), requestIDKey, requestID)
 				c.Request = c.Request.WithContext(ctx)
 			}
 			c.Next()

@@ -72,11 +72,6 @@ func (m *MockRows) Err() error {
 	return nil
 }
 
-// Helper functions
-func strPtr(s string) *string {
-	return &s
-}
-
 // TestObjectTypeRepository_Creation tests that repository can be created
 func TestObjectTypeRepository_Creation(t *testing.T) {
 	mockDB := &MockDBPool{}

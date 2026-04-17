@@ -23,6 +23,10 @@ import (
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/services"
 )
 
+type contextKey string
+
+const requestIDKey contextKey = "request_id"
+
 func main() {
 	// Load configuration
 	cfg, err := config.Load(".")
@@ -329,7 +333,7 @@ func requestIDMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		requestID := c.GetHeader("X-Request-ID")
 		if requestID != "" {
-			ctx := context.WithValue(c.Request.Context(), "request_id", requestID)
+			ctx := context.WithValue(c.Request.Context(), requestIDKey, requestID)
 			c.Request = c.Request.WithContext(ctx)
 		}
 		c.Next()
