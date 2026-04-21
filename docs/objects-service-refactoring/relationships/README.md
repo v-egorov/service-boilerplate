@@ -53,20 +53,20 @@ Bidirectional relationships are handled via `reverse_type_key` field:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ object_types                                                     │
-│ ├── id=1: "RelationshipType"  (special marker)                 │
-│ ├── id=2: "Relationship"      (special marker)                 │
+│ object_types                                                    │
+│ ├── id=1: "RelationshipType"  (special marker)                  │
+│ ├── id=2: "Relationship"      (special marker)                  │
 │ └── ... other types                                             │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               │ (instances created as objects)
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ objects (base CTI table)                                         │
-│ ├── id=100: RelationshipType instance "contains"               │
-│ ├── id=101: RelationshipType instance "belongs_to"            │
+│ objects (base CTI table)                                        │
+│ ├── id=100: RelationshipType instance "contains"                │
+│ ├── id=101: RelationshipType instance "belongs_to"              │
 │ ├── id=200: Relationship instance (PortfolioA → AssetX)         │
-│ └── id=201: Relationship instance (DocA → DocB)                │
+│ └── id=201: Relationship instance (DocA → DocB)                 │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               │ (CTI concrete tables)
@@ -74,30 +74,30 @@ Bidirectional relationships are handled via `reverse_type_key` field:
 ┌─────────────────────────────────────────────────────────────────┐
 │ objects_relationship_types (CTI concrete)                       │
 │ ├── object_id PK → objects.id                                   │
-│ ├── type_key VARCHAR(100) NOT NULL UNIQUE                        │
-│ ├── relationship_name VARCHAR(255)                               │
+│ ├── type_key VARCHAR(100) NOT NULL UNIQUE                       │
+│ ├── relationship_name VARCHAR(255)                              │
 │ ├── reverse_type_key VARCHAR(100) NULL                          │
 │ ├── cardinality VARCHAR(20) NOT NULL                            │
-│ ├── required BOOLEAN DEFAULT FALSE                               │
+│ ├── required BOOLEAN DEFAULT FALSE                              │
 │ ├── min_count INTEGER DEFAULT 0                                 │
 │ ├── max_count INTEGER DEFAULT -1                                │
-│ ├── validation_rules JSONB                                       │
+│ ├── validation_rules JSONB                                      │
 │ ├── created_by, updated_by VARCHAR(255)                         │
 │ └── created_at, updated_at TIMESTAMP                            │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
 │ objects_relationships (CTI concrete)                            │
-│ ├── object_id PK → objects.id                                    │
-│ ├── source_object_id → objects.id                                │
-│ ├── target_object_id → objects.id                                │
-│ ├── relationship_type_id → objects.id                            │
+│ ├── object_id PK → objects.id                                   │
+│ ├── source_object_id → objects.id                               │
+│ ├── target_object_id → objects.id                               │
+│ ├── relationship_type_id → objects.id                           │
 │ ├── status VARCHAR(20) DEFAULT 'active'                         │
 │ ├── relationship_metadata JSONB                                 │
 │ ├── created_by, updated_by VARCHAR(255)                         │
 │ ├── created_at, updated_at TIMESTAMP                            │
-│ ├── INDEX on source_object_id                                    │
-│ ├── INDEX on target_object_id                                    │
+│ ├── INDEX on source_object_id                                   │
+│ ├── INDEX on target_object_id                                   │
 │ └── INDEX on (relationship_type_id, status)                     │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -164,8 +164,8 @@ Additional features for relationship system (future work).
 ### Relationship Types
 
 ```
-POST   /api/v1/relationship-types          # Create type
-GET    /api/v1/relationship-types         # List all
+POST   /api/v1/relationship-types        # Create type
+GET    /api/v1/relationship-types        # List all
 GET    /api/v1/relationship-types/{key}  # Get by type_key
 PUT    /api/v1/relationship-types/{key}  # Update
 DELETE /api/v1/relationship-types/{key}  # Delete
@@ -174,10 +174,10 @@ DELETE /api/v1/relationship-types/{key}  # Delete
 ### Relationships
 
 ```
-POST   /api/v1/relationships                        # Create relationship
+POST   /api/v1/relationships                      # Create relationship
 GET    /api/v1/relationships                      # List with filters
-GET    /api/v1/relationships/{public_id}           # Get by ID
-DELETE /api/v1/relationships/{public_id}           # Delete
+GET    /api/v1/relationships/{public_id}          # Get by ID
+DELETE /api/v1/relationships/{public_id}          # Delete
 GET    /api/v1/objects/{id}/relationships         # All relationships for object
 GET    /api/v1/objects/{id}/relationships/{key}   # Relationships by type
 ```
