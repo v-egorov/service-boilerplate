@@ -32,7 +32,7 @@ This phase implements the relationship type management system. Relationship type
 
 **Objective:** Add a special object_type record to mark relationship types.
 
-**Migration File:** `services/objects-service/migrations/development/000004_dev_add_relationship_type_marker.up.sql`
+**Migration File:** `services/objects-service/migrations/development/000004_add_relationship_type_marker.up.sql`
 
 ```sql
 -- Create RelationshipType marker in object_types (if not exists)
@@ -42,7 +42,7 @@ ON CONFLICT (name) DO NOTHING
 RETURNING id;
 ```
 
-**Down Migration:** `000004_dev_add_relationship_type_marker.down.sql`
+**Down Migration:** `000004_add_relationship_type_marker.down.sql`
 
 ```sql
 DELETE FROM objects_service.object_types WHERE name = 'RelationshipType';
@@ -52,7 +52,7 @@ DELETE FROM objects_service.object_types WHERE name = 'RelationshipType';
 
 **Objective:** Create the concrete CTI table for relationship types.
 
-**Migration File:** `services/objects-service/migrations/development/000005_dev_create_objects_relationship_types.up.sql`
+**Migration File:** `services/objects-service/migrations/development/000005_create_objects_relationship_types.up.sql`
 
 ```sql
 CREATE TABLE objects_service.objects_relationship_types (
@@ -83,7 +83,7 @@ COMMENT ON TABLE objects_service.objects_relationship_types IS
     'CTI concrete table for relationship type instances';
 ```
 
-**Down Migration:** `000005_dev_create_objects_relationship_types.down.sql`
+**Down Migration:** `000005_create_objects_relationship_types.down.sql`
 
 ```sql
 DROP TABLE IF EXISTS objects_service.objects_relationship_types;
@@ -309,7 +309,7 @@ relationshipTypes := r.Group("/api/v1/relationship-types")
 
 **Objective:** Add development test data for relationship types.
 
-**Migration File:** `services/objects-service/migrations/development/000006_dev_seed_relationship_types.up.sql`
+**Migration File:** `services/objects-service/migrations/development/000006_seed_relationship_types.up.sql`
 
 ```sql
 -- Seed standard relationship types
@@ -363,7 +363,7 @@ ON CONFLICT (type_key) DO NOTHING;
 -- - depends_on / NULL / many_to_many
 ```
 
-**Down Migration:** `000006_dev_seed_relationship_types.down.sql`
+**Down Migration:** `000006_seed_relationship_types.down.sql`
 
 ```sql
 DELETE FROM objects_service.objects_relationship_types;
@@ -455,60 +455,6 @@ WHERE object_type_id = (SELECT id FROM objects_service.object_types WHERE name =
 **Errors:**
 - 404: type_key not found
 - 409: Relationship type in use
-
----
-
-## Dependencies and Configuration
-
-### Migration Dependencies
-
-Update `services/objects-service/migrations/development/dependencies.json`:
-
-```json
-{
-  "000004": {
-    "description": "Add RelationshipType marker to object_types",
-    "depends_on": ["000003"],
-    "affects_tables": ["objects_service.object_types"],
-    "estimated_duration": "10s",
-    "risk_level": "low",
-    "rollback_safe": true,
-    "environment": "development"
-  },
-  "000005": {
-    "description": "Create objects_relationship_types CTI table",
-    "depends_on": ["000004"],
-    "affects_tables": ["objects_service.objects_relationship_types"],
-    "estimated_duration": "30s",
-    "risk_level": "medium",
-    "rollback_safe": true,
-    "environment": "development"
-  },
-  "000006": {
-    "description": "Seed development relationship types",
-    "depends_on": ["000005"],
-    "affects_tables": ["objects_service.objects", "objects_service.objects_relationship_types"],
-    "estimated_duration": "20s",
-    "risk_level": "low",
-    "rollback_safe": true,
-    "environment": "development"
-  }
-}
-```
-
-Update `services/objects-service/migrations/development/environments.json`:
-
-```json
-{
-  "development": {
-    "migrations": [
-      "development/000004_dev_add_relationship_type_marker.up.sql",
-      "development/000005_dev_create_objects_relationship_types.up.sql",
-      "development/000006_dev_seed_relationship_types.up.sql"
-    ]
-  }
-}
-```
 
 ---
 
