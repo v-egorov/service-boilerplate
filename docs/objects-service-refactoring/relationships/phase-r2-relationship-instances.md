@@ -23,7 +23,8 @@ This phase implements the relationship instance management system. Relationship 
 6. Route registration
 7. Unit tests
 8. Dev migration for seed data
-9. End-to-end test script
+9. RBAC permissions for relationships
+10. End-to-end test script
 
 ---
 
@@ -562,6 +563,144 @@ echo "=== Tests Complete ==="
 
 ---
 
+
+
+### R2.13 RBAC Permissions
+
+**Objective:** Add permissions for relationship instance management and assign to roles.
+
+**Migration File:** `services/auth-service/migrations/development/000008_add_relationships_permissions.up.sql`
+
+```sql
+-- Add relationships permissions
+INSERT INTO auth_service.permissions (name, resource, action) VALUES
+    ('relationships:create', 'relationships', 'create'),
+    ('relationships:read', 'relationships', 'read'),
+    ('relationships:update', 'relationships', 'update'),
+    ('relationships:delete', 'relationships', 'delete')
+ON CONFLICT (name) DO NOTHING;
+```
+
+**Down Migration:** `000008_add_relationships_permissions.down.sql`
+
+```sql
+DELETE FROM auth_service.permissions WHERE name LIKE 'relationships:%';
+```
+
+### R2.14 Assign Permissions to Roles
+
+**Objective:** Assign relationships permissions to admin and object-type-admin roles.
+
+**Migration File:** `services/auth-service/migrations/development/000009_assign_relationships_permissions.up.sql`
+
+```sql
+-- Assign relationships permissions to admin role
+INSERT INTO auth_service.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM auth_service.roles r
+CROSS JOIN auth_service.permissions p
+WHERE r.name = 'admin'
+  AND p.name LIKE 'relationships:%'
+ON CONFLICT DO NOTHING;
+
+-- Assign relationships permissions to object-type-admin role
+INSERT INTO auth_service.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM auth_service.roles r
+CROSS JOIN auth_service.permissions p
+WHERE r.name = 'object-type-admin'
+  AND p.name LIKE 'relationships:%'
+ON CONFLICT DO NOTHING;
+```
+
+**Down Migration:** `000009_assign_relationships_permissions.down.sql`
+
+```sql
+-- Remove relationships permissions from roles
+DELETE FROM auth_service.role_permissions
+WHERE permission_id IN (
+    SELECT id FROM auth_service.permissions WHERE name LIKE 'relationships:%'
+);
+```
+
+### R2.15 End-to-End RBAC Test Script
+
+**Objective:** Create shell script to test relationship instance RBAC.
+
+**File:** `scripts/test-rbac-relationships.sh`
+
+```bash
+#!/bin/bash
+
+# RBAC Test Script for Relationships
+# Tests permission-based access control for relationships endpoints
+# Usage: ./scripts/test-rbac-relationships.sh [--keep-data]
+
+BASE_URL="${BASE_URL:-http://localhost:8080}"
+
+# Test users
+ADMIN_EMAIL="dev.admin@example.com"
+ADMIN_PASSWORD="devadmin123"
+OBJECT_ADMIN_EMAIL="object.admin@example.com"
+OBJECT_ADMIN_PASSWORD="devadmin123"
+TEST_USER_EMAIL="test.user@example.com"
+TEST_USER_PASSWORD="devadmin123"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+# Login and get tokens
+login() {
+    local email=$1
+    local password=$2
+    curl -s -X POST "$BASE_URL/api/v1/auth/login" \
+        -H "Content-Type: application/json" \
+        -d "{\"email\": \"$email\", \"password\": \"$password\"}" | \
+        jq -r '.access_token'
+}
+
+# Test relationship permissions
+ADMIN_TOKEN=$(login "$ADMIN_EMAIL" "$ADMIN_PASSWORD")
+OBJECT_ADMIN_TOKEN=$(login "$OBJECT_ADMIN_EMAIL" "$OBJECT_ADMIN_PASSWORD")
+TEST_USER_TOKEN=$(login "$TEST_USER_EMAIL" "$TEST_USER_PASSWORD")
+
+# RL-1: object.admin CREATE relationship → 201
+curl -s -X POST "$BASE_URL/api/v1/relationships" \
+    -H "Authorization: Bearer $OBJECT_ADMIN_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"source_object_id": "...", "target_object_id": "...", "type_key": "contains"}'
+
+# RL-2: test.user CREATE relationship → 403
+# RL-3: test.user READ relationships → 200
+# ... (similar to relationship-types test pattern)
+```
+
+---
+
+## RBAC Permissions Reference
+
+### Required Permissions
+
+| Permission | Description |
+|------------|-------------|
+| relationships:create | Create new relationship instances |
+| relationships:read | List/get relationship instances |
+| relationships:update | Update relationship instances |
+| relationships:delete | Delete relationship instances |
+
+### Role Assignments
+
+| Role | relationships:create | relationships:read | relationships:update | relationships:delete |
+|------|----------------------|-------------------|---------------------|---------------------|
+| admin | ✅ | ✅ | ✅ | ✅ |
+| object-type-admin | ✅ | ✅ | ✅ | ✅ |
+| user | ❌ | ✅ | ❌ | ❌ |
+
+---
+
 ## Implementation Order
 
 1. **Database migrations first** (R2.1, R2.2)
@@ -574,7 +713,8 @@ echo "=== Tests Complete ==="
 8. **Query methods** (R2.9)
 9. **Tests** (R2.10)
 10. **Dev seed data** (R2.11)
-11. **E2E script** (R2.12)
+11. **RBAC permissions** (R2.13)
+12. **E2E script** (R2.12)
 
 ---
 
@@ -784,7 +924,9 @@ Indexes created:
 - [ ] R2.9 Add query methods
 - [ ] R2.10 Add unit tests
 - [ ] R2.11 Dev migration: seed relationships
-- [ ] R2.12 End-to-end test script
+- [ ] R2.13 RBAC permissions migration
+- [ ] R2.14 Assign permissions to roles
+- [ ] R2.15 End-to-end RBAC test script
 
 ---
 
