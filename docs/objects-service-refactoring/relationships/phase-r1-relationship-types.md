@@ -624,17 +624,21 @@ go test ./internal/services/relationship_type_service_test.go -v
 
 ## Testing Checklist
 
-- [ ] Create relationship type with valid data
-- [ ] Create duplicate type_key returns 409
-- [ ] Create with invalid reverse_type_key returns 422
-- [ ] Create with invalid cardinality returns 422
-- [ ] Create with min_count > max_count returns 422
-- [ ] Update relationship type successfully
-- [ ] Update to duplicate type_key returns 409
-- [ ] Delete relationship type successfully
-- [ ] Delete type in use returns 409
-- [ ] List relationship types with filters
-- [ ] Get by type_key returns correct object
+- [x] Create relationship type with valid data (unit test + RBAC script RT-1)
+- [x] Create duplicate type_key returns 409 (unit test)
+- [x] Create with invalid reverse_type_key returns 422 (unit test)
+- [x] Create with invalid cardinality returns 422 (unit test)
+- [x] Create with min_count > max_count returns 422 (unit test)
+- [x] Update relationship type successfully (unit test + RBAC script RT-5)
+- [ ] Update to duplicate type_key returns 409 (not implemented - requires Phase R2)
+- [x] Delete relationship type successfully (unit test + RBAC script RT-7)
+- [ ] Delete type in use returns 409 (not implemented - requires Phase R2, see TODO in service)
+- [x] List relationship types with filters (unit test + RBAC script RT-3)
+- [x] Get by type_key returns correct object (unit test + RBAC script RT-4)
+
+**Note:** Two checklist items require relationship instances (Phase R2) to fully test:
+- "Update to duplicate type_key" - service validation not implemented
+- "Delete type in use" - service validation not implemented (has TODO comment)
 
 ---
 
