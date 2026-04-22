@@ -33,7 +33,7 @@ This phase implements the relationship instance management system. Relationship 
 
 **Objective:** Add a special object_type record to mark relationship instances.
 
-**Migration File:** `services/objects-service/migrations/development/000007_dev_add_relationship_marker.up.sql`
+**Migration File:** `services/objects-service/migrations/development/000007_add_relationship_marker.up.sql`
 
 ```sql
 -- Create Relationship marker in object_types (if not exists)
@@ -43,7 +43,7 @@ ON CONFLICT (name) DO NOTHING
 RETURNING id;
 ```
 
-**Down Migration:** `000007_dev_add_relationship_marker.down.sql`
+**Down Migration:** `000007_add_relationship_marker.down.sql`
 
 ```sql
 DELETE FROM objects_service.object_types WHERE name = 'Relationship';
@@ -53,7 +53,7 @@ DELETE FROM objects_service.object_types WHERE name = 'Relationship';
 
 **Objective:** Create the concrete CTI table for relationship instances.
 
-**Migration File:** `services/objects-service/migrations/development/000008_dev_create_objects_relationships.up.sql`
+**Migration File:** `services/objects-service/migrations/development/000008_create_objects_relationships.up.sql`
 
 ```sql
 CREATE TABLE objects_service.objects_relationships (
@@ -83,7 +83,7 @@ COMMENT ON TABLE objects_service.objects_relationships IS
     'CTI concrete table for relationship instances';
 ```
 
-**Down Migration:** `000008_dev_create_objects_relationships.down.sql`
+**Down Migration:** `000008_create_objects_relationships.down.sql`
 
 ```sql
 DROP TABLE IF EXISTS objects_service.objects_relationships;
@@ -450,7 +450,7 @@ func (r *RelationshipRepository) GetForObject(ctx context.Context, objectID int6
 
 **Objective:** Add development test data for relationships.
 
-**Migration File:** `services/objects-service/migrations/development/000009_dev_seed_relationships.up.sql`
+**Migration File:** `services/objects-service/migrations/development/000009_seed_relationships.up.sql`
 
 ```sql
 -- Create sample objects for relationship testing
@@ -500,7 +500,7 @@ AND o.name = 'Relationship: Portfolio A contains Asset X'
 ON CONFLICT DO NOTHING;
 ```
 
-**Down Migration:** `000009_dev_seed_relationships.down.sql`
+**Down Migration:** `000009_seed_relationships.down.sql`
 
 ```sql
 DELETE FROM objects_service.objects_relationships;
@@ -664,46 +664,6 @@ echo "=== Tests Complete ==="
 **Endpoint:** `GET /api/v1/objects/:public_id/relationships/:type_key`
 
 **Response (200):** Array of relationships of that type
-
----
-
-## Dependencies and Configuration
-
-### Migration Dependencies
-
-Update `services/objects-service/migrations/development/dependencies.json`:
-
-```json
-{
-  "000007": {
-    "description": "Add Relationship marker to object_types",
-    "depends_on": ["000006"],
-    "affects_tables": ["objects_service.object_types"],
-    "estimated_duration": "10s",
-    "risk_level": "low",
-    "rollback_safe": true,
-    "environment": "development"
-  },
-  "000008": {
-    "description": "Create objects_relationships CTI table",
-    "depends_on": ["000007"],
-    "affects_tables": ["objects_service.objects_relationships"],
-    "estimated_duration": "30s",
-    "risk_level": "medium",
-    "rollback_safe": true,
-    "environment": "development"
-  },
-  "000009": {
-    "description": "Seed development relationships",
-    "depends_on": ["000008"],
-    "affects_tables": ["objects_service.objects", "objects_service.objects_relationships"],
-    "estimated_duration": "20s",
-    "risk_level": "low",
-    "rollback_safe": true,
-    "environment": "development"
-  }
-}
-```
 
 ---
 
