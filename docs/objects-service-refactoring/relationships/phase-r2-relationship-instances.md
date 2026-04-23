@@ -916,7 +916,7 @@ Indexes created:
 - [x] R2.1 Create Relationship marker migration
 - [x] R2.2 Create objects_relationships CTI table
 - [x] R2.3 Add Go models
-- [ ] R2.4 Add repository layer
+- [x] R2.4 Add repository layer
 - [ ] R2.5 Add service layer
 - [ ] R2.6 Add HTTP handlers
 - [ ] R2.7 Register routes
