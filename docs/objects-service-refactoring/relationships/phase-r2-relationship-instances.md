@@ -897,9 +897,9 @@ Indexes created:
 
 ### Required Verification
 
-- [ ] Migrations applied successfully to database
-- [ ] Database schema verified: `objects_relationships` table exists with correct columns
-- [ ] Seed data verified: relationships created between test objects
+- [x] Migrations applied successfully to database
+- [x] Database schema verified: `objects_relationships` table exists with correct columns
+- [x] Seed data verified: relationships created between test objects
 - [ ] API endpoint: POST creates new relationship
 - [ ] API endpoint: GET lists relationships with filters
 - [ ] API endpoint: GET by public_id returns relationship
@@ -913,8 +913,8 @@ Indexes created:
 
 ### Implementation Checklist
 
-- [ ] R2.1 Create Relationship marker migration
-- [ ] R2.2 Create objects_relationships CTI table
+- [x] R2.1 Create Relationship marker migration
+- [x] R2.2 Create objects_relationships CTI table
 - [ ] R2.3 Add Go models
 - [ ] R2.4 Add repository layer
 - [ ] R2.5 Add service layer
@@ -923,7 +923,7 @@ Indexes created:
 - [ ] R2.8 Implement validation logic
 - [ ] R2.9 Add query methods
 - [ ] R2.10 Add unit tests
-- [ ] R2.11 Dev migration: seed relationships
+- [x] R2.11 Dev migration: seed relationships
 - [ ] R2.13 RBAC permissions migration
 - [ ] R2.14 Assign permissions to roles
 - [ ] R2.15 End-to-end RBAC test script
