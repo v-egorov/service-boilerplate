@@ -920,8 +920,8 @@ Indexes created:
 - [x] R2.5 Add service layer
 - [x] R2.6 Add HTTP handlers
 - [x] R2.7 Register routes
-- [ ] R2.8 Implement validation logic
-- [ ] R2.9 Add query methods
+- [x] R2.8 Implement validation logic
+- [x] R2.9 Add query methods
 - [ ] R2.10 Add unit tests
 - [x] R2.11 Dev migration: seed relationships
 - [ ] R2.13 RBAC permissions migration
