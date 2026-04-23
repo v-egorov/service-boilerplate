@@ -89,6 +89,7 @@ func main() {
 	var objectTypeHandler *handlers.ObjectTypeHandler
 	var objectHandler *handlers.ObjectHandler
 	var relationshipTypeHandler *handlers.RelationshipTypeHandler
+	var relationshipHandler *handlers.RelationshipHandler
 	var healthHandler *handlers.HealthHandler
 
 	if db != nil {
@@ -105,11 +106,14 @@ func main() {
 		objectTypeService := services.NewObjectTypeService(objectTypeRepo)
 		objectService := services.NewObjectService(objectRepo, objectTypeRepo)
 		relationshipTypeService := services.NewRelationshipTypeService(relationshipTypeRepo)
+		relationshipRepo := repository.NewRelationshipRepository(pgDatabase, repoOptions, objectRepo)
+		relationshipService := services.NewRelationshipService(relationshipRepo, relationshipTypeRepo, objectRepo)
 
 		// Initialize handlers
 		objectTypeHandler = handlers.NewObjectTypeHandler(objectTypeService, logger.Logger)
 		objectHandler = handlers.NewObjectHandler(objectService, logger.Logger)
 		relationshipTypeHandler = handlers.NewRelationshipTypeHandler(relationshipTypeService, logger.Logger)
+		relationshipHandler = handlers.NewRelationshipHandler(relationshipService, logger.Logger)
 		healthHandler = handlers.NewHealthHandler(db.GetPool(), logger.Logger, cfg)
 	} else {
 		// Initialize handlers without database
@@ -291,6 +295,46 @@ func main() {
 				{
 					relationshipTypesRead.GET("/:type_key", relationshipTypeHandler.GetByTypeKey)
 					relationshipTypesRead.GET("", relationshipTypeHandler.List)
+				}
+			}
+
+			// Relationships endpoints
+			if relationshipHandler != nil {
+				// Relationships - Create (authenticated users)
+				relationshipsCreate := v1.Group("/relationships")
+				relationshipsCreate.Use(permissionMiddleware("relationships:create"))
+				{
+					relationshipsCreate.POST("", relationshipHandler.Create)
+				}
+
+				// Relationships - Read (authenticated users)
+				relationshipsRead := v1.Group("/relationships")
+				relationshipsRead.Use(permissionMiddleware("relationships:read"))
+				{
+					relationshipsRead.GET("/:public_id", relationshipHandler.GetByPublicID)
+					relationshipsRead.GET("", relationshipHandler.List)
+				}
+
+				// Relationships - Update (authenticated users)
+				relationshipsUpdate := v1.Group("/relationships")
+				relationshipsUpdate.Use(permissionMiddleware("relationships:update"))
+				{
+					relationshipsUpdate.PUT("/:public_id", relationshipHandler.Update)
+				}
+
+				// Relationships - Delete (authenticated users)
+				relationshipsDelete := v1.Group("/relationships")
+				relationshipsDelete.Use(permissionMiddleware("relationships:delete"))
+				{
+					relationshipsDelete.DELETE("/:public_id", relationshipHandler.Delete)
+				}
+
+				// Object Relationships - Get for object
+				objectRelationshipsRead := v1.Group("/objects")
+				objectRelationshipsRead.Use(permissionMiddleware("relationships:read"))
+				{
+					objectRelationshipsRead.GET("/:public_id/relationships", relationshipHandler.GetForObject)
+					objectRelationshipsRead.GET("/:public_id/relationships/:type_key", relationshipHandler.GetForObjectByType)
 				}
 			}
 		}

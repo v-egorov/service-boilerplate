@@ -919,7 +919,7 @@ Indexes created:
 - [x] R2.4 Add repository layer
 - [x] R2.5 Add service layer
 - [x] R2.6 Add HTTP handlers
-- [ ] R2.7 Register routes
+- [x] R2.7 Register routes
 - [ ] R2.8 Implement validation logic
 - [ ] R2.9 Add query methods
 - [ ] R2.10 Add unit tests
