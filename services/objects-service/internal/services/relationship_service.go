@@ -124,7 +124,7 @@ func (s *relationshipService) validateCardinality(ctx context.Context, sourceObj
 		if tgtCount >= 1 {
 			return fmt.Errorf("%w: one_to_many target already has source", ErrCardinalityViolation)
 		}
-		if relType.MaxCount >= 0 {
+		if relType.MaxCount > 0 {
 			srcCount, _ := s.repo.CountForObject(ctx, sourceObjectID, &relType.TypeKey)
 			if srcCount >= relType.MaxCount {
 				return fmt.Errorf("%w: source reached max_count %d", ErrCardinalityViolation, relType.MaxCount)
@@ -136,7 +136,7 @@ func (s *relationshipService) validateCardinality(ctx context.Context, sourceObj
 		if srcCount >= 1 {
 			return fmt.Errorf("%w: many_to_one source already has target", ErrCardinalityViolation)
 		}
-		if relType.MaxCount >= 0 {
+		if relType.MaxCount > 0 {
 			tgtCount, _ := s.repo.CountForObject(ctx, targetObjectID, &relType.TypeKey)
 			if tgtCount >= relType.MaxCount {
 				return fmt.Errorf("%w: target reached max_count %d", ErrCardinalityViolation, relType.MaxCount)
@@ -144,7 +144,7 @@ func (s *relationshipService) validateCardinality(ctx context.Context, sourceObj
 		}
 
 	case models.CardinalityManyToMany:
-		if relType.MaxCount >= 0 {
+		if relType.MaxCount > 0 {
 			srcCount, _ := s.repo.CountForObject(ctx, sourceObjectID, &relType.TypeKey)
 			if srcCount >= relType.MaxCount {
 				return fmt.Errorf("%w: source reached max_count %d", ErrCardinalityViolation, relType.MaxCount)
