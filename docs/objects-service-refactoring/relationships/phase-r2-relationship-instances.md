@@ -427,25 +427,23 @@ func (r *RelationshipRepository) GetForObject(ctx context.Context, objectID int6
 }
 ```
 
-### R2.10 Add Unit Tests
+### R2.10 Add Unit Tests ✅ COMPLETED
 
 **Objective:** Test relationship functionality.
 
 **Files:**
 - `services/objects-service/internal/services/relationship_service_test.go`
-- `services/objects-service/internal/repository/relationship_repository_test.go` (optional)
+- `services/objects-service/internal/services/relationship_type_service_test.go` (mocks)
 
-**Test cases:**
-- Create relationship - success
-- Create duplicate relationship - error
-- Create with non-existent objects - error
-- Create with non-existent type - error
-- Circular detection - error
-- Cardinality violation - error
-- Update relationship status - success
-- Delete relationship - success
-- Get relationships for object - success
-- Get relationships by type - success
+**Test Cases (51 total):**
+- Create: 21 tests (success, validation, circular detection, cardinality, errors)
+- GetByPublicID: 2 tests (success, not found)
+- Update: 3 tests (success, not found, with metadata)
+- Delete: 3 tests (success, not found, database error)
+- List: 5 tests (success, filters, pagination, nil filter, empty)
+- GetForObject: 6 tests (success, source, target, filters, pagination)
+- GetForObjectByType: 3 tests (success, not found, no matches)
+- GetRelatedObjects: 6 tests (source, target, type, bidirectional, error)
 
 ### R2.11 Dev Migration: Seed Test Relationships
 
@@ -922,7 +920,7 @@ Indexes created:
 - [x] R2.7 Register routes
 - [x] R2.8 Implement validation logic
 - [x] R2.9 Add query methods
-- [ ] R2.10 Add unit tests
+- [x] R2.10 Add unit tests
 - [x] R2.11 Dev migration: seed relationships
 - [ ] R2.13 RBAC permissions migration
 - [ ] R2.14 Assign permissions to roles
