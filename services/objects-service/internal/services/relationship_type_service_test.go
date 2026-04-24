@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/models"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/repository"
@@ -362,3 +363,141 @@ func TestRelationshipTypeService_Create_MinCountGreaterThanMaxCount(t *testing.T
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "min_count cannot exceed max_count")
 }
+
+type mockRelationshipRepositoryForRelationshipService struct {
+	createFunc              func(ctx context.Context, input *models.CreateRelationshipRequest) (*models.Relationship, error)
+	getByObjectIDFunc     func(ctx context.Context, objectID int64) (*models.Relationship, error)
+	getByPublicIDFunc   func(ctx context.Context, publicID uuid.UUID) (*models.Relationship, error)
+	updateFunc          func(ctx context.Context, objectID int64, input *models.UpdateRelationshipRequest) (*models.Relationship, error)
+	deleteFunc          func(ctx context.Context, objectID int64) error
+	deleteByPublicIDFunc  func(ctx context.Context, publicID uuid.UUID) error
+	listFunc            func(ctx context.Context, filter *models.RelationshipFilter) ([]*models.Relationship, error)
+	getForObjectFunc   func(ctx context.Context, objectPublicID uuid.UUID, filter *models.RelationshipFilterForType) ([]*models.Relationship, error)
+	getForObjectByTypeFunc func(ctx context.Context, objectPublicID uuid.UUID, typeKey string) ([]*models.Relationship, error)
+	getRelatedObjectsFunc func(ctx context.Context, objectPublicID uuid.UUID, typeKey *string) ([]*models.Object, error)
+	existsFunc          func(ctx context.Context, sourceObjectID, targetObjectID int64, typeObjectID int64) (bool, error)
+	countForObjectFunc func(ctx context.Context, objectID int64, typeKey *string) (int, error)
+	getByTypeKeyFunc  func(ctx context.Context, typeKey string) ([]*models.Relationship, error)
+	checkCircularFunc  func(ctx context.Context, sourceObjectID, targetObjectID, typeObjectID int64) (bool, error)
+}
+
+func (m *mockRelationshipRepositoryForRelationshipService) DB() repository.DBInterface             { return nil }
+func (m *mockRelationshipRepositoryForRelationshipService) Options() *repository.RepositoryOptions { return nil }
+func (m *mockRelationshipRepositoryForRelationshipService) Metrics() *repository.RepositoryMetrics { return nil }
+func (m *mockRelationshipRepositoryForRelationshipService) ResetMetrics()                          {}
+func (m *mockRelationshipRepositoryForRelationshipService) Healthy(ctx context.Context) error      { return nil }
+
+func (m *mockRelationshipRepositoryForRelationshipService) Create(ctx context.Context, input *models.CreateRelationshipRequest) (*models.Relationship, error) {
+	if m.createFunc != nil {
+		return m.createFunc(ctx, input)
+	}
+	srcID, _ := uuid.Parse(input.SourceObjectPublicID)
+	tgtID, _ := uuid.Parse(input.TargetObjectPublicID)
+	return &models.Relationship{
+		SourceObjectID:       1,
+		SourceObjectPublicID: srcID,
+		TargetObjectID:       2,
+		TargetObjectPublicID: tgtID,
+		RelationshipTypeKey:  input.RelationshipTypeKey,
+		Status:              input.Status,
+	}, nil
+}
+
+func (m *mockRelationshipRepositoryForRelationshipService) GetByObjectID(ctx context.Context, objectID int64) (*models.Relationship, error) {
+	if m.getByObjectIDFunc != nil {
+		return m.getByObjectIDFunc(ctx, objectID)
+	}
+	return &models.Relationship{ObjectID: objectID}, nil
+}
+
+func (m *mockRelationshipRepositoryForRelationshipService) GetByPublicID(ctx context.Context, publicID uuid.UUID) (*models.Relationship, error) {
+	if m.getByPublicIDFunc != nil {
+		return m.getByPublicIDFunc(ctx, publicID)
+	}
+	return &models.Relationship{ObjectID: 1, SourceObjectPublicID: publicID}, nil
+}
+
+func (m *mockRelationshipRepositoryForRelationshipService) Update(ctx context.Context, objectID int64, input *models.UpdateRelationshipRequest) (*models.Relationship, error) {
+	if m.updateFunc != nil {
+		return m.updateFunc(ctx, objectID, input)
+	}
+	return &models.Relationship{ObjectID: objectID}, nil
+}
+
+func (m *mockRelationshipRepositoryForRelationshipService) Delete(ctx context.Context, objectID int64) error {
+	if m.deleteFunc != nil {
+		return m.deleteFunc(ctx, objectID)
+	}
+	return nil
+}
+
+func (m *mockRelationshipRepositoryForRelationshipService) DeleteByPublicID(ctx context.Context, publicID uuid.UUID) error {
+	if m.deleteByPublicIDFunc != nil {
+		return m.deleteByPublicIDFunc(ctx, publicID)
+	}
+	return nil
+}
+
+func (m *mockRelationshipRepositoryForRelationshipService) List(ctx context.Context, filter *models.RelationshipFilter) ([]*models.Relationship, error) {
+	if m.listFunc != nil {
+		return m.listFunc(ctx, filter)
+	}
+	return []*models.Relationship{}, nil
+}
+
+func (m *mockRelationshipRepositoryForRelationshipService) GetForObject(ctx context.Context, objectPublicID uuid.UUID, filter *models.RelationshipFilterForType) ([]*models.Relationship, error) {
+	if m.getForObjectFunc != nil {
+		return m.getForObjectFunc(ctx, objectPublicID, filter)
+	}
+	return []*models.Relationship{}, nil
+}
+
+func (m *mockRelationshipRepositoryForRelationshipService) GetForObjectByType(ctx context.Context, objectPublicID uuid.UUID, typeKey string) ([]*models.Relationship, error) {
+	if m.getForObjectByTypeFunc != nil {
+		return m.getForObjectByTypeFunc(ctx, objectPublicID, typeKey)
+	}
+	return []*models.Relationship{}, nil
+}
+
+func (m *mockRelationshipRepositoryForRelationshipService) GetRelatedObjects(ctx context.Context, objectPublicID uuid.UUID, typeKey *string) ([]*models.Object, error) {
+	if m.getRelatedObjectsFunc != nil {
+		return m.getRelatedObjectsFunc(ctx, objectPublicID, typeKey)
+	}
+	return []*models.Object{}, nil
+}
+
+func (m *mockRelationshipRepositoryForRelationshipService) Exists(ctx context.Context, sourceObjectID, targetObjectID int64, typeObjectID int64) (bool, error) {
+	if m.existsFunc != nil {
+		return m.existsFunc(ctx, sourceObjectID, targetObjectID, typeObjectID)
+	}
+	return false, nil
+}
+
+func (m *mockRelationshipRepositoryForRelationshipService) CountForObject(ctx context.Context, objectID int64, typeKey *string) (int, error) {
+	if m.countForObjectFunc != nil {
+		return m.countForObjectFunc(ctx, objectID, typeKey)
+	}
+	return 0, nil
+}
+
+func (m *mockRelationshipRepositoryForRelationshipService) GetByTypeKey(ctx context.Context, typeKey string) ([]*models.Relationship, error) {
+	if m.getByTypeKeyFunc != nil {
+		return m.getByTypeKeyFunc(ctx, typeKey)
+	}
+	return []*models.Relationship{}, nil
+}
+
+func (m *mockRelationshipRepositoryForRelationshipService) CheckCircular(ctx context.Context, sourceObjectID, targetObjectID, typeObjectID int64) (bool, error) {
+	if m.checkCircularFunc != nil {
+		return m.checkCircularFunc(ctx, sourceObjectID, targetObjectID, typeObjectID)
+	}
+	return false, nil
+}
+
+var (
+	testSourcePublicID    = uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	testTargetPublicID    = uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	testSourceObjectID  = int64(1)
+	testTargetObjectID  = int64(2)
+	testRelTypeObjectID = int64(1)
+)
