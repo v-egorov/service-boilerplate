@@ -1105,3 +1105,284 @@ func TestRelationshipService_Create_MaxCountZero(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 }
+
+func TestRelationshipService_GetForObject_Success(t *testing.T) {
+	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{
+		getForObjectFunc: func(ctx context.Context, objectPublicID uuid.UUID, filter *models.RelationshipFilterForType) ([]*models.Relationship, error) {
+			return []*models.Relationship{
+				{ObjectID: 1, SourceObjectPublicID: testSourcePublicID},
+				{ObjectID: 2, SourceObjectPublicID: testSourcePublicID},
+			}, nil
+		},
+	}
+
+	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, &mockObjectRepository{})
+
+	result, err := service.GetForObject(context.Background(), testSourcePublicID, &models.RelationshipFilterForType{})
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
+}
+
+func TestRelationshipService_GetForObject_BySource(t *testing.T) {
+	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{
+		getForObjectFunc: func(ctx context.Context, objectPublicID uuid.UUID, filter *models.RelationshipFilterForType) ([]*models.Relationship, error) {
+			if objectPublicID == testSourcePublicID {
+				return []*models.Relationship{{ObjectID: 1}}, nil
+			}
+			return []*models.Relationship{}, nil
+		},
+	}
+
+	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, &mockObjectRepository{})
+
+	result, err := service.GetForObject(context.Background(), testSourcePublicID, &models.RelationshipFilterForType{})
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+}
+
+func TestRelationshipService_GetForObject_ByTarget(t *testing.T) {
+	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{
+		getForObjectFunc: func(ctx context.Context, objectPublicID uuid.UUID, filter *models.RelationshipFilterForType) ([]*models.Relationship, error) {
+			if objectPublicID == testTargetPublicID {
+				return []*models.Relationship{{ObjectID: 1}}, nil
+			}
+			return []*models.Relationship{}, nil
+		},
+	}
+
+	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, &mockObjectRepository{})
+
+	result, err := service.GetForObject(context.Background(), testTargetPublicID, &models.RelationshipFilterForType{})
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+}
+
+func TestRelationshipService_GetForObject_WithStatusFilter(t *testing.T) {
+	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{
+		getForObjectFunc: func(ctx context.Context, objectPublicID uuid.UUID, filter *models.RelationshipFilterForType) ([]*models.Relationship, error) {
+			if filter.Status != nil && *filter.Status == models.StatusInactive {
+				return []*models.Relationship{{ObjectID: 1, Status: models.StatusInactive}}, nil
+			}
+			return []*models.Relationship{}, nil
+		},
+	}
+
+	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, &mockObjectRepository{})
+
+	status := models.StatusInactive
+	result, err := service.GetForObject(context.Background(), testSourcePublicID, &models.RelationshipFilterForType{
+		Status: &status,
+	})
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+}
+
+func TestRelationshipService_GetForObject_WithPagination(t *testing.T) {
+	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{
+		getForObjectFunc: func(ctx context.Context, objectPublicID uuid.UUID, filter *models.RelationshipFilterForType) ([]*models.Relationship, error) {
+			if filter.Page == 2 && filter.PageSize == 5 {
+				return []*models.Relationship{{ObjectID: 6}}, nil
+			}
+			return []*models.Relationship{}, nil
+		},
+	}
+
+	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, &mockObjectRepository{})
+
+	result, err := service.GetForObject(context.Background(), testSourcePublicID, &models.RelationshipFilterForType{
+		Page:     2,
+		PageSize: 5,
+	})
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+}
+
+func TestRelationshipService_GetForObject_NoRelationships(t *testing.T) {
+	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{
+		getForObjectFunc: func(ctx context.Context, objectPublicID uuid.UUID, filter *models.RelationshipFilterForType) ([]*models.Relationship, error) {
+			return []*models.Relationship{}, nil
+		},
+	}
+
+	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, &mockObjectRepository{})
+
+	result, err := service.GetForObject(context.Background(), testSourcePublicID, &models.RelationshipFilterForType{})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Len(t, result, 0)
+}
+
+func TestRelationshipService_GetForObjectByType_Success(t *testing.T) {
+	mockObjRepo := &mockObjectRepository{
+		getByPublicIDFunc: func(ctx context.Context, publicID uuid.UUID) (*models.Object, error) {
+			return &models.Object{ID: 1, PublicID: publicID}, nil
+		},
+	}
+
+	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{
+		getForObjectByTypeFunc: func(ctx context.Context, objectPublicID uuid.UUID, typeKey string) ([]*models.Relationship, error) {
+			return []*models.Relationship{
+				{ObjectID: 1, RelationshipTypeKey: typeKey},
+			}, nil
+		},
+	}
+
+	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, mockObjRepo)
+
+	result, err := service.GetForObjectByType(context.Background(), testSourcePublicID, "contains")
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+}
+
+func TestRelationshipService_GetForObjectByType_NotFound(t *testing.T) {
+	mockObjRepo := &mockObjectRepository{
+		getByPublicIDFunc: func(ctx context.Context, publicID uuid.UUID) (*models.Object, error) {
+			return nil, repository.ErrNotFound
+		},
+	}
+
+	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{}
+
+	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, mockObjRepo)
+
+	result, err := service.GetForObjectByType(context.Background(), testSourcePublicID, "contains")
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestRelationshipService_GetForObjectByType_NoMatches(t *testing.T) {
+	mockObjRepo := &mockObjectRepository{
+		getByPublicIDFunc: func(ctx context.Context, publicID uuid.UUID) (*models.Object, error) {
+			return &models.Object{ID: 1, PublicID: publicID}, nil
+		},
+	}
+
+	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{
+		getForObjectByTypeFunc: func(ctx context.Context, objectPublicID uuid.UUID, typeKey string) ([]*models.Relationship, error) {
+			return []*models.Relationship{}, nil
+		},
+	}
+
+	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, mockObjRepo)
+
+	result, err := service.GetForObjectByType(context.Background(), testSourcePublicID, "nonexistent")
+
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Len(t, result, 0)
+}
+
+func TestRelationshipService_GetRelatedObjects_Success(t *testing.T) {
+	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{
+		getRelatedObjectsFunc: func(ctx context.Context, objectPublicID uuid.UUID, typeKey *string) ([]*models.Object, error) {
+			return []*models.Object{
+				{ID: 1, PublicID: testTargetPublicID},
+				{ID: 2, PublicID: uuid.New()},
+			}, nil
+		},
+	}
+
+	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, &mockObjectRepository{})
+
+	result, err := service.GetRelatedObjects(context.Background(), testSourcePublicID, nil)
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
+}
+
+func TestRelationshipService_GetRelatedObjects_BySource(t *testing.T) {
+	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{
+		getRelatedObjectsFunc: func(ctx context.Context, objectPublicID uuid.UUID, typeKey *string) ([]*models.Object, error) {
+			if objectPublicID == testSourcePublicID {
+				return []*models.Object{{ID: 1}}, nil
+			}
+			return []*models.Object{}, nil
+		},
+	}
+
+	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, &mockObjectRepository{})
+
+	result, err := service.GetRelatedObjects(context.Background(), testSourcePublicID, nil)
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+}
+
+func TestRelationshipService_GetRelatedObjects_ByTarget(t *testing.T) {
+	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{
+		getRelatedObjectsFunc: func(ctx context.Context, objectPublicID uuid.UUID, typeKey *string) ([]*models.Object, error) {
+			if objectPublicID == testTargetPublicID {
+				return []*models.Object{{ID: 1}}, nil
+			}
+			return []*models.Object{}, nil
+		},
+	}
+
+	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, &mockObjectRepository{})
+
+	result, err := service.GetRelatedObjects(context.Background(), testTargetPublicID, nil)
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+}
+
+func TestRelationshipService_GetRelatedObjects_ByTypeKey(t *testing.T) {
+	typeKey := "contains"
+	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{
+		getRelatedObjectsFunc: func(ctx context.Context, objectPublicID uuid.UUID, typeKey *string) ([]*models.Object, error) {
+			if typeKey != nil && *typeKey == "contains" {
+				return []*models.Object{{ID: 1}}, nil
+			}
+			return []*models.Object{}, nil
+		},
+	}
+
+	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, &mockObjectRepository{})
+
+	result, err := service.GetRelatedObjects(context.Background(), testSourcePublicID, &typeKey)
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 1)
+}
+
+func TestRelationshipService_GetRelatedObjects_Bidirectional(t *testing.T) {
+	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{
+		getRelatedObjectsFunc: func(ctx context.Context, objectPublicID uuid.UUID, typeKey *string) ([]*models.Object, error) {
+			return []*models.Object{
+				{ID: 1, PublicID: testTargetPublicID},
+				{ID: 2, PublicID: uuid.New()},
+			}, nil
+		},
+	}
+
+	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, &mockObjectRepository{})
+
+	result, err := service.GetRelatedObjects(context.Background(), testSourcePublicID, nil)
+
+	assert.NoError(t, err)
+	assert.Len(t, result, 2)
+}
+
+func TestRelationshipService_GetRelatedObjects_Error(t *testing.T) {
+	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{
+		getRelatedObjectsFunc: func(ctx context.Context, objectPublicID uuid.UUID, typeKey *string) ([]*models.Object, error) {
+			return nil, errors.New("database error")
+		},
+	}
+
+	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, &mockObjectRepository{})
+
+	result, err := service.GetRelatedObjects(context.Background(), testSourcePublicID, nil)
+
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
