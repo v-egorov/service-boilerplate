@@ -563,11 +563,19 @@ echo "=== Tests Complete ==="
 
 
 
-### R2.13 RBAC Permissions
+### R2.13 RBAC Permissions ✅ COMPLETED
 
 **Objective:** Add permissions for relationship instance management and assign to roles.
 
-**Migration File:** `services/auth-service/migrations/development/000008_add_relationships_permissions.up.sql`
+**Migration Files:**
+- `services/auth-service/migrations/{development,staging,production}/000008_add_relationships_permissions.up.sql`
+- `services/auth-service/migrations/{development,staging,production}/000008_add_relationships_permissions.down.sql`
+
+**Permissions Added:**
+- `relationships:create` - Create new relationship instances
+- `relationships:read` - Read relationship instances  
+- `relationships:update` - Update relationship instances
+- `relationships:delete` - Delete relationship instances
 
 ```sql
 -- Add relationships permissions
@@ -585,11 +593,19 @@ ON CONFLICT (name) DO NOTHING;
 DELETE FROM auth_service.permissions WHERE name LIKE 'relationships:%';
 ```
 
-### R2.14 Assign Permissions to Roles
+### R2.14 Assign Permissions to Roles ✅ COMPLETED
 
-**Objective:** Assign relationships permissions to admin and object-type-admin roles.
+**Objective:** Assign relationship permissions to admin and object-type-admin roles.
 
-**Migration File:** `services/auth-service/migrations/development/000009_assign_relationships_permissions.up.sql`
+**Migration Files:**
+- `services/auth-service/migrations/{development,staging,production}/000009_assign_relationships_permissions.up.sql`
+- `services/auth-service/migrations/{development,staging,production}/000009_assign_relationships_permissions.down.sql`
+
+**Roles Assigned:**
+- `admin` role - All 4 relationship permissions (create, read, update, delete)
+- `object-type-admin` role - All 4 relationship permissions (create, read, update, delete)
+
+**Note:** Routes already have permission middleware configured in `cmd/main.go` (lines 305-334).
 
 ```sql
 -- Assign relationships permissions to admin role
@@ -922,8 +938,8 @@ Indexes created:
 - [x] R2.9 Add query methods
 - [x] R2.10 Add unit tests
 - [x] R2.11 Dev migration: seed relationships
-- [ ] R2.13 RBAC permissions migration
-- [ ] R2.14 Assign permissions to roles
+- [x] R2.13 RBAC permissions migration
+- [x] R2.14 Assign permissions to roles
 - [ ] R2.15 End-to-end RBAC test script
 
 ---
