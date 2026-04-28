@@ -109,6 +109,86 @@ If migrations don't run:
 3. Ensure JSON files are valid
 4. Run `make db-migrate-validate SERVICE_NAME={name}`
 
+## Route Naming Conventions
+
+This section documents the API routing conventions to prevent Gin router conflicts.
+
+### The Problem
+
+Gin cannot handle two different wildcard parameters under the same path prefix. This causes a panic on startup:
+
+```go
+// CONFLICTS - causes panic:
+router.GET("/objects/:id", handler1)
+router.GET("/objects/:public_id", handler2)
+```
+
+Error: `panic: ':public_id' in new path '/api/v1/objects/:public_id/relationships' conflicts with existing wildcard ':id'`
+
+### The Solution
+
+Use an explicit literal path prefix for secondary ID types:
+
+```go
+// WORKS - separate path prefixes:
+router.GET("/objects/:id", handler1)               // internal ID (integer)
+router.GET("/objects/public-id/:public_id", handler2) // explicit prefix for UUID
+```
+
+Now `:id` and `:public_id` are in different path hierarchies, no conflict.
+
+### When to Apply
+
+| Scenario | Pattern | Example |
+|----------|---------|---------|
+| Resource has internal int ID + external UUID | Use `/public-id/` prefix for UUID | `/objects/:id`, `/objects/public-id/:public_id` |
+| Resource uses string key | Use `:key` directly | `/relationship-types/:type_key` |
+| Resource uses only UUID (no internal ID) | Use directly | No conflict, can use `:public_id` directly |
+
+### Examples from Codebase
+
+#### Objects (Internal ID + UUID)
+
+```go
+objectsRead.GET("/:id", objectHandler.GetByID)                              // internal ID
+objectsRead.GET("/public-id/:public_id", objectHandler.GetByPublicID)      // UUID
+objectsRead.GET("/:id/children", objectHandler.GetChildren)           // nested under internal ID
+objectsRead.GET("/public-id/:public_id/relationships", ...)       // nested under UUID
+```
+
+#### Relationship Types (String Key)
+
+```go
+relationshipTypesRead.GET("/:type_key", ...)  // direct, no conflict
+relationshipTypesRead.GET("", ...)           // list
+```
+
+#### Relationships (UUID Only)
+
+```go
+relationshipsRead.GET("/:public_id", ...)  // direct, no internal :id exists
+```
+
+### Adding New Routes
+
+When adding new routes to a service:
+
+1. **Check existing routes** - Look for `:id` wildcard in same path prefix
+2. **If conflict exists** - Use explicit prefix (e.g., `/public-id/`)
+3. **If no conflict** - Use direct parameter (e.g., `:public_id`)
+
+### Debugging Route Conflicts
+
+If you encounter a route conflict:
+
+```
+panic: ':parameter' in new path conflicts with existing wildcard ':existing'
+```
+
+1. Find both routes in same group
+2. Rename one to use explicit prefix
+3. Rebuild and test
+
 ## Migration from Old Naming
 
 If you have services with different naming:

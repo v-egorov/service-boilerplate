@@ -247,6 +247,9 @@ func main() {
 				objectsRead.GET("/:id/ancestors", objectHandler.GetAncestors)
 				objectsRead.GET("/:id/path", objectHandler.GetPath)
 				objectsRead.GET("/stats", objectHandler.GetStats)
+				// Relationships for object (using public-id for UUID-based lookup)
+				objectsRead.GET("/public-id/:public_id/relationships", relationshipHandler.GetForObject)
+				objectsRead.GET("/public-id/:public_id/relationships/:type_key", relationshipHandler.GetForObjectByType)
 			}
 
 			// Objects - Update
@@ -327,14 +330,6 @@ func main() {
 				relationshipsDelete.Use(permissionMiddleware("relationships:delete"))
 				{
 					relationshipsDelete.DELETE("/:public_id", relationshipHandler.Delete)
-				}
-
-				// Object Relationships - Get for object
-				objectRelationshipsRead := v1.Group("/objects")
-				objectRelationshipsRead.Use(permissionMiddleware("relationships:read"))
-				{
-					objectRelationshipsRead.GET("/:public_id/relationships", relationshipHandler.GetForObject)
-					objectRelationshipsRead.GET("/:public_id/relationships/:type_key", relationshipHandler.GetForObjectByType)
 				}
 			}
 		}
