@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
@@ -208,6 +209,12 @@ func (h *ObjectHandler) GetByPublicID(c *gin.Context) {
 
 	object, err := h.service.GetByPublicID(c.Request.Context(), publicID)
 	if err != nil {
+		h.logger.WithFields(logrus.Fields{
+			"request_id":  requestID,
+			"public_id":   publicIDStr,
+			"error_type":  fmt.Sprintf("%T", err),
+			"error_error": err.Error(),
+		}).Error("GetByPublicID service returned error")
 		h.handleServiceError(c, err, "Failed to get object by public ID", requestID)
 		return
 	}
