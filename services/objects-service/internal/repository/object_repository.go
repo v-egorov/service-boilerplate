@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -194,11 +195,12 @@ func (r *objectRepository) GetByID(ctx context.Context, id int64) (*models.Objec
 
 	var object models.Object
 	var parentObjectID sql.NullInt64
+	var description sql.NullString
 	var deletedAt sql.NullTime
 
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&object.ID, &object.PublicID, &object.ObjectTypeID, &parentObjectID,
-		&object.Name, &object.Description, &object.Metadata, &object.Tags,
+		&object.Name, &description, &object.Metadata, &object.Tags,
 		&object.Status, &object.Version, &object.CreatedBy, &object.UpdatedBy,
 		&object.CreatedAt, &object.UpdatedAt, &deletedAt,
 	)
@@ -210,6 +212,10 @@ func (r *objectRepository) GetByID(ctx context.Context, id int64) (*models.Objec
 
 	if parentObjectID.Valid {
 		object.ParentObjectID = &parentObjectID.Int64
+	}
+	if description.Valid {
+		desc := description.String
+		object.Description = &desc
 	}
 	if deletedAt.Valid {
 		object.DeletedAt = &deletedAt.Time
@@ -233,6 +239,9 @@ func (r *objectRepository) GetByPublicID(ctx context.Context, publicID uuid.UUID
 	err := r.db.QueryRow(ctx, query, publicID).Scan(&id)
 	if err != nil {
 		r.metrics.ErrorCount++
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf("failed to get object by public ID: %w", err)
 	}
 

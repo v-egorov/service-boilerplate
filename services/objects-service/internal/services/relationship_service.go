@@ -74,12 +74,18 @@ func (s *relationshipService) Create(ctx context.Context, input *models.CreateRe
 
 	sourceObject, err := s.objectRepo.GetByPublicID(ctx, sourcePublicID)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrSourceObjectNotFound, repository.ErrNotFound)
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, fmt.Errorf("%w: %w", ErrSourceObjectNotFound, err)
+		}
+		return nil, err
 	}
 
 	targetObject, err := s.objectRepo.GetByPublicID(ctx, targetPublicID)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrTargetObjectNotFound, repository.ErrNotFound)
+		if errors.Is(err, repository.ErrNotFound) {
+			return nil, fmt.Errorf("%w: %w", ErrTargetObjectNotFound, err)
+		}
+		return nil, err
 	}
 
 	relType, err := s.relationshipTypeRepo.GetByTypeKey(ctx, input.RelationshipTypeKey)
