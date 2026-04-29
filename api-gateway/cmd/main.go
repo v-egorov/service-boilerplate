@@ -332,6 +332,16 @@ func main() {
 			relationshipTypes.PUT("/:type_key", gatewayHandler.ProxyRequest("objects-service"))
 			relationshipTypes.DELETE("/:type_key", gatewayHandler.ProxyRequest("objects-service"))
 		}
+
+		// Relationships service routes
+		relationships := api.Group("/v1/relationships")
+		{
+			relationships.POST("", gatewayHandler.ProxyRequest("objects-service"))
+			relationships.GET("", gatewayHandler.ProxyRequest("objects-service"))
+			relationships.GET("/:public_id", gatewayHandler.ProxyRequest("objects-service"))
+			relationships.PUT("/:public_id", gatewayHandler.ProxyRequest("objects-service"))
+			relationships.DELETE("/:public_id", gatewayHandler.ProxyRequest("objects-service"))
+		}
 	}
 
 	// Start server
