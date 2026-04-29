@@ -32,7 +32,7 @@ type Object struct {
 	ObjectTypeID   int64           `json:"object_type_id" db:"object_type_id"`
 	ParentObjectID *int64          `json:"parent_object_id,omitempty" db:"parent_object_id"`
 	Name           string          `json:"name" db:"name"`
-	Description    string          `json:"description,omitempty" db:"description"`
+	Description    *string         `json:"description,omitempty" db:"description"`
 	Metadata       json.RawMessage `json:"metadata,omitempty" db:"metadata"`
 	Tags           []string        `json:"tags,omitempty" db:"tags"`
 	Status         string          `json:"status" db:"status"`

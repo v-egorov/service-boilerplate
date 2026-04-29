@@ -12,7 +12,7 @@ type CreateObjectRequest struct {
 	ObjectTypeID   int64                  `json:"object_type_id" binding:"required" validate:"required,gt=0"`
 	ParentObjectID *int64                 `json:"parent_object_id,omitempty" validate:"omitempty,gt=0"`
 	Name           string                 `json:"name" binding:"required" validate:"required,min=1,max=255"`
-	Description    string                 `json:"description,omitempty" validate:"max=1000"`
+	Description    *string                `json:"description,omitempty" validate:"max=1000"`
 	Metadata       map[string]interface{} `json:"metadata,omitempty"`
 	Tags           []string               `json:"tags,omitempty"`
 	CreatedBy      string                 `json:"-" db:"created_by"`
@@ -97,6 +97,19 @@ type PaginationResponse struct {
 	Total  int64 `json:"total,omitempty"` // Repository will populate this
 }
 
+// stringPtr returns a pointer to a string
+func stringPtr(s string) *string {
+	return &s
+}
+
+// toString converts *string to string, returning empty string if nil
+func toString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
 // ToResponse converts an Object model to ObjectResponse
 func (o *Object) ToResponse() *ObjectResponse {
 	// Convert Metadata from json.RawMessage to map[string]interface{}
@@ -137,7 +150,7 @@ func (o *Object) ToResponse() *ObjectResponse {
 		ParentObjectID: o.ParentObjectID,
 		ParentName:     parentName,
 		Name:           o.Name,
-		Description:    o.Description,
+		Description:    toString(o.Description),
 		Metadata:       metadata,
 		Tags:           o.Tags,
 		Status:         o.Status,
@@ -182,7 +195,7 @@ func (o *Object) ToMinimalResponse() *ObjectResponse {
 		ObjectTypeName: objectTypeName,
 		ParentObjectID: o.ParentObjectID,
 		Name:           o.Name,
-		Description:    o.Description,
+		Description:    toString(o.Description),
 		Metadata:       metadata,
 		Tags:           o.Tags,
 		Status:         o.Status,
