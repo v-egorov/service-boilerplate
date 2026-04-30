@@ -81,6 +81,6 @@ ON CONFLICT DO NOTHING;
 INSERT INTO auth_service.role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM auth_service.roles r
-JOIN auth_service.permissions p ON p.name IN ('objects:update:all', 'objects:delete:all')
+JOIN auth_service.permissions p ON p.name IN ('objects:create', 'objects:update:all', 'objects:delete:all')
 WHERE r.name = 'object-type-admin'
 ON CONFLICT DO NOTHING;
