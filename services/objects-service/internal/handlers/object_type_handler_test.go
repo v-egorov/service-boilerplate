@@ -453,7 +453,3 @@ func TestObjectTypeHandler_GetSubtreeObjectCount(t *testing.T) {
 
 	mockService.AssertExpectations(t)
 }
-
-func stringPtr(s string) *string {
-	return &s
-}

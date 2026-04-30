@@ -16,7 +16,7 @@ func TestObject_Initialization(t *testing.T) {
 		PublicID:     publicID,
 		ObjectTypeID: 100,
 		Name:         "TestObject",
-		Description:  "Test description",
+		Description:  stringPtr("Test description"),
 		Status:       StatusActive,
 		Tags:         []string{"tag1", "tag2"},
 		Metadata:     json.RawMessage(`{"key": "value"}`),
@@ -29,7 +29,7 @@ func TestObject_Initialization(t *testing.T) {
 	assert.Equal(t, publicID, obj.PublicID)
 	assert.Equal(t, int64(100), obj.ObjectTypeID)
 	assert.Equal(t, "TestObject", obj.Name)
-	assert.Equal(t, "Test description", obj.Description)
+	assert.Equal(t, "Test description", toString(obj.Description))
 	assert.Equal(t, StatusActive, obj.Status)
 	assert.Equal(t, []string{"tag1", "tag2"}, obj.Tags)
 	assert.Equal(t, int64(1), obj.Version)

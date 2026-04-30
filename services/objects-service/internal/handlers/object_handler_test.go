@@ -14,6 +14,10 @@ import (
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/repository"
 )
 
+func stringPtr(s string) *string {
+	return &s
+}
+
 type MockObjectService struct {
 	mock.Mock
 }
@@ -185,14 +189,14 @@ func TestObjectHandler_Create(t *testing.T) {
 	req := models.CreateObjectRequest{
 		ObjectTypeID: 1,
 		Name:         "TestObject",
-		Description:  "Test description",
+		Description:  stringPtr("Test description"),
 	}
 
 	createdObj := &models.Object{
 		ID:           1,
 		ObjectTypeID: 1,
 		Name:         "TestObject",
-		Description:  "Test description",
+		Description:  stringPtr("Test description"),
 		Status:       models.StatusActive,
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
@@ -343,7 +347,7 @@ func TestObjectHandler_Update(t *testing.T) {
 		ID:           1,
 		ObjectTypeID: 1,
 		Name:         "UpdatedObject",
-		Description:  "Updated description",
+		Description:  stringPtr("Updated description"),
 		CreatedBy:    "user-123",
 	}
 
