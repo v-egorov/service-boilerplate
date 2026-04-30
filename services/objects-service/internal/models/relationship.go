@@ -10,6 +10,7 @@ import (
 
 type Relationship struct {
 	ObjectID             int64           `json:"object_id" db:"object_id"`
+	PublicID             uuid.UUID       `json:"public_id" db:"public_id"`
 	SourceObjectID       int64           `json:"source_object_id" db:"source_object_id"`
 	SourceObjectPublicID uuid.UUID       `json:"source_object_public_id" db:"source_object_public_id"`
 	TargetObjectID       int64           `json:"target_object_id" db:"target_object_id"`
@@ -105,6 +106,7 @@ type RelationshipFilter struct {
 
 type RelationshipResponse struct {
 	ObjectID             int64                  `json:"object_id"`
+	PublicID             uuid.UUID              `json:"public_id"`
 	SourceObjectID       int64                  `json:"source_object_id"`
 	SourceObjectPublicID string                 `json:"source_object_public_id"`
 	TargetObjectID       int64                  `json:"target_object_id"`
@@ -139,6 +141,7 @@ func (r *Relationship) ToResponse() *RelationshipResponse {
 
 	return &RelationshipResponse{
 		ObjectID:             r.ObjectID,
+		PublicID:             r.PublicID,
 		SourceObjectID:       r.SourceObjectID,
 		SourceObjectPublicID: r.SourceObjectPublicID.String(),
 		TargetObjectID:       r.TargetObjectID,

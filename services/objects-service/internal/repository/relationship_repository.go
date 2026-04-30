@@ -117,22 +117,17 @@ func (r *relationshipRepository) Create(ctx context.Context, input *models.Creat
 		return nil, fmt.Errorf("relationship type not found: %w", err)
 	}
 
-	objectID, err := r.createBaseObject(ctx, input.CreatedBy)
-	if err != nil {
-		r.metrics.ErrorCount++
-		return nil, fmt.Errorf("failed to create base object: %w", err)
-	}
+	objectTypeID := relType.ObjectID
 
-	var metadata []byte
+	var metadataJSON []byte
 	if input.RelationshipMetadata != nil {
-		metadata, err = json.Marshal(input.RelationshipMetadata)
+		metadataJSON, err = json.Marshal(input.RelationshipMetadata)
 		if err != nil {
 			r.metrics.ErrorCount++
-			_ = r.deleteBaseObject(ctx, objectID)
 			return nil, fmt.Errorf("failed to marshal metadata: %w", err)
 		}
 	} else {
-		metadata = []byte("{}")
+		metadataJSON = []byte("{}")
 	}
 
 	status := input.Status
@@ -140,7 +135,31 @@ func (r *relationshipRepository) Create(ctx context.Context, input *models.Creat
 		status = models.StatusActive
 	}
 
-	query := `
+	var createdBy, updatedBy string
+	if input.CreatedBy != "" {
+		createdBy = input.CreatedBy
+		updatedBy = input.CreatedBy
+	} else {
+		createdBy = "system"
+		updatedBy = "system"
+	}
+
+	baseObject, err := r.objectRepo.Create(ctx, &models.CreateObjectRequest{
+		ObjectTypeID: objectTypeID,
+		Name:         "Relationship",
+		Description:  nil,
+		Metadata:     map[string]interface{}{},
+		Tags:         []string{},
+		CreatedBy:    createdBy,
+	})
+	if err != nil {
+		r.metrics.ErrorCount++
+		return nil, fmt.Errorf("failed to create base object: %w", err)
+	}
+
+	objectID := baseObject.ID
+
+	createQuery := `
 		INSERT INTO objects_service.objects_relationships (
 			object_id, source_object_id, target_object_id, relationship_type_id,
 			status, relationship_metadata, created_by, updated_by,
@@ -152,18 +171,19 @@ func (r *relationshipRepository) Create(ctx context.Context, input *models.Creat
 	var rel models.Relationship
 	var relMeta []byte
 
-	err = r.db.QueryRow(ctx, query,
+	err = r.db.QueryRow(ctx, createQuery,
 		objectID, sourceObject.ID, targetObject.ID, relType.ObjectID,
-		status, metadata, input.CreatedBy, input.CreatedBy,
+		status, metadataJSON, createdBy, updatedBy,
 	).Scan(
 		&rel.ObjectID, &rel.SourceObjectID, &rel.TargetObjectID, &rel.RelationshipTypeID,
 		&rel.Status, &relMeta, &rel.CreatedBy, &rel.UpdatedBy, &rel.CreatedAt, &rel.UpdatedAt,
 	)
 	if err != nil {
 		r.metrics.ErrorCount++
-		_ = r.deleteBaseObject(ctx, objectID)
 		return nil, fmt.Errorf("failed to create relationship: %w", err)
 	}
+
+	rel.PublicID = baseObject.PublicID
 
 	rel.RelationshipMetadata = relMeta
 	rel.SourceObjectPublicID = sourceObject.PublicID
@@ -173,43 +193,17 @@ func (r *relationshipRepository) Create(ctx context.Context, input *models.Creat
 	return &rel, nil
 }
 
-func (r *relationshipRepository) createBaseObject(ctx context.Context, createdBy string) (int64, error) {
-	var typeID int64
-	err := r.db.QueryRow(ctx, `
-		SELECT id FROM objects_service.object_types WHERE name = 'Relationship'
-	`).Scan(&typeID)
-	if err != nil {
-		return 0, fmt.Errorf("Relationship object type not found: %w", err)
-	}
-
-	var objectID int64
-	err = r.db.QueryRow(ctx, `
-		INSERT INTO objects_service.objects (public_id, object_type_id, name, status, created_at, updated_at)
-		VALUES (gen_random_uuid(), $1, 'Relationship', 'active', NOW(), NOW())
-		RETURNING id
-	`, typeID).Scan(&objectID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to create base object: %w", err)
-	}
-
-	return objectID, nil
-}
-
-func (r *relationshipRepository) deleteBaseObject(ctx context.Context, objectID int64) error {
-	_, err := r.db.Exec(ctx, `DELETE FROM objects_service.objects WHERE id = $1`, objectID)
-	return err
-}
-
 func (r *relationshipRepository) GetByObjectID(ctx context.Context, objectID int64) (*models.Relationship, error) {
 	r.metrics.QueryCount++
 
 	query := `
 		SELECT 
-			r.object_id, r.source_object_id, r.target_object_id, r.relationship_type_id,
+			r.object_id, o.public_id, r.source_object_id, r.target_object_id, r.relationship_type_id,
 			r.status, r.relationship_metadata, r.created_by, r.updated_by,
 			r.created_at, r.updated_at,
 			s.public_id, t.public_id, rt.type_key
 		FROM objects_service.objects_relationships r
+		JOIN objects_service.objects o ON r.object_id = o.id
 		JOIN objects_service.objects s ON r.source_object_id = s.id
 		JOIN objects_service.objects t ON r.target_object_id = t.id
 		JOIN objects_service.objects_relationship_types rt ON r.relationship_type_id = rt.object_id
@@ -219,7 +213,7 @@ func (r *relationshipRepository) GetByObjectID(ctx context.Context, objectID int
 	var metadata []byte
 
 	err := r.db.QueryRow(ctx, query, objectID).Scan(
-		&rel.ObjectID, &rel.SourceObjectID, &rel.TargetObjectID, &rel.RelationshipTypeID,
+		&rel.ObjectID, &rel.PublicID, &rel.SourceObjectID, &rel.TargetObjectID, &rel.RelationshipTypeID,
 		&rel.Status, &metadata, &rel.CreatedBy, &rel.UpdatedBy,
 		&rel.CreatedAt, &rel.UpdatedAt,
 		&rel.SourceObjectPublicID, &rel.TargetObjectPublicID, &rel.RelationshipTypeKey,
@@ -405,11 +399,12 @@ func (r *relationshipRepository) List(ctx context.Context, filter *models.Relati
 
 	query := fmt.Sprintf(`
 		SELECT 
-			r.object_id, r.source_object_id, r.target_object_id, r.relationship_type_id,
+			r.object_id, o.public_id, r.source_object_id, r.target_object_id, r.relationship_type_id,
 			r.status, r.relationship_metadata, r.created_by, r.updated_by,
 			r.created_at, r.updated_at,
 			s.public_id, t.public_id, rt.type_key
 		FROM objects_service.objects_relationships r
+		JOIN objects_service.objects o ON r.object_id = o.id
 		JOIN objects_service.objects s ON r.source_object_id = s.id
 		JOIN objects_service.objects t ON r.target_object_id = t.id
 		JOIN objects_service.objects_relationship_types rt ON r.relationship_type_id = rt.object_id
@@ -433,7 +428,7 @@ func (r *relationshipRepository) List(ctx context.Context, filter *models.Relati
 		var metadata []byte
 
 		err := rows.Scan(
-			&rel.ObjectID, &rel.SourceObjectID, &rel.TargetObjectID, &rel.RelationshipTypeID,
+			&rel.ObjectID, &rel.PublicID, &rel.SourceObjectID, &rel.TargetObjectID, &rel.RelationshipTypeID,
 			&rel.Status, &metadata, &rel.CreatedBy, &rel.UpdatedBy,
 			&rel.CreatedAt, &rel.UpdatedAt,
 			&rel.SourceObjectPublicID, &rel.TargetObjectPublicID, &rel.RelationshipTypeKey,
@@ -444,11 +439,6 @@ func (r *relationshipRepository) List(ctx context.Context, filter *models.Relati
 		}
 		rel.RelationshipMetadata = metadata
 		rels = append(rels, &rel)
-	}
-
-	if err := rows.Err(); err != nil {
-		r.metrics.ErrorCount++
-		return nil, fmt.Errorf("error iterating relationships: %w", err)
 	}
 
 	return rels, nil
@@ -492,11 +482,12 @@ func (r *relationshipRepository) GetForObject(ctx context.Context, objectPublicI
 
 	query := fmt.Sprintf(`
 		SELECT 
-			r.object_id, r.source_object_id, r.target_object_id, r.relationship_type_id,
+			r.object_id, o.public_id, r.source_object_id, r.target_object_id, r.relationship_type_id,
 			r.status, r.relationship_metadata, r.created_by, r.updated_by,
 			r.created_at, r.updated_at,
 			s.public_id, t.public_id, rt.type_key
 		FROM objects_service.objects_relationships r
+		JOIN objects_service.objects o ON r.object_id = o.id
 		JOIN objects_service.objects s ON r.source_object_id = s.id
 		JOIN objects_service.objects t ON r.target_object_id = t.id
 		JOIN objects_service.objects_relationship_types rt ON r.relationship_type_id = rt.object_id
@@ -520,7 +511,7 @@ func (r *relationshipRepository) GetForObject(ctx context.Context, objectPublicI
 		var metadata []byte
 
 		err := rows.Scan(
-			&rel.ObjectID, &rel.SourceObjectID, &rel.TargetObjectID, &rel.RelationshipTypeID,
+			&rel.ObjectID, &rel.PublicID, &rel.SourceObjectID, &rel.TargetObjectID, &rel.RelationshipTypeID,
 			&rel.Status, &metadata, &rel.CreatedBy, &rel.UpdatedBy,
 			&rel.CreatedAt, &rel.UpdatedAt,
 			&rel.SourceObjectPublicID, &rel.TargetObjectPublicID, &rel.RelationshipTypeKey,
@@ -547,11 +538,12 @@ func (r *relationshipRepository) GetForObjectByType(ctx context.Context, objectP
 
 	query := `
 		SELECT 
-			r.object_id, r.source_object_id, r.target_object_id, r.relationship_type_id,
+			r.object_id, o.public_id, r.source_object_id, r.target_object_id, r.relationship_type_id,
 			r.status, r.relationship_metadata, r.created_by, r.updated_by,
 			r.created_at, r.updated_at,
 			s.public_id, t.public_id, rt.type_key
 		FROM objects_service.objects_relationships r
+		JOIN objects_service.objects o ON r.object_id = o.id
 		JOIN objects_service.objects s ON r.source_object_id = s.id
 		JOIN objects_service.objects t ON r.target_object_id = t.id
 		JOIN objects_service.objects_relationship_types rt ON r.relationship_type_id = rt.object_id
@@ -572,7 +564,7 @@ func (r *relationshipRepository) GetForObjectByType(ctx context.Context, objectP
 		var metadata []byte
 
 		err := rows.Scan(
-			&rel.ObjectID, &rel.SourceObjectID, &rel.TargetObjectID, &rel.RelationshipTypeID,
+			&rel.ObjectID, &rel.PublicID, &rel.SourceObjectID, &rel.TargetObjectID, &rel.RelationshipTypeID,
 			&rel.Status, &metadata, &rel.CreatedBy, &rel.UpdatedBy,
 			&rel.CreatedAt, &rel.UpdatedAt,
 			&rel.SourceObjectPublicID, &rel.TargetObjectPublicID, &rel.RelationshipTypeKey,
@@ -705,11 +697,12 @@ func (r *relationshipRepository) GetByTypeKey(ctx context.Context, typeKey strin
 
 	query := `
 		SELECT 
-			r.object_id, r.source_object_id, r.target_object_id, r.relationship_type_id,
+			r.object_id, o.public_id, r.source_object_id, r.target_object_id, r.relationship_type_id,
 			r.status, r.relationship_metadata, r.created_by, r.updated_by,
 			r.created_at, r.updated_at,
 			s.public_id, t.public_id, rt.type_key
 		FROM objects_service.objects_relationships r
+		JOIN objects_service.objects o ON r.object_id = o.id
 		JOIN objects_service.objects s ON r.source_object_id = s.id
 		JOIN objects_service.objects t ON r.target_object_id = t.id
 		JOIN objects_service.objects_relationship_types rt ON r.relationship_type_id = rt.object_id
@@ -729,7 +722,7 @@ func (r *relationshipRepository) GetByTypeKey(ctx context.Context, typeKey strin
 		var metadata []byte
 
 		err := rows.Scan(
-			&rel.ObjectID, &rel.SourceObjectID, &rel.TargetObjectID, &rel.RelationshipTypeID,
+			&rel.ObjectID, &rel.PublicID, &rel.SourceObjectID, &rel.TargetObjectID, &rel.RelationshipTypeID,
 			&rel.Status, &metadata, &rel.CreatedBy, &rel.UpdatedBy,
 			&rel.CreatedAt, &rel.UpdatedAt,
 			&rel.SourceObjectPublicID, &rel.TargetObjectPublicID, &rel.RelationshipTypeKey,
