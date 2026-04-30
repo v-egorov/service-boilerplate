@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -306,35 +307,35 @@ func (h *RelationshipHandler) handleError(c *gin.Context, requestID string, err 
 	errorType := "internal_error"
 
 	switch {
-	case err == services.ErrRelationshipNotFound:
+	case errors.Is(err, services.ErrRelationshipNotFound):
 		statusCode = http.StatusNotFound
 		errorMessage = "Relationship not found"
 		errorType = "not_found"
-	case err == services.ErrDuplicateRelationship:
+	case errors.Is(err, services.ErrDuplicateRelationship):
 		statusCode = http.StatusConflict
 		errorMessage = "Relationship already exists"
 		errorType = "conflict"
-	case err == services.ErrSourceObjectNotFound:
+	case errors.Is(err, services.ErrSourceObjectNotFound):
 		statusCode = http.StatusNotFound
 		errorMessage = "Source object not found"
 		errorType = "not_found"
-	case err == services.ErrTargetObjectNotFound:
+	case errors.Is(err, services.ErrTargetObjectNotFound):
 		statusCode = http.StatusNotFound
 		errorMessage = "Target object not found"
 		errorType = "not_found"
-	case err == services.ErrRelationshipTypeNotFound:
+	case errors.Is(err, services.ErrRelationshipTypeNotFound):
 		statusCode = http.StatusNotFound
 		errorMessage = "Relationship type not found"
 		errorType = "not_found"
-	case err == services.ErrCircularRelationship:
+	case errors.Is(err, services.ErrCircularRelationship):
 		statusCode = http.StatusUnprocessableEntity
 		errorMessage = "Cannot create circular relationship"
 		errorType = "validation_error"
-	case err == services.ErrCardinalityViolation:
+	case errors.Is(err, services.ErrCardinalityViolation):
 		statusCode = http.StatusUnprocessableEntity
 		errorMessage = "Cardinality constraint violated"
 		errorType = "validation_error"
-	case err == services.ErrSourceTargetSame:
+	case errors.Is(err, services.ErrSourceTargetSame):
 		statusCode = http.StatusBadRequest
 		errorMessage = "Source and target cannot be the same"
 		errorType = "validation_error"
