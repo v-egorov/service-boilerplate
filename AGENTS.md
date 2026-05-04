@@ -179,13 +179,17 @@ Get object:
 ```json
 {
   "error": "Human-readable error message",
-  "type": "<error_type>"
+  "type": "<error_type>",
+  "meta": {
+    "request_id": "abc-123-xyz"
+  }
 }
 ```
 
 **Fields:**
 - `error` - User-facing error message
 - `type` - Machine-readable error type for programmatic handling
+- `meta.request_id` - Unique request ID for distributed tracing (same as success responses)
 
 ### Error Type Values
 
@@ -202,12 +206,26 @@ Get object:
 
 **Field-level validation:**
 ```json
-{"error": "email is required", "type": "validation_error", "field": "email"}
+{
+  "error": "email is required",
+  "type": "validation_error",
+  "field": "email",
+  "meta": {
+    "request_id": "abc-123-xyz"
+  }
+}
 ```
 
 **Resource conflicts:**
 ```json
-{"error": "User already exists", "type": "conflict", "resource": "user"}
+{
+  "error": "User already exists",
+  "type": "conflict",
+  "resource": "user",
+  "meta": {
+    "request_id": "abc-123-xyz"
+  }
+}
 ```
 
 ### Implementation Rules
