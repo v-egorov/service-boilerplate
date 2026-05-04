@@ -119,25 +119,44 @@ make_request() {
     fi
 }
 
-# Get seeded test object public_ids from database
-get_test_object_ids() {
-    echo -e "\n${BLUE}Fetching seeded test object IDs...${NC}"
+# Create unique test objects with timestamp
+create_test_objects() {
+    local timestamp=$(date +"%Y%m%d%H%M%S")
+    local source_name="Test Portfolio RBAC $timestamp"
+    local target_name="Test Asset RBAC $timestamp"
 
-    SOURCE_PUBLIC_ID=$(docker exec service-boilerplate-postgres psql -U postgres -d service_db -t -c "
-        SELECT public_id FROM objects_service.objects WHERE name = 'Test Portfolio A' LIMIT 1;" 2>/dev/null | xargs)
+    echo -e "\n${BLUE}Creating unique test objects (timestamp: $timestamp)...${NC}"
 
-    TARGET_PUBLIC_ID=$(docker exec service-boilerplate-postgres psql -U postgres -d service_db -t -c "
-        SELECT public_id FROM objects_service.objects WHERE name = 'Test Asset X' LIMIT 1;" 2>/dev/null | xargs)
+    # Create source object
+    source_response=$(curl -s -X POST "$API_GATEWAY_URL/api/v1/objects" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $OBJECT_ADMIN_TOKEN" \
+        -d "{\"name\": \"$source_name\", \"object_type_id\": 1, \"status\": \"active\"}")
 
-    if [ -z "$SOURCE_PUBLIC_ID" ] || [ -z "$TARGET_PUBLIC_ID" ]; then
-        echo -e "${RED}✗ Could not find seeded test objects${NC}"
-        echo "SOURCE_PUBLIC_ID: $SOURCE_PUBLIC_ID"
-        echo "TARGET_PUBLIC_ID: $TARGET_PUBLIC_ID"
+    SOURCE_PUBLIC_ID=$(echo "$source_response" | jq -r '.data.public_id' 2>/dev/null)
+
+    if [ -z "$SOURCE_PUBLIC_ID" ] || [ "$SOURCE_PUBLIC_ID" = "null" ]; then
+        echo -e "${RED}✗ Failed to create source object${NC}"
+        echo "Response: $source_response"
         exit 1
     fi
 
-    echo -e "${GREEN}✓ Source: $SOURCE_PUBLIC_ID${NC}"
-    echo -e "${GREEN}✓ Target: $TARGET_PUBLIC_ID${NC}"
+    # Create target object
+    target_response=$(curl -s -X POST "$API_GATEWAY_URL/api/v1/objects" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $OBJECT_ADMIN_TOKEN" \
+        -d "{\"name\": \"$target_name\", \"object_type_id\": 1, \"status\": \"active\"}")
+
+    TARGET_PUBLIC_ID=$(echo "$target_response" | jq -r '.data.public_id' 2>/dev/null)
+
+    if [ -z "$TARGET_PUBLIC_ID" ] || [ "$TARGET_PUBLIC_ID" = "null" ]; then
+        echo -e "${RED}✗ Failed to create target object${NC}"
+        echo "Response: $target_response"
+        exit 1
+    fi
+
+    echo -e "${GREEN}✓ Source: $SOURCE_PUBLIC_ID ($source_name)${NC}"
+    echo -e "${GREEN}✓ Target: $TARGET_PUBLIC_ID ($target_name)${NC}"
 }
 
 # Test Relationships - CRUD
@@ -154,7 +173,7 @@ test_relationships() {
         -d "{\"source_object_id\": \"$SOURCE_PUBLIC_ID\", \"target_object_id\": \"$TARGET_PUBLIC_ID\", \"type_key\": \"$test_type_key\", \"status\": \"active\"}")
 
     if echo "$create_response" | jq -e '.public_id' >/dev/null 2>&1; then
-        RELATIONSHIP_PUBLIC_ID=$(echo "$create_response" | jq -r '.public_id')
+        RELATIONSHIP_PUBLIC_ID=$(echo "$create_response" | jq -r '.data.public_id')
         echo -e "${GREEN}✓ Relationship created: $RELATIONSHIP_PUBLIC_ID${NC}"
         TESTS_PASSED=$((TESTS_PASSED + 1))
     else
@@ -198,7 +217,7 @@ test_relationships() {
         -d "{\"source_object_id\": \"$SOURCE_PUBLIC_ID\", \"target_object_id\": \"$TARGET_PUBLIC_ID\", \"type_key\": \"$test_type_key\", \"status\": \"active\"}")
 
     if echo "$create_response" | jq -e '.public_id' >/dev/null 2>&1; then
-        RELATIONSHIP_PUBLIC_ID=$(echo "$create_response" | jq -r '.public_id')
+        RELATIONSHIP_PUBLIC_ID=$(echo "$create_response" | jq -r '.data.public_id')
     else
         echo -e "${RED}✗ Failed to create relationship for object-level tests${NC}"
         return 1
@@ -227,20 +246,43 @@ cleanup() {
     fi
 
     # Delete relationship instances created during tests
-    relationships_deleted=$(docker exec service-boilerplate-postgres psql -U postgres -d service_db -t -c "
-        DELETE FROM objects_service.objects_relationships
-        WHERE source_object_id = (
-            SELECT id FROM objects_service.objects WHERE public_id = '$SOURCE_PUBLIC_ID'
-        )
-        AND target_object_id = (
-            SELECT id FROM objects_service.objects WHERE public_id = '$TARGET_PUBLIC_ID'
-        )
-        AND relationship_type_id = (
-            SELECT id FROM objects_service.objects_relationship_types WHERE type_key = 'contains'
-        )
-        RETURNING id;" 2>&1 | wc -l)
+    if [ -n "$SOURCE_PUBLIC_ID" ] && [ -n "$TARGET_PUBLIC_ID" ]; then
+        relationships_deleted=$(docker exec service-boilerplate-postgres psql -U postgres -d service_db -t -c "
+            DELETE FROM objects_service.objects_relationships
+            WHERE source_object_id = (
+                SELECT id FROM objects_service.objects WHERE public_id = '$SOURCE_PUBLIC_ID'
+            )
+            AND target_object_id = (
+                SELECT id FROM objects_service.objects WHERE public_id = '$TARGET_PUBLIC_ID'
+            )
+            AND relationship_type_id = (
+                SELECT id FROM objects_service.objects_relationship_types WHERE type_key = 'contains'
+            )
+            RETURNING id;" 2>&1 | wc -l)
 
-    echo -e "${GREEN}✓ Deleted $relationships_deleted test relationships${NC}"
+        echo -e "${GREEN}✓ Deleted $relationships_deleted test relationships${NC}"
+    fi
+
+    # Delete test objects created during tests
+    if [ -n "$SOURCE_PUBLIC_ID" ]; then
+        source_id=$(docker exec service-boilerplate-postgres psql -U postgres -d service_db -t -c "
+            SELECT id FROM objects_service.objects WHERE public_id = '$SOURCE_PUBLIC_ID' LIMIT 1;" 2>/dev/null | xargs)
+        if [ -n "$source_id" ]; then
+            docker exec service-boilerplate-postgres psql -U postgres -d service_db -t -c "
+                DELETE FROM objects_service.objects WHERE id = $source_id;" >/dev/null 2>&1
+            echo -e "${GREEN}✓ Deleted source object ($SOURCE_PUBLIC_ID)${NC}"
+        fi
+    fi
+
+    if [ -n "$TARGET_PUBLIC_ID" ]; then
+        target_id=$(docker exec service-boilerplate-postgres psql -U postgres -d service_db -t -c "
+            SELECT id FROM objects_service.objects WHERE public_id = '$TARGET_PUBLIC_ID' LIMIT 1;" 2>/dev/null | xargs)
+        if [ -n "$target_id" ]; then
+            docker exec service-boilerplate-postgres psql -U postgres -d service_db -t -c "
+                DELETE FROM objects_service.objects WHERE id = $target_id;" >/dev/null 2>&1
+            echo -e "${GREEN}✓ Deleted target object ($TARGET_PUBLIC_ID)${NC}"
+        fi
+    fi
 }
 
 # Main function
@@ -257,8 +299,8 @@ main() {
     OBJECT_ADMIN_TOKEN=$(login "$OBJECT_ADMIN_EMAIL" "$OBJECT_ADMIN_PASSWORD" "object.admin")
     TEST_USER_TOKEN=$(login "$TEST_USER_EMAIL" "$TEST_USER_PASSWORD" "test.user")
 
-    # Get test object IDs from seeded data
-    get_test_object_ids
+    # Create unique test objects
+    create_test_objects
 
     # Run tests
     test_relationships
