@@ -133,11 +133,48 @@ This boilerplate follows consistent patterns across all services. See detailed g
 
 See [Service Patterns Differences](docs/service-patterns-differences.md) for planned standardization work.
 
-## Error Handling Standards
+## API Response Standards
 
-All services must follow consistent error response patterns:
+### Success Response Format
 
-### Standard Error Response Format
+All successful API responses follow:
+
+```json
+{
+  "data": { ... },
+  "message": "Human-readable success message",
+  "meta": {
+    "request_id": "abc-123-xyz"
+  }
+}
+```
+
+**Fields:**
+- `data` - The response payload (resource or collection)
+- `message` - Human-readable success message (debugging/logging)
+- `meta` - Machine-readable metadata
+  - `request_id` - Unique request ID for distributed tracing
+
+**Examples:**
+
+Create object:
+```json
+{
+  "data": { "id": 1, "name": "Object" },
+  "message": "Object created successfully",
+  "meta": { "request_id": "abc-123" }
+}
+```
+
+Get object:
+```json
+{
+  "data": { "id": 1, "name": "Object" },
+  "meta": { "request_id": "abc-123" }
+}
+```
+
+### Error Response Format
 
 ```json
 {
@@ -163,12 +200,12 @@ All services must follow consistent error response patterns:
 
 ### Special Cases
 
-**Field-level validation (optional):**
+**Field-level validation:**
 ```json
 {"error": "email is required", "type": "validation_error", "field": "email"}
 ```
 
-**Resource conflicts (optional):**
+**Resource conflicts:**
 ```json
 {"error": "User already exists", "type": "conflict", "resource": "user"}
 ```
@@ -183,7 +220,7 @@ All services must follow consistent error response patterns:
 
 ### References
 
-- [Full API Error Response Standards](docs/api-error-response-standards.md)
+- [Full API Response Standards](docs/api-response-standards.md)
 
 ## graphify
 
