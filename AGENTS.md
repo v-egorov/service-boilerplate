@@ -133,6 +133,58 @@ This boilerplate follows consistent patterns across all services. See detailed g
 
 See [Service Patterns Differences](docs/service-patterns-differences.md) for planned standardization work.
 
+## Error Handling Standards
+
+All services must follow consistent error response patterns:
+
+### Standard Error Response Format
+
+```json
+{
+  "error": "Human-readable error message",
+  "type": "<error_type>"
+}
+```
+
+**Fields:**
+- `error` - User-facing error message
+- `type` - Machine-readable error type for programmatic handling
+
+### Error Type Values
+
+| Type | HTTP Status | Description |
+|------|-------------|-------------|
+| `validation_error` | 400, 422 | Invalid input, missing required fields |
+| `unauthorized` | 401 | Authentication failed |
+| `permission_denied` | 403 | Authorization failed |
+| `not_found` | 404 | Resource not found |
+| `conflict` | 409 | Resource conflict (duplicate, version) |
+| `internal_error` | 500 | Server error |
+
+### Special Cases
+
+**Field-level validation (optional):**
+```json
+{"error": "email is required", "type": "validation_error", "field": "email"}
+```
+
+**Resource conflicts (optional):**
+```json
+{"error": "User already exists", "type": "conflict", "resource": "user"}
+```
+
+### Implementation Rules
+
+1. **Always include `type` field** - Never return errors with only `error` field
+2. **Use `errors.Is()` for wrapped errors** - Don't use `==` for error comparison
+3. **Never expose `details` field** - Don't include error chain/stack traces in responses
+4. **HTTP status codes must match error type** - Status code is primary signal
+5. **Keep messages user-friendly** - Avoid technical jargon
+
+### References
+
+- [Full API Error Response Standards](docs/api-error-response-standards.md)
+
 ## graphify
 
 This project has a graphify knowledge graph at graphify-out/.
