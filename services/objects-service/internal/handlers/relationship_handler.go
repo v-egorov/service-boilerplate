@@ -36,8 +36,8 @@ func (h *RelationshipHandler) Create(c *gin.Context) {
 		}).WithError(err).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
-			"details": err.Error(),
 			"type":    "validation_error",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -64,9 +64,9 @@ func (h *RelationshipHandler) GetByPublicID(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid public ID format",
-			"details": "Public ID must be a valid UUID",
 			"type":    "validation_error",
 			"field":   "public_id",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -93,9 +93,9 @@ func (h *RelationshipHandler) Update(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid public ID format",
-			"details": "Public ID must be a valid UUID",
 			"type":    "validation_error",
 			"field":   "public_id",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -107,8 +107,8 @@ func (h *RelationshipHandler) Update(c *gin.Context) {
 		}).WithError(err).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
-			"details": err.Error(),
 			"type":    "validation_error",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -135,9 +135,9 @@ func (h *RelationshipHandler) Delete(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid public ID format",
-			"details": "Public ID must be a valid UUID",
 			"type":    "validation_error",
 			"field":   "public_id",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -166,8 +166,8 @@ func (h *RelationshipHandler) List(c *gin.Context) {
 		}).WithError(err).Error("Invalid query parameters")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid query parameters",
-			"details": err.Error(),
 			"type":    "validation_error",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -215,9 +215,9 @@ func (h *RelationshipHandler) GetForObject(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid public ID format",
-			"details": "Public ID must be a valid UUID",
 			"type":    "validation_error",
 			"field":   "public_id",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -229,8 +229,8 @@ func (h *RelationshipHandler) GetForObject(c *gin.Context) {
 		}).WithError(err).Error("Invalid query parameters")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid query parameters",
-			"details": err.Error(),
 			"type":    "validation_error",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -267,9 +267,9 @@ func (h *RelationshipHandler) GetForObjectByType(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid public ID format",
-			"details": "Public ID must be a valid UUID",
 			"type":    "validation_error",
 			"field":   "public_id",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -343,7 +343,7 @@ func (h *RelationshipHandler) handleError(c *gin.Context, requestID string, err 
 
 	c.JSON(statusCode, gin.H{
 		"error":   errorMessage,
-		"details": err.Error(),
 		"type":    errorType,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }

@@ -59,8 +59,8 @@ func (h *RelationshipTypeHandler) Create(c *gin.Context) {
 		}).WithError(err).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
-			"details": err.Error(),
 			"type":    "validation_error",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -95,8 +95,8 @@ func (h *RelationshipTypeHandler) List(c *gin.Context) {
 		}).WithError(err).Error("Invalid query parameters")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid query parameters",
-			"details": err.Error(),
 			"type":    "validation_error",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -167,6 +167,7 @@ func (h *RelationshipTypeHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "type_key is required",
 			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -179,8 +180,8 @@ func (h *RelationshipTypeHandler) Update(c *gin.Context) {
 		}).WithError(err).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
-			"details": err.Error(),
 			"type":    "validation_error",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -242,41 +243,49 @@ func (h *RelationshipTypeHandler) handleError(c *gin.Context, requestID string, 
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "Relationship type not found",
 			"type":  "not_found",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	case errors.Is(err, services.ErrDuplicateRelationshipType):
 		c.JSON(http.StatusConflict, gin.H{
 			"error": "Relationship type already exists",
 			"type":  "conflict",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	case errors.Is(err, services.ErrInvalidCardinality):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"error": "Invalid cardinality value",
 			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	case errors.Is(err, services.ErrInvalidReverseType):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"error": "Invalid reverse type key",
 			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	case errors.Is(err, services.ErrRelationshipTypeInUse):
 		c.JSON(http.StatusConflict, gin.H{
 			"error": "Relationship type is in use and cannot be deleted",
 			"type":  "conflict",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	case errors.Is(err, services.ErrInvalidCountConstraint):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"error": "Invalid count constraint: min_count cannot exceed max_count",
 			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	case errors.Is(err, repository.ErrInvalidInput):
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid input",
 			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Internal server error",
 			"type":  "internal_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	}
 }
