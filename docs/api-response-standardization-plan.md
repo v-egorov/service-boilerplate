@@ -140,12 +140,12 @@ This document outlines the comprehensive plan to standardize API response format
 #### 1.1.6 permission_handler.go (4 changes)
 **File:** `services/auth-service/internal/handlers/permission_handler.go`
 
-- [ ] Line 50: Add `type: validation_error`, `meta.request_id`
-- [ ] Line 57: Add `type: internal_error`, `meta.request_id`
-- [ ] Line 71: Add `type: validation_error`, `meta.request_id`
-- [ ] Line 78: Add `type: internal_error`, `meta.request_id`
+- [x] Line 50: Add `type: validation_error`, `meta.request_id` ✅
+- [x] Line 57: Add `type: internal_error`, `meta.request_id` ✅
+- [x] Line 71: Add `type: validation_error`, `meta.request_id` ✅
+- [x] Line 78: Add `type: internal_error`, `meta.request_id` ✅
 
-**Target Completion:** __/__/____
+**Target Completion:** ✅ Completed - Commit 7ef7606
 
 ### 1.2 Objects-Service - Cleanup & Standardize
 
@@ -398,12 +398,12 @@ c.JSON(http.StatusCreated, gin.H{
 
 ### Phase 1: Error Standardization
 
-- [x] **Task 1.1:** Auth-Service error responses (~49 changes) ✅
+- [x] **Task 1.1:** Auth-Service error responses (~53 changes) ✅
   - [x] Login/register/logout endpoints
   - [x] Token refresh endpoints
   - [x] Role/permission management endpoints
   - [x] Token/role assignment endpoints
-- [ ] **Task 1.2:** permission_handler.go (4 changes)
+- [x] **Task 1.2:** permission_handler.go (4 changes) ✅
 - [ ] **Task 1.3:** Remove `details` from relationship handlers
 - [ ] **Task 1.4:** Standardize object_handler.go error types
 - [ ] **Task 1.5:** User-Service error type naming
