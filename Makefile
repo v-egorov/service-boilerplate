@@ -302,7 +302,7 @@ test-cli: ## Run CLI tests
 	@cd $(CLI_DIR) && $(GOTEST) ./...
 
 .PHONY: test-all
-test-all: test-gateway test-auth-service test-user-service test-user-service test-cli ## Run all tests (services + CLI)
+test-all: test-gateway test-auth-service test-user-service test-user-service test-cli test-objects-service ## Run all tests (services + CLI)
 	@echo "✅ All tests completed"
 
 .PHONY: clean
