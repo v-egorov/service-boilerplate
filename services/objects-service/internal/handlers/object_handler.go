@@ -82,13 +82,15 @@ func (h *ObjectHandler) handleServiceError(c *gin.Context, err error, operation 
 	case repository.ErrOptimisticLock:
 		c.JSON(http.StatusConflict, gin.H{
 			"error": "Version conflict - the object has been modified by another request",
-			"type":  "version_conflict",
+			"type":  "conflict",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Internal server error",
 			"type":  "internal_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	}
 }

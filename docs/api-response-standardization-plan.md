@@ -191,18 +191,14 @@ This document outlines the comprehensive plan to standardize API response format
 
 **File:** `services/user-service/internal/handlers/user_handler.go`
 
-**Current Types:**
-- `validation_error` ✅
-- `conflict_error` ⚠️ → Should be `conflict`
-- `not_found_error` ⚠️ → Should be `not_found`
-- `internal_error` ✅
-- `unknown_error` ✅ (acceptable for fallback)
+**Changes Made:**
+- [x] Updated `conflict_error` → `conflict` ✅
+- [x] Updated `not_found_error` → `not_found` ✅
+- [x] Removed `details` field from all validation errors ✅
+- [x] Added `meta.request_id` to all error responses ✅
+- [x] All unit tests passing ✅
 
-- [ ] Update `conflict_error` → `conflict`
-- [ ] Update `not_found_error` → `not_found`
-- [ ] Verify all error responses follow standard
-
-**Target Completion:** __/__/____
+**Target Completion:** ✅ Completed (pending commit)
 
 ---
 
@@ -376,11 +372,15 @@ c.JSON(http.StatusCreated, gin.H{
 - [x] **Task 1.3:** Remove `details` field from objects-service ✅
   - [x] relationship_handler.go - Remove details, add meta.request_id
   - [x] relationship_type_handler.go - Remove details, add meta.request_id
-- [ ] **Task 1.4:** Standardize object_handler.go error types
-- [ ] **Task 1.5:** User-Service error type naming
-- [ ] **Task 1.3:** Remove `details` from relationship handlers
-- [ ] **Task 1.4:** Standardize object_handler.go error types
-- [ ] **Task 1.5:** User-Service error type naming
+- [x] **Task 1.4:** Standardize object_handler.go error types ✅
+  - [x] Rename `version_conflict` → `conflict`
+  - [x] Add `meta.request_id` to handleError responses
+- [x] **Task 1.5:** User-Service error type naming ✅
+  - [x] Rename `conflict_error` → `conflict`
+  - [x] Rename `not_found_error` → `not_found`
+  - [x] Remove `details` field from validation errors
+  - [x] Add `meta.request_id` to all error responses
+  - [x] All unit tests passing
 
 **Phase 1 Target:** __/__/____
 
