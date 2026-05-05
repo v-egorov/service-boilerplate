@@ -22,6 +22,31 @@ type AuthHandler struct {
 	standardLogger *logging.StandardLogger
 }
 
+func (h *AuthHandler) errorResponse(c *gin.Context, statusCode int, errorType string, message string) {
+	c.JSON(statusCode, gin.H{
+		"error":   message,
+		"type":    errorType,
+		"meta":    gin.H{"request_id": c.GetHeader("X-Request-ID")},
+	})
+}
+
+func (h *AuthHandler) validationError(c *gin.Context, message string, field ...string) {
+	if len(field) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   message,
+			"type":    "validation_error",
+			"field":   field[0],
+			"meta":    gin.H{"request_id": c.GetHeader("X-Request-ID")},
+		})
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   message,
+			"type":    "validation_error",
+			"meta":    gin.H{"request_id": c.GetHeader("X-Request-ID")},
+		})
+	}
+}
+
 func NewAuthHandler(authService services.AuthServiceInterface, logger *logrus.Logger) *AuthHandler {
 	return &AuthHandler{
 		authService:    authService,
@@ -41,7 +66,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithError(err).Warn("Invalid login request")
 		h.auditLogger.LogAuthAttempt("", c.GetHeader("X-Request-ID"), c.ClientIP(), c.GetHeader("User-Agent"), req.Email, traceID, spanID, false, "Invalid request format")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		h.validationError(c, "Invalid request format")
 		return
 	}
 
@@ -53,7 +78,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if err != nil {
 		h.standardLogger.AuthOperation(requestID, "", req.Email, "login", false, err)
 		h.auditLogger.LogAuthAttempt("", requestID, ipAddress, userAgent, req.Email, traceID, spanID, false, err.Error())
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		h.errorResponse(c, http.StatusUnauthorized, "unauthorized", "Invalid credentials")
 		return
 	}
 
@@ -72,7 +97,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithError(err).Warn("Invalid register request")
 		h.auditLogger.LogUserCreation("", c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, "Invalid request format")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		h.validationError(c, "Invalid request format")
 		return
 	}
 
@@ -84,7 +109,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	if err != nil {
 		h.standardLogger.AuthOperation(requestID, "", req.Email, "register", false, err)
 		h.auditLogger.LogUserCreation("", requestID, "", ipAddress, userAgent, traceID, spanID, false, err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration failed"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Registration failed")
 		return
 	}
 
@@ -108,14 +133,14 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
 		h.auditLogger.LogTokenOperation(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "logout", traceID, spanID, false, "Authorization header required")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
+		h.errorResponse(c, http.StatusUnauthorized, "unauthorized", "Authorization header required")
 		return
 	}
 
 	tokenParts := strings.Split(authHeader, " ")
 	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
 		h.auditLogger.LogTokenOperation(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "logout", traceID, spanID, false, "Invalid authorization header format")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
+		h.errorResponse(c, http.StatusUnauthorized, "unauthorized", "Invalid authorization header format")
 		return
 	}
 
@@ -148,7 +173,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithError(err).Warn("Invalid refresh token request")
 		h.auditLogger.LogTokenOperation(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "refresh", traceID, spanID, false, "Invalid request format")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		h.validationError(c, "Invalid request format")
 		return
 	}
 
@@ -160,7 +185,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Warn("Token refresh failed")
 		h.auditLogger.LogTokenOperation(actorUserID, requestID, "", ipAddress, userAgent, "refresh", traceID, spanID, false, err.Error())
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid refresh token"})
+		h.errorResponse(c, http.StatusUnauthorized, "unauthorized", "Invalid refresh token")
 		return
 	}
 
@@ -172,42 +197,42 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 	// Get user ID from context (set by auth middleware)
 	userIDValue, exists := c.Get("user_id")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		h.errorResponse(c, http.StatusUnauthorized, "unauthorized", "User not authenticated")
 		return
 	}
 
 	userIDStr, ok := userIDValue.(string)
 	if !ok {
 		h.logger.Error("Invalid user ID type in context")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Internal server error")
 		return
 	}
 
 	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to parse user ID from context")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Internal server error")
 		return
 	}
 
 	// Get user email from context
 	userEmailValue, exists := c.Get("user_email")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User email not found"})
+		h.errorResponse(c, http.StatusUnauthorized, "unauthorized", "User email not found")
 		return
 	}
 
 	userEmail, ok := userEmailValue.(string)
 	if !ok {
 		h.logger.Error("Invalid user email in context")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Internal server error")
 		return
 	}
 
 	user, err := h.authService.GetCurrentUser(c.Request.Context(), userID, userEmail)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get current user")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user information"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to get user information")
 		return
 	}
 
@@ -217,13 +242,13 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 func (h *AuthHandler) ValidateToken(c *gin.Context) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
+		h.errorResponse(c, http.StatusUnauthorized, "unauthorized", "Authorization header required")
 		return
 	}
 
 	tokenParts := strings.Split(authHeader, " ")
 	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
+		h.errorResponse(c, http.StatusUnauthorized, "unauthorized", "Invalid authorization header format")
 		return
 	}
 
@@ -231,7 +256,7 @@ func (h *AuthHandler) ValidateToken(c *gin.Context) {
 	_, err := h.authService.ValidateToken(c.Request.Context(), tokenString)
 	if err != nil {
 		h.logger.WithError(err).Warn("Token validation failed")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or revoked token"})
+		h.errorResponse(c, http.StatusUnauthorized, "unauthorized", "Invalid or revoked token")
 		return
 	}
 
@@ -242,7 +267,7 @@ func (h *AuthHandler) GetPublicKey(c *gin.Context) {
 	publicKeyPEM, err := h.authService.GetPublicKeyPEM()
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get public key")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get public key"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to get public key")
 		return
 	}
 
@@ -275,14 +300,14 @@ func (h *AuthHandler) RotateKeys(c *gin.Context) {
 
 	if !isAdmin {
 		h.auditLogger.LogTokenOperation(actorUserID, requestID, "", ipAddress, userAgent, "admin_rotate_keys", traceID, spanID, false, "Insufficient permissions")
-		c.JSON(http.StatusForbidden, gin.H{"error": "Admin privileges required"})
+		h.errorResponse(c, http.StatusForbidden, "permission_denied", "Admin privileges required")
 		return
 	}
 
 	if err := h.authService.RotateKeys(c.Request.Context()); err != nil {
 		h.logger.WithError(err).Error("Failed to rotate JWT keys")
 		h.auditLogger.LogTokenOperation(actorUserID, requestID, "", ipAddress, userAgent, "admin_rotate_keys", traceID, spanID, false, err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to rotate keys"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to rotate keys")
 		return
 	}
 
@@ -295,14 +320,14 @@ func (h *AuthHandler) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header required"})
+			h.errorResponse(c, http.StatusUnauthorized, "unauthorized", "Authorization header required")
 			c.Abort()
 			return
 		}
 
 		tokenParts := strings.Split(authHeader, " ")
 		if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
+			h.errorResponse(c, http.StatusUnauthorized, "unauthorized", "Invalid authorization header format")
 			c.Abort()
 			return
 		}
@@ -311,7 +336,7 @@ func (h *AuthHandler) AuthMiddleware() gin.HandlerFunc {
 		claims, err := h.authService.ValidateToken(c.Request.Context(), tokenString)
 		if err != nil {
 			h.logger.WithError(err).Warn("Token validation failed")
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid or expired token"})
+			h.errorResponse(c, http.StatusUnauthorized, "unauthorized", "Invalid or expired token")
 			c.Abort()
 			return
 		}
@@ -344,7 +369,7 @@ func (h *AuthHandler) CreateRole(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_role", traceID, spanID, false, "Invalid request data")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		h.validationError(c, "Invalid request data")
 		return
 	}
 
@@ -355,12 +380,12 @@ func (h *AuthHandler) CreateRole(c *gin.Context) {
 		// Check if this is a unique constraint violation (duplicate role name)
 		if strings.Contains(err.Error(), "duplicate key value") || strings.Contains(err.Error(), "23505") {
 			h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_role", traceID, spanID, false, "Role with this name already exists")
-			c.JSON(http.StatusConflict, gin.H{"error": "Role with this name already exists"})
+			h.errorResponse(c, http.StatusConflict, "conflict", "Role with this name already exists")
 			return
 		}
 
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_role", traceID, spanID, false, err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create role"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to create role")
 		return
 	}
 
@@ -373,7 +398,7 @@ func (h *AuthHandler) ListRoles(c *gin.Context) {
 	roles, err := h.authService.ListRoles(c.Request.Context())
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to list roles")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list roles"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to list roles")
 		return
 	}
 
@@ -384,14 +409,14 @@ func (h *AuthHandler) ListRoles(c *gin.Context) {
 func (h *AuthHandler) GetRole(c *gin.Context) {
 	roleID, err := uuid.Parse(c.Param("role_id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		h.validationError(c, "Invalid role ID")
 		return
 	}
 
 	role, err := h.authService.GetRole(c.Request.Context(), roleID)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get role")
-		c.JSON(http.StatusNotFound, gin.H{"error": "Role not found"})
+		h.errorResponse(c, http.StatusNotFound, "not_found", "Role not found")
 		return
 	}
 
@@ -411,7 +436,7 @@ func (h *AuthHandler) UpdateRole(c *gin.Context) {
 	roleID, err := uuid.Parse(c.Param("role_id"))
 	if err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("role_id"), c.ClientIP(), c.GetHeader("User-Agent"), "update_role", traceID, spanID, false, "Invalid role ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		h.validationError(c, "Invalid role ID")
 		return
 	}
 
@@ -422,7 +447,7 @@ func (h *AuthHandler) UpdateRole(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_role", traceID, spanID, false, "Invalid request data")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		h.validationError(c, "Invalid request data")
 		return
 	}
 
@@ -430,7 +455,7 @@ func (h *AuthHandler) UpdateRole(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to update role")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_role", traceID, spanID, false, err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update role"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to update role")
 		return
 	}
 
@@ -451,7 +476,7 @@ func (h *AuthHandler) DeleteRole(c *gin.Context) {
 	roleID, err := uuid.Parse(c.Param("role_id"))
 	if err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("role_id"), c.ClientIP(), c.GetHeader("User-Agent"), "delete_role", traceID, spanID, false, "Invalid role ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		h.validationError(c, "Invalid role ID")
 		return
 	}
 
@@ -459,7 +484,7 @@ func (h *AuthHandler) DeleteRole(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to delete role")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "delete_role", traceID, spanID, false, err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.errorResponse(c, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 
@@ -487,7 +512,7 @@ func (h *AuthHandler) CreatePermission(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_permission", traceID, spanID, false, "Invalid request data")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		h.validationError(c, "Invalid request data")
 		return
 	}
 
@@ -498,12 +523,12 @@ func (h *AuthHandler) CreatePermission(c *gin.Context) {
 		// Check if this is a unique constraint violation (duplicate permission name)
 		if strings.Contains(err.Error(), "duplicate key value") || strings.Contains(err.Error(), "23505") {
 			h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_permission", traceID, spanID, false, "Permission with this name already exists")
-			c.JSON(http.StatusConflict, gin.H{"error": "Permission with this name already exists"})
+			h.errorResponse(c, http.StatusConflict, "conflict", "Permission with this name already exists")
 			return
 		}
 
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_permission", traceID, spanID, false, err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create permission"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to create permission")
 		return
 	}
 
@@ -516,7 +541,7 @@ func (h *AuthHandler) ListPermissions(c *gin.Context) {
 	permissions, err := h.authService.ListPermissions(c.Request.Context())
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to list permissions")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list permissions"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to list permissions")
 		return
 	}
 
@@ -527,14 +552,14 @@ func (h *AuthHandler) ListPermissions(c *gin.Context) {
 func (h *AuthHandler) GetPermission(c *gin.Context) {
 	permissionID, err := uuid.Parse(c.Param("permission_id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid permission ID"})
+		h.validationError(c, "Invalid permission ID")
 		return
 	}
 
 	permission, err := h.authService.GetPermission(c.Request.Context(), permissionID)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get permission")
-		c.JSON(http.StatusNotFound, gin.H{"error": "Permission not found"})
+		h.errorResponse(c, http.StatusNotFound, "not_found", "Permission not found")
 		return
 	}
 
@@ -554,7 +579,7 @@ func (h *AuthHandler) UpdatePermission(c *gin.Context) {
 	permissionID, err := uuid.Parse(c.Param("permission_id"))
 	if err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("permission_id"), c.ClientIP(), c.GetHeader("User-Agent"), "update_permission", traceID, spanID, false, "Invalid permission ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid permission ID"})
+		h.validationError(c, "Invalid permission ID")
 		return
 	}
 
@@ -566,7 +591,7 @@ func (h *AuthHandler) UpdatePermission(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), permissionID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_permission", traceID, spanID, false, "Invalid request data")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		h.validationError(c, "Invalid request data")
 		return
 	}
 
@@ -574,7 +599,7 @@ func (h *AuthHandler) UpdatePermission(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to update permission")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), permissionID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_permission", traceID, spanID, false, err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update permission"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to update permission")
 		return
 	}
 
@@ -595,7 +620,7 @@ func (h *AuthHandler) DeletePermission(c *gin.Context) {
 	permissionID, err := uuid.Parse(c.Param("permission_id"))
 	if err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("permission_id"), c.ClientIP(), c.GetHeader("User-Agent"), "delete_permission", traceID, spanID, false, "Invalid permission ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid permission ID"})
+		h.validationError(c, "Invalid permission ID")
 		return
 	}
 
@@ -603,7 +628,7 @@ func (h *AuthHandler) DeletePermission(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to delete permission")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), permissionID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "delete_permission", traceID, spanID, false, err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.errorResponse(c, http.StatusBadRequest, "validation_error", err.Error())
 		return
 	}
 
@@ -626,7 +651,7 @@ func (h *AuthHandler) AssignPermissionToRole(c *gin.Context) {
 	roleID, err := uuid.Parse(c.Param("role_id"))
 	if err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("role_id"), c.ClientIP(), c.GetHeader("User-Agent"), "assign_permission_to_role", traceID, spanID, false, "Invalid role ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		h.validationError(c, "Invalid role ID")
 		return
 	}
 
@@ -636,14 +661,14 @@ func (h *AuthHandler) AssignPermissionToRole(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_permission_to_role", traceID, spanID, false, "Invalid request data")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		h.validationError(c, "Invalid request data")
 		return
 	}
 
 	permissionID, err := uuid.Parse(req.PermissionID)
 	if err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_permission_to_role", traceID, spanID, false, "Invalid permission ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid permission ID"})
+		h.validationError(c, "Invalid permission ID")
 		return
 	}
 
@@ -651,7 +676,7 @@ func (h *AuthHandler) AssignPermissionToRole(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to assign permission to role")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_permission_to_role", traceID, spanID, false, err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign permission to role"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to assign permission to role")
 		return
 	}
 
@@ -672,14 +697,14 @@ func (h *AuthHandler) RemovePermissionFromRole(c *gin.Context) {
 	roleID, err := uuid.Parse(c.Param("role_id"))
 	if err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("role_id"), c.ClientIP(), c.GetHeader("User-Agent"), "remove_permission_from_role", traceID, spanID, false, "Invalid role ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		h.validationError(c, "Invalid role ID")
 		return
 	}
 
 	permissionID, err := uuid.Parse(c.Param("perm_id"))
 	if err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "remove_permission_from_role", traceID, spanID, false, "Invalid permission ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid permission ID"})
+		h.validationError(c, "Invalid permission ID")
 		return
 	}
 
@@ -687,7 +712,7 @@ func (h *AuthHandler) RemovePermissionFromRole(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to remove permission from role")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "remove_permission_from_role", traceID, spanID, false, err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove permission from role"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to remove permission from role")
 		return
 	}
 
@@ -699,14 +724,14 @@ func (h *AuthHandler) RemovePermissionFromRole(c *gin.Context) {
 func (h *AuthHandler) GetRolePermissions(c *gin.Context) {
 	roleID, err := uuid.Parse(c.Param("role_id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		h.validationError(c, "Invalid role ID")
 		return
 	}
 
 	permissions, err := h.authService.GetRolePermissions(c.Request.Context(), roleID)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get role permissions")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get role permissions"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to get role permissions")
 		return
 	}
 
@@ -728,7 +753,7 @@ func (h *AuthHandler) AssignRoleToUser(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("user_id"))
 	if err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("user_id"), c.ClientIP(), c.GetHeader("User-Agent"), "assign_role_to_user", traceID, spanID, false, "Invalid user ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		h.validationError(c, "Invalid user ID")
 		return
 	}
 
@@ -738,14 +763,14 @@ func (h *AuthHandler) AssignRoleToUser(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_role_to_user", traceID, spanID, false, "Invalid request data")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		h.validationError(c, "Invalid request data")
 		return
 	}
 
 	roleID, err := uuid.Parse(req.RoleID)
 	if err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_role_to_user", traceID, spanID, false, "Invalid role ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		h.validationError(c, "Invalid role ID")
 		return
 	}
 
@@ -753,7 +778,7 @@ func (h *AuthHandler) AssignRoleToUser(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to assign role to user")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_role_to_user", traceID, spanID, false, err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assign role to user"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to assign role to user")
 		return
 	}
 
@@ -774,14 +799,14 @@ func (h *AuthHandler) RemoveRoleFromUser(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("user_id"))
 	if err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("user_id"), c.ClientIP(), c.GetHeader("User-Agent"), "remove_role_from_user", traceID, spanID, false, "Invalid user ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		h.validationError(c, "Invalid user ID")
 		return
 	}
 
 	roleID, err := uuid.Parse(c.Param("role_id"))
 	if err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "remove_role_from_user", traceID, spanID, false, "Invalid role ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID"})
+		h.validationError(c, "Invalid role ID")
 		return
 	}
 
@@ -789,7 +814,7 @@ func (h *AuthHandler) RemoveRoleFromUser(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to remove role from user")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "remove_role_from_user", traceID, spanID, false, err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove role from user"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to remove role from user")
 		return
 	}
 
@@ -801,14 +826,14 @@ func (h *AuthHandler) RemoveRoleFromUser(c *gin.Context) {
 func (h *AuthHandler) GetUserRoles(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("user_id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		h.validationError(c, "Invalid user ID")
 		return
 	}
 
 	roles, err := h.authService.GetUserRoles(c.Request.Context(), userID)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get user roles")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user roles"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to get user roles")
 		return
 	}
 
@@ -828,7 +853,7 @@ func (h *AuthHandler) UpdateUserRoles(c *gin.Context) {
 	userID, err := uuid.Parse(c.Param("user_id"))
 	if err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("user_id"), c.ClientIP(), c.GetHeader("User-Agent"), "update_user_roles", traceID, spanID, false, "Invalid user ID")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		h.validationError(c, "Invalid user ID")
 		return
 	}
 
@@ -838,7 +863,7 @@ func (h *AuthHandler) UpdateUserRoles(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_user_roles", traceID, spanID, false, "Invalid request data")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
+		h.validationError(c, "Invalid request data")
 		return
 	}
 
@@ -847,7 +872,7 @@ func (h *AuthHandler) UpdateUserRoles(c *gin.Context) {
 		roleID, err := uuid.Parse(roleIDStr)
 		if err != nil {
 			h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_user_roles", traceID, spanID, false, "Invalid role ID in list")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid role ID in list"})
+			h.validationError(c, "Invalid role ID in list")
 			return
 		}
 		roleIDs[i] = roleID
@@ -857,7 +882,7 @@ func (h *AuthHandler) UpdateUserRoles(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to update user roles")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_user_roles", traceID, spanID, false, err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user roles"})
+		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to update user roles")
 		return
 	}
 
