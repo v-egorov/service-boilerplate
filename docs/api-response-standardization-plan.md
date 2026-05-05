@@ -97,7 +97,12 @@ This document outlines the comprehensive plan to standardize API response format
 
 **Changes Required:** ~49 error responses
 
-**Status:** [ ] Pending
+**Status:** [x] Completed - Commit 7ef7606
+
+- [x] Added `errorResponse()` helper method
+- [x] Added `validationError()` helper method for field-specific errors
+- [x] Updated all error responses across auth, role, permission, role-permission, user-role handlers
+- [x] All 50+ error responses now include `type` + `meta.request_id`
 
 **Task Breakdown:**
 
@@ -393,11 +398,11 @@ c.JSON(http.StatusCreated, gin.H{
 
 ### Phase 1: Error Standardization
 
-- [ ] **Task 1.1:** Auth-Service error responses (~49 changes)
-  - [ ] Login/register/logout endpoints
-  - [ ] Token refresh endpoints
-  - [ ] Role/permission management endpoints
-  - [ ] Token/role assignment endpoints
+- [x] **Task 1.1:** Auth-Service error responses (~49 changes) ✅
+  - [x] Login/register/logout endpoints
+  - [x] Token refresh endpoints
+  - [x] Role/permission management endpoints
+  - [x] Token/role assignment endpoints
 - [ ] **Task 1.2:** permission_handler.go (4 changes)
 - [ ] **Task 1.3:** Remove `details` from relationship handlers
 - [ ] **Task 1.4:** Standardize object_handler.go error types
