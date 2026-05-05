@@ -152,57 +152,22 @@ This document outlines the comprehensive plan to standardize API response format
 #### 1.2.1 Remove `details` Field - relationship_handler.go
 **File:** `services/objects-service/internal/handlers/relationship_handler.go`
 
-**Current (line 344-348):**
-```go
-c.JSON(statusCode, gin.H{
-    "error":   errorMessage,
-    "details": err.Error(),
-    "type":    errorType,
-})
-```
+- [x] Remove `details` field from handleError response ✅
+- [x] Add `meta.request_id` to handleError response ✅
+- [x] Remove `details` field from validation errors (Create, GetByPublicID, Update, Delete, List) ✅
+- [x] Add `meta.request_id` to all validation errors ✅
 
-**After:**
-```go
-c.JSON(statusCode, gin.H{
-    "error": errorMessage,
-    "type":  errorType,
-    "meta": gin.H{
-        "request_id": requestID,
-    },
-})
-```
-
-- [ ] Remove `details` field from handleError response
-
-**Target Completion:** __/__/____
+**Target Completion:** ✅ Completed - Commit 627092b
 
 #### 1.2.2 Remove `details` Field - relationship_type_handler.go
 **File:** `services/objects-service/internal/handlers/relationship_type_handler.go`
 
-**Current:**
-```go
-c.JSON(http.StatusBadRequest, gin.H{
-    "error":   "Invalid request format",
-    "details": err.Error(),
-    "type":    "validation_error",
-})
-```
+- [x] Remove `details` field from validation errors (Create, List, Update) ✅
+- [x] Add `meta.request_id` to all validation errors ✅
+- [x] Add `meta.request_id` to handleError responses ✅
+- [x] Add `meta.request_id` to empty type_key validation errors ✅
 
-**After:**
-```go
-c.JSON(http.StatusBadRequest, gin.H{
-    "error": "Invalid request format",
-    "type":  "validation_error",
-    "meta": gin.H{
-        "request_id": requestID,
-    },
-})
-```
-
-- [ ] Find and remove `details` field from all error responses
-- [ ] Update bad request handlers
-
-**Target Completion:** __/__/____
+**Target Completion:** ✅ Completed - Commit 627092b
 
 #### 1.2.3 Standardize Error Types - object_handler.go
 **File:** `services/objects-service/internal/handlers/object_handler.go`
@@ -404,6 +369,15 @@ c.JSON(http.StatusCreated, gin.H{
   - [x] Role/permission management endpoints
   - [x] Token/role assignment endpoints
 - [x] **Task 1.2:** permission_handler.go (4 changes) ✅
+  - [x] Line 50: validation_error, meta.request_id
+  - [x] Line 57: internal_error, meta.request_id
+  - [x] Line 71: validation_error, meta.request_id
+  - [x] Line 78: internal_error, meta.request_id
+- [x] **Task 1.3:** Remove `details` field from objects-service ✅
+  - [x] relationship_handler.go - Remove details, add meta.request_id
+  - [x] relationship_type_handler.go - Remove details, add meta.request_id
+- [ ] **Task 1.4:** Standardize object_handler.go error types
+- [ ] **Task 1.5:** User-Service error type naming
 - [ ] **Task 1.3:** Remove `details` from relationship handlers
 - [ ] **Task 1.4:** Standardize object_handler.go error types
 - [ ] **Task 1.5:** User-Service error type naming
