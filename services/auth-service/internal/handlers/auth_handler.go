@@ -84,7 +84,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	h.standardLogger.AuthOperation(requestID, response.User.ID.String(), req.Email, "login", true, nil)
 	h.auditLogger.LogAuthAttempt(response.User.ID.String(), requestID, ipAddress, userAgent, req.Email, traceID, spanID, true, "")
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusOK, gin.H{
+		"access_token":  response.AccessToken,
+		"refresh_token": response.RefreshToken,
+		"user":          response.User,
+		"meta":          gin.H{"request_id": requestID},
+	})
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
@@ -118,6 +123,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "User registered successfully",
 		"user":    user,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -157,7 +163,10 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		h.auditLogger.LogTokenOperation(actorUserID, requestID, "", ipAddress, userAgent, "logout", traceID, spanID, true, "")
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Logged out successfully",
+		"meta":    gin.H{"request_id": requestID},
+	})
 }
 
 func (h *AuthHandler) RefreshToken(c *gin.Context) {

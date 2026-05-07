@@ -156,6 +156,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"data":    user,
 		"message": "User created successfully",
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -191,7 +192,8 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	h.standardLogger.UserOperation(requestID, user.ID.String(), "get", true, nil)
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": user,
+		"data":    user,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -242,6 +244,7 @@ func (h *UserHandler) ReplaceUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"data":    user,
 		"message": "User replaced successfully",
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -292,6 +295,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"data":    user,
 		"message": "User updated successfully",
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -379,6 +383,7 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 			"offset": offset,
 			"count":  len(users),
 		},
+		"meta": gin.H{"request_id": requestID},
 	})
 }
 
@@ -413,7 +418,8 @@ func (h *UserHandler) GetUserByEmail(c *gin.Context) {
 	h.standardLogger.UserOperation(requestID, user.ID.String(), "get_by_email", true, nil)
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": user,
+		"data":    user,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -447,5 +453,8 @@ func (h *UserHandler) GetUserWithPasswordByEmail(c *gin.Context) {
 	}).Debug("User with password retrieved by email successfully")
 	h.standardLogger.UserOperation(requestID, userLogin.User.ID.String(), "get_with_password_by_email", true, nil)
 
-	c.JSON(http.StatusOK, userLogin)
+	c.JSON(http.StatusOK, gin.H{
+		"data":    userLogin,
+		"meta":    gin.H{"request_id": requestID},
+	})
 }
