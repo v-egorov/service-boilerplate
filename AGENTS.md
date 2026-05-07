@@ -240,6 +240,34 @@ Get object:
 
 - [Full API Response Standards](docs/api-response-standards.md)
 
+## Git Workflow
+
+**AI assistant makes code changes but does NOT automatically commit.**
+
+**Typical workflow:**
+1. Assistant makes code changes (build runs, tests pass)
+2. Review changes with `git diff`
+3. User review and stage changes with `git add <files>` or staging hunks when ready
+4. Say "lets commit" to request commit message and commit
+
+**Example:**
+```bash
+# Review changes
+git diff
+
+# Stage specific files (if needed)
+git add services/objects-service/internal/handlers/object_handler.go
+
+# Request commit
+"lets commit" → Assistant provides commit message, then executes git commit
+```
+
+**Why this workflow:**
+- **Review control** - User sees all changes before committing
+- **Quality assurance** - Verify tests pass after changes
+- **Commit messages** - Assistant crafts descriptive messages, user approves
+- **Incremental commits** - Can stage specific files separately
+
 ## graphify
 
 This project has a graphify knowledge graph at graphify-out/.
