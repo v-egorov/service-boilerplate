@@ -81,7 +81,10 @@ func (h *RelationshipTypeHandler) Create(c *gin.Context) {
 		"type_key":   rt.TypeKey,
 	}).Info("Relationship type created")
 
-	c.JSON(http.StatusCreated, rt.ToResponse())
+	c.JSON(http.StatusCreated, gin.H{
+		"data":    rt.ToResponse(),
+		"meta":    gin.H{"request_id": requestID},
+	})
 }
 
 // List handles GET /api/v1/relationship-types
@@ -133,6 +136,7 @@ func (h *RelationshipTypeHandler) List(c *gin.Context) {
 			"page":      filter.Page,
 			"page_size": filter.PageSize,
 		},
+		"meta": gin.H{"request_id": requestID},
 	})
 }
 
@@ -143,8 +147,10 @@ func (h *RelationshipTypeHandler) GetByTypeKey(c *gin.Context) {
 
 	if typeKey == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "type_key is required",
+			"error": "Missing type_key: type_key parameter is required",
 			"type":  "validation_error",
+			"field": "type_key",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -155,7 +161,10 @@ func (h *RelationshipTypeHandler) GetByTypeKey(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, rt.ToResponse())
+	c.JSON(http.StatusOK, gin.H{
+		"data":    rt.ToResponse(),
+		"meta":    gin.H{"request_id": requestID},
+	})
 }
 
 // Update handles PUT /api/v1/relationship-types/:type_key
@@ -201,7 +210,10 @@ func (h *RelationshipTypeHandler) Update(c *gin.Context) {
 		"type_key":   typeKey,
 	}).Info("Relationship type updated")
 
-	c.JSON(http.StatusOK, rt.ToResponse())
+	c.JSON(http.StatusOK, gin.H{
+		"data":    rt.ToResponse(),
+		"meta":    gin.H{"request_id": requestID},
+	})
 }
 
 // Delete handles DELETE /api/v1/relationship-types/:type_key
@@ -211,8 +223,10 @@ func (h *RelationshipTypeHandler) Delete(c *gin.Context) {
 
 	if typeKey == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "type_key is required",
+			"error": "Missing type_key: type_key parameter is required",
 			"type":  "validation_error",
+			"field": "type_key",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
