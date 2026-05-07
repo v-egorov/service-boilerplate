@@ -33,8 +33,10 @@ type UserData struct {
 }
 
 type UserLoginResponse struct {
-	User         *UserData `json:"user"`
-	PasswordHash string    `json:"password_hash"`
+	Data *struct {
+		User         *UserData `json:"user"`
+		PasswordHash string    `json:"password_hash"`
+	} `json:"data"`
 }
 
 type CreateUserRequest struct {
@@ -183,6 +185,10 @@ func (c *UserClient) GetUserWithPasswordByEmail(ctx context.Context, email strin
 	var response UserLoginResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if response.Data == nil {
+		return nil, fmt.Errorf("invalid response from user service")
 	}
 
 	return &response, nil
