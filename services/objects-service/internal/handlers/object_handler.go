@@ -134,9 +134,9 @@ func (h *ObjectHandler) Create(c *gin.Context) {
 			"request_id": requestID,
 		}).WithError(err).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request format",
-			"details": err.Error(),
-			"type":    "validation_error",
+			"error": "Invalid request format: failed to parse request body",
+			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -160,6 +160,7 @@ func (h *ObjectHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"data":    object,
 		"message": "Object created successfully",
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -170,10 +171,10 @@ func (h *ObjectHandler) GetByID(c *gin.Context) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -185,12 +186,17 @@ func (h *ObjectHandler) GetByID(c *gin.Context) {
 	}
 
 	if !h.checkOwnership(c, object, "objects:read:all") {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You can only access your own objects"})
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "You can only access your own objects",
+			"type":  "permission_denied",
+			"meta":  gin.H{"request_id": requestID},
+		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": object,
+		"data":    object,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -201,10 +207,10 @@ func (h *ObjectHandler) GetByPublicID(c *gin.Context) {
 	publicID, err := uuid.Parse(publicIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid public ID format",
-			"details": "Public ID must be a valid UUID",
-			"type":    "validation_error",
-			"field":   "public_id",
+			"error": "Invalid public id format: public id must be a valid uuid",
+			"type":  "validation_error",
+			"field": "public_id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -222,12 +228,17 @@ func (h *ObjectHandler) GetByPublicID(c *gin.Context) {
 	}
 
 	if !h.checkOwnership(c, object, "objects:read:all") {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You can only access your own objects"})
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "You can only access your own objects",
+			"type":  "permission_denied",
+			"meta":  gin.H{"request_id": requestID},
+		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": object,
+		"data":    object,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -237,9 +248,10 @@ func (h *ObjectHandler) GetByName(c *gin.Context) {
 	name := c.Param("name")
 	if name == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Missing name parameter",
+			"error": "Missing name parameter: name is required",
 			"type":  "validation_error",
 			"field": "name",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -251,12 +263,17 @@ func (h *ObjectHandler) GetByName(c *gin.Context) {
 	}
 
 	if !h.checkOwnership(c, object, "objects:read:all") {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You can only access your own objects"})
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "You can only access your own objects",
+			"type":  "permission_denied",
+			"meta":  gin.H{"request_id": requestID},
+		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": object,
+		"data":    object,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -267,10 +284,10 @@ func (h *ObjectHandler) Update(c *gin.Context) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -284,7 +301,8 @@ func (h *ObjectHandler) Update(c *gin.Context) {
 	if !h.checkOwnership(c, existingObj, "objects:update:all") {
 		c.JSON(http.StatusForbidden, gin.H{
 			"error": "You can only update your own objects",
-			"type":  "ownership_error",
+			"type":  "permission_denied",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -295,9 +313,9 @@ func (h *ObjectHandler) Update(c *gin.Context) {
 			"request_id": requestID,
 		}).WithError(err).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request format",
-			"details": err.Error(),
-			"type":    "validation_error",
+			"error": "Invalid request format: failed to parse request body",
+			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -321,6 +339,7 @@ func (h *ObjectHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"data":    object,
 		"message": "Object updated successfully",
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -331,10 +350,10 @@ func (h *ObjectHandler) Delete(c *gin.Context) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -348,7 +367,8 @@ func (h *ObjectHandler) Delete(c *gin.Context) {
 	if !h.checkOwnership(c, existingObj, "objects:delete:all") {
 		c.JSON(http.StatusForbidden, gin.H{
 			"error": "You can only delete your own objects",
-			"type":  "ownership_error",
+			"type":  "permission_denied",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -415,6 +435,7 @@ func (h *ObjectHandler) List(c *gin.Context) {
 			"total":  total,
 			"count":  len(objects),
 		},
+		"meta": gin.H{"request_id": requestID},
 	})
 }
 
@@ -424,10 +445,10 @@ func (h *ObjectHandler) Search(c *gin.Context) {
 	query := c.Query("q")
 	if query == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Missing search query",
-			"details": "Query parameter 'q' is required",
-			"type":    "validation_error",
-			"field":   "q",
+			"error": "Missing search query: query parameter 'q' is required",
+			"type":  "validation_error",
+			"field": "q",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -448,6 +469,7 @@ func (h *ObjectHandler) Search(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"data":  results,
 		"query": query,
+		"meta":  gin.H{"request_id": requestID},
 	})
 }
 
@@ -458,10 +480,10 @@ func (h *ObjectHandler) UpdateMetadata(c *gin.Context) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -472,9 +494,9 @@ func (h *ObjectHandler) UpdateMetadata(c *gin.Context) {
 			"request_id": requestID,
 		}).WithError(err).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request format",
-			"details": err.Error(),
-			"type":    "validation_error",
+			"error": "Invalid request format: failed to parse request body",
+			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -486,7 +508,11 @@ func (h *ObjectHandler) UpdateMetadata(c *gin.Context) {
 	}
 
 	if !h.checkOwnership(c, existingObj, "objects:update:all") {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You can only update your own objects"})
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "You can only update your own objects",
+			"type":  "permission_denied",
+			"meta":  gin.H{"request_id": requestID},
+		})
 		return
 	}
 
@@ -499,6 +525,7 @@ func (h *ObjectHandler) UpdateMetadata(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Metadata updated successfully",
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -509,10 +536,10 @@ func (h *ObjectHandler) AddTags(c *gin.Context) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -522,9 +549,9 @@ func (h *ObjectHandler) AddTags(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request format",
-			"details": err.Error(),
-			"type":    "validation_error",
+			"error": "Invalid request format: failed to parse request body",
+			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -536,7 +563,11 @@ func (h *ObjectHandler) AddTags(c *gin.Context) {
 	}
 
 	if !h.checkOwnership(c, existingObj, "objects:update:all") {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You can only update your own objects"})
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "You can only update your own objects",
+			"type":  "permission_denied",
+			"meta":  gin.H{"request_id": requestID},
+		})
 		return
 	}
 
@@ -549,6 +580,7 @@ func (h *ObjectHandler) AddTags(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Tags added successfully",
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -564,10 +596,10 @@ func (h *ObjectHandler) RemoveTags(c *gin.Context) {
 			"parse_err":  err,
 		}).Error("Invalid ID format in RemoveTags")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -583,9 +615,9 @@ func (h *ObjectHandler) RemoveTags(c *gin.Context) {
 			"body":       c.Request.Body,
 		}).Error("Failed to bind request in RemoveTags")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request format",
-			"details": err.Error(),
-			"type":    "validation_error",
+			"error": "Invalid request format: failed to parse request body",
+			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -596,7 +628,11 @@ func (h *ObjectHandler) RemoveTags(c *gin.Context) {
 			"request_id": requestID,
 			"object_id":  id,
 		}).Warn("No tags provided in RemoveTags")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No tags provided"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "No tags provided: at least one tag is required",
+			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
+		})
 		return
 	}
 
@@ -607,7 +643,11 @@ func (h *ObjectHandler) RemoveTags(c *gin.Context) {
 	}
 
 	if !h.checkOwnership(c, existingObj, "objects:update:all") {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You can only update your own objects"})
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "You can only update your own objects",
+			"type":  "permission_denied",
+			"meta":  gin.H{"request_id": requestID},
+		})
 		return
 	}
 
@@ -634,6 +674,7 @@ func (h *ObjectHandler) RemoveTags(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Tags removed successfully",
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -644,10 +685,10 @@ func (h *ObjectHandler) GetChildren(c *gin.Context) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -659,7 +700,8 @@ func (h *ObjectHandler) GetChildren(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": children,
+		"data":    children,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -670,10 +712,10 @@ func (h *ObjectHandler) GetDescendants(c *gin.Context) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -693,7 +735,8 @@ func (h *ObjectHandler) GetDescendants(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": descendants,
+		"data":    descendants,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -704,10 +747,10 @@ func (h *ObjectHandler) GetAncestors(c *gin.Context) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -719,7 +762,8 @@ func (h *ObjectHandler) GetAncestors(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": ancestors,
+		"data":    ancestors,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -730,10 +774,10 @@ func (h *ObjectHandler) GetPath(c *gin.Context) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -745,7 +789,8 @@ func (h *ObjectHandler) GetPath(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": path,
+		"data":    path,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -758,9 +803,9 @@ func (h *ObjectHandler) BulkCreate(c *gin.Context) {
 			"request_id": requestID,
 		}).WithError(err).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request format",
-			"details": err.Error(),
-			"type":    "validation_error",
+			"error": "Invalid request format: failed to parse request body",
+			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -779,6 +824,7 @@ func (h *ObjectHandler) BulkCreate(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"data":    results,
 		"message": "Objects created successfully",
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -791,19 +837,19 @@ func (h *ObjectHandler) BulkUpdate(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request format",
-			"details": err.Error(),
-			"type":    "validation_error",
+			"error": "Invalid request format: failed to parse request body",
+			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
 
 	if len(req.IDs) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Missing IDs",
-			"details": "At least one ID is required",
-			"type":    "validation_error",
-			"field":   "ids",
+			"error": "Missing ids: at least one id is required",
+			"type":  "validation_error",
+			"field": "ids",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -817,6 +863,7 @@ func (h *ObjectHandler) BulkUpdate(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"data":    results,
 		"message": "Objects updated successfully",
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -828,19 +875,19 @@ func (h *ObjectHandler) BulkDelete(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request format",
-			"details": err.Error(),
-			"type":    "validation_error",
+			"error": "Invalid request format: failed to parse request body",
+			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
 
 	if len(req.IDs) == 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Missing IDs",
-			"details": "At least one ID is required",
-			"type":    "validation_error",
-			"field":   "ids",
+			"error": "Missing ids: at least one id is required",
+			"type":  "validation_error",
+			"field": "ids",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -876,6 +923,7 @@ func (h *ObjectHandler) GetStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"stats": stats,
+		"data": stats,
+		"meta": gin.H{"request_id": requestID},
 	})
 }
