@@ -27,7 +27,7 @@ Two rules operate at different levels:
 When multiple permissions for the same action exist in a single role, the most granular available variant is used:
 ```
 Role grants: read:own + read:all → read:all takes effect (broader scope covers more)
-Role grants: create:only          → only that exact variant applies
+Role grants: create:own           → only that variant applies (no :all in union)
 ```
 
 ### Rule 2 — Across-roles: Union then Broadest Wins

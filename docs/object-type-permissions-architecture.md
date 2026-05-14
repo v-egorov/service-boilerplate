@@ -54,7 +54,7 @@ relationships:delete:own    → delete relationships created by the user
 Assigning both scoped and unscoped variants for the same type:action to a SINGLE role is redundant and should be prevented or warned against at assignment time:
 
 ```
-VALID:     user → portfolio:read:only
+VALID:     user →     portfolio:read:own
 VALID:     admin → portfolio:read:all  
 INVALID:   user → portfolio:read:own + portfolio:read:all  ← redundant, broadest always wins
 ```
