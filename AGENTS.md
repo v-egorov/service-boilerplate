@@ -268,6 +268,16 @@ git add services/objects-service/internal/handlers/object_handler.go
 - **Commit messages** - Assistant crafts descriptive messages, user approves
 - **Incremental commits** - Can stage specific files separately
 
+## Compaction
+
+When system provides a compaction summary (e.g., "What did we do so far?"), always write it out to `docs/compaction/` with a timestamped filename before responding. The file should contain the full session state: goal, progress, key decisions, next steps, and relevant files.
+
+Rules:
+- Create folder if missing: `mkdir -p docs/compaction`
+- Filename format: `YYYYMMDD-HHmmss.md` (use current UTC timestamp)
+- Write the compaction message verbatim — do not summarize or truncate it
+- This preserves session state for later recall and audit
+
 ## graphify
 
 This project has a graphify knowledge graph at graphify-out/.
