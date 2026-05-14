@@ -172,7 +172,7 @@ test_relationships() {
         -H "Authorization: Bearer $OBJECT_ADMIN_TOKEN" \
         -d "{\"source_object_id\": \"$SOURCE_PUBLIC_ID\", \"target_object_id\": \"$TARGET_PUBLIC_ID\", \"type_key\": \"$test_type_key\", \"status\": \"active\"}")
 
-    if echo "$create_response" | jq -e '.public_id' >/dev/null 2>&1; then
+    if echo "$create_response" | jq -e '.data.public_id' >/dev/null 2>&1; then
         RELATIONSHIP_PUBLIC_ID=$(echo "$create_response" | jq -r '.data.public_id')
         echo -e "${GREEN}✓ Relationship created: $RELATIONSHIP_PUBLIC_ID${NC}"
         TESTS_PASSED=$((TESTS_PASSED + 1))
@@ -216,7 +216,7 @@ test_relationships() {
         -H "Authorization: Bearer $OBJECT_ADMIN_TOKEN" \
         -d "{\"source_object_id\": \"$SOURCE_PUBLIC_ID\", \"target_object_id\": \"$TARGET_PUBLIC_ID\", \"type_key\": \"$test_type_key\", \"status\": \"active\"}")
 
-    if echo "$create_response" | jq -e '.public_id' >/dev/null 2>&1; then
+    if echo "$create_response" | jq -e '.data.public_id' >/dev/null 2>&1; then
         RELATIONSHIP_PUBLIC_ID=$(echo "$create_response" | jq -r '.data.public_id')
     else
         echo -e "${RED}✗ Failed to create relationship for object-level tests${NC}"
