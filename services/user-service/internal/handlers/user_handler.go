@@ -66,26 +66,29 @@ func (h *UserHandler) handleServiceError(c *gin.Context, err error, operation st
 			"error": e.Error(),
 			"type":  "validation_error",
 			"field": e.Field,
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 
 	case models.ConflictError:
 		c.JSON(http.StatusConflict, gin.H{
 			"error":    e.Error(),
-			"type":     "conflict_error",
+			"type":     "conflict",
 			"resource": e.Resource,
 			"field":    e.Field,
 			"value":    e.Value,
+			"meta":     gin.H{"request_id": requestID},
 		})
 		return
 
 	case models.NotFoundError:
 		c.JSON(http.StatusNotFound, gin.H{
 			"error":    e.Error(),
-			"type":     "not_found_error",
+			"type":     "not_found",
 			"resource": e.Resource,
 			"field":    e.Field,
 			"value":    e.Value,
+			"meta":     gin.H{"request_id": requestID},
 		})
 		return
 
@@ -94,6 +97,7 @@ func (h *UserHandler) handleServiceError(c *gin.Context, err error, operation st
 			"error":     "Internal server error",
 			"type":      "internal_error",
 			"operation": e.Operation,
+			"meta":      gin.H{"request_id": requestID},
 		})
 		return
 
@@ -102,6 +106,7 @@ func (h *UserHandler) handleServiceError(c *gin.Context, err error, operation st
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "An unexpected error occurred",
 			"type":  "unknown_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -125,8 +130,8 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		h.auditLogger.LogUserCreation(actorUserID, requestID, "", c.ClientIP(), c.GetHeader("User-Agent"), traceID, spanID, false, "Invalid request format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
-			"details": err.Error(),
 			"type":    "validation_error",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -151,6 +156,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"data":    user,
 		"message": "User created successfully",
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -166,9 +172,9 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 		}).WithError(err).Error("Invalid user ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid user ID format",
-			"details": "User ID must be a valid UUID",
 			"type":    "validation_error",
 			"field":   "id",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -186,7 +192,8 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	h.standardLogger.UserOperation(requestID, user.ID.String(), "get", true, nil)
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": user,
+		"data":    user,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -202,9 +209,9 @@ func (h *UserHandler) ReplaceUser(c *gin.Context) {
 		}).WithError(err).Error("Invalid user ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid user ID format",
-			"details": "User ID must be a valid UUID",
 			"type":    "validation_error",
 			"field":   "id",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -217,8 +224,8 @@ func (h *UserHandler) ReplaceUser(c *gin.Context) {
 		}).WithError(err).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
-			"details": err.Error(),
 			"type":    "validation_error",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -237,6 +244,7 @@ func (h *UserHandler) ReplaceUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"data":    user,
 		"message": "User replaced successfully",
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -252,9 +260,9 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		}).WithError(err).Error("Invalid user ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid user ID format",
-			"details": "User ID must be a valid UUID",
 			"type":    "validation_error",
 			"field":   "id",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -267,8 +275,8 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		}).WithError(err).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
-			"details": err.Error(),
 			"type":    "validation_error",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -287,6 +295,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"data":    user,
 		"message": "User updated successfully",
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -302,9 +311,9 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 		}).WithError(err).Error("Invalid user ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid user ID format",
-			"details": "User ID must be a valid UUID",
 			"type":    "validation_error",
 			"field":   "id",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -347,9 +356,9 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 		}).Warn("Limit too high, capping at 100")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Limit too high",
-			"details": "Maximum limit is 100",
 			"type":    "validation_error",
 			"field":   "limit",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -374,6 +383,7 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 			"offset": offset,
 			"count":  len(users),
 		},
+		"meta": gin.H{"request_id": requestID},
 	})
 }
 
@@ -389,6 +399,7 @@ func (h *UserHandler) GetUserByEmail(c *gin.Context) {
 			"error": "Email parameter is required",
 			"type":  "validation_error",
 			"field": "email",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -407,7 +418,8 @@ func (h *UserHandler) GetUserByEmail(c *gin.Context) {
 	h.standardLogger.UserOperation(requestID, user.ID.String(), "get_by_email", true, nil)
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": user,
+		"data":    user,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -423,6 +435,7 @@ func (h *UserHandler) GetUserWithPasswordByEmail(c *gin.Context) {
 			"error": "Email parameter is required",
 			"type":  "validation_error",
 			"field": "email",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -440,5 +453,8 @@ func (h *UserHandler) GetUserWithPasswordByEmail(c *gin.Context) {
 	}).Debug("User with password retrieved by email successfully")
 	h.standardLogger.UserOperation(requestID, userLogin.User.ID.String(), "get_with_password_by_email", true, nil)
 
-	c.JSON(http.StatusOK, userLogin)
+	c.JSON(http.StatusOK, gin.H{
+		"data":    userLogin,
+		"meta":    gin.H{"request_id": requestID},
+	})
 }

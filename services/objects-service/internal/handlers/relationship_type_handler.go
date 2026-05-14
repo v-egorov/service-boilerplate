@@ -59,8 +59,8 @@ func (h *RelationshipTypeHandler) Create(c *gin.Context) {
 		}).WithError(err).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
-			"details": err.Error(),
 			"type":    "validation_error",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -81,7 +81,10 @@ func (h *RelationshipTypeHandler) Create(c *gin.Context) {
 		"type_key":   rt.TypeKey,
 	}).Info("Relationship type created")
 
-	c.JSON(http.StatusCreated, rt.ToResponse())
+	c.JSON(http.StatusCreated, gin.H{
+		"data":    rt.ToResponse(),
+		"meta":    gin.H{"request_id": requestID},
+	})
 }
 
 // List handles GET /api/v1/relationship-types
@@ -95,8 +98,8 @@ func (h *RelationshipTypeHandler) List(c *gin.Context) {
 		}).WithError(err).Error("Invalid query parameters")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid query parameters",
-			"details": err.Error(),
 			"type":    "validation_error",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -133,6 +136,7 @@ func (h *RelationshipTypeHandler) List(c *gin.Context) {
 			"page":      filter.Page,
 			"page_size": filter.PageSize,
 		},
+		"meta": gin.H{"request_id": requestID},
 	})
 }
 
@@ -143,8 +147,10 @@ func (h *RelationshipTypeHandler) GetByTypeKey(c *gin.Context) {
 
 	if typeKey == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "type_key is required",
+			"error": "Missing type_key: type_key parameter is required",
 			"type":  "validation_error",
+			"field": "type_key",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -155,7 +161,10 @@ func (h *RelationshipTypeHandler) GetByTypeKey(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, rt.ToResponse())
+	c.JSON(http.StatusOK, gin.H{
+		"data":    rt.ToResponse(),
+		"meta":    gin.H{"request_id": requestID},
+	})
 }
 
 // Update handles PUT /api/v1/relationship-types/:type_key
@@ -167,6 +176,7 @@ func (h *RelationshipTypeHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "type_key is required",
 			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -179,8 +189,8 @@ func (h *RelationshipTypeHandler) Update(c *gin.Context) {
 		}).WithError(err).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "Invalid request format",
-			"details": err.Error(),
 			"type":    "validation_error",
+			"meta":    gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -200,7 +210,10 @@ func (h *RelationshipTypeHandler) Update(c *gin.Context) {
 		"type_key":   typeKey,
 	}).Info("Relationship type updated")
 
-	c.JSON(http.StatusOK, rt.ToResponse())
+	c.JSON(http.StatusOK, gin.H{
+		"data":    rt.ToResponse(),
+		"meta":    gin.H{"request_id": requestID},
+	})
 }
 
 // Delete handles DELETE /api/v1/relationship-types/:type_key
@@ -210,8 +223,10 @@ func (h *RelationshipTypeHandler) Delete(c *gin.Context) {
 
 	if typeKey == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "type_key is required",
+			"error": "Missing type_key: type_key parameter is required",
 			"type":  "validation_error",
+			"field": "type_key",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -242,41 +257,49 @@ func (h *RelationshipTypeHandler) handleError(c *gin.Context, requestID string, 
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "Relationship type not found",
 			"type":  "not_found",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	case errors.Is(err, services.ErrDuplicateRelationshipType):
 		c.JSON(http.StatusConflict, gin.H{
 			"error": "Relationship type already exists",
 			"type":  "conflict",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	case errors.Is(err, services.ErrInvalidCardinality):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"error": "Invalid cardinality value",
 			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	case errors.Is(err, services.ErrInvalidReverseType):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"error": "Invalid reverse type key",
 			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	case errors.Is(err, services.ErrRelationshipTypeInUse):
 		c.JSON(http.StatusConflict, gin.H{
 			"error": "Relationship type is in use and cannot be deleted",
 			"type":  "conflict",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	case errors.Is(err, services.ErrInvalidCountConstraint):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"error": "Invalid count constraint: min_count cannot exceed max_count",
 			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	case errors.Is(err, repository.ErrInvalidInput):
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid input",
 			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Internal server error",
 			"type":  "internal_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 	}
 }

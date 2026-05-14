@@ -133,6 +133,141 @@ This boilerplate follows consistent patterns across all services. See detailed g
 
 See [Service Patterns Differences](docs/service-patterns-differences.md) for planned standardization work.
 
+## API Response Standards
+
+### Success Response Format
+
+All successful API responses follow:
+
+```json
+{
+  "data": { ... },
+  "message": "Human-readable success message",
+  "meta": {
+    "request_id": "abc-123-xyz"
+  }
+}
+```
+
+**Fields:**
+- `data` - The response payload (resource or collection)
+- `message` - Human-readable success message (debugging/logging)
+- `meta` - Machine-readable metadata
+  - `request_id` - Unique request ID for distributed tracing
+
+**Examples:**
+
+Create object:
+```json
+{
+  "data": { "id": 1, "name": "Object" },
+  "message": "Object created successfully",
+  "meta": { "request_id": "abc-123" }
+}
+```
+
+Get object:
+```json
+{
+  "data": { "id": 1, "name": "Object" },
+  "meta": { "request_id": "abc-123" }
+}
+```
+
+### Error Response Format
+
+```json
+{
+  "error": "Human-readable error message",
+  "type": "<error_type>",
+  "meta": {
+    "request_id": "abc-123-xyz"
+  }
+}
+```
+
+**Fields:**
+- `error` - User-facing error message
+- `type` - Machine-readable error type for programmatic handling
+- `meta.request_id` - Unique request ID for distributed tracing (same as success responses)
+
+### Error Type Values
+
+| Type | HTTP Status | Description |
+|------|-------------|-------------|
+| `validation_error` | 400, 422 | Invalid input, missing required fields |
+| `unauthorized` | 401 | Authentication failed |
+| `permission_denied` | 403 | Authorization failed |
+| `not_found` | 404 | Resource not found |
+| `conflict` | 409 | Resource conflict (duplicate, version) |
+| `internal_error` | 500 | Server error |
+
+### Special Cases
+
+**Field-level validation:**
+```json
+{
+  "error": "email is required",
+  "type": "validation_error",
+  "field": "email",
+  "meta": {
+    "request_id": "abc-123-xyz"
+  }
+}
+```
+
+**Resource conflicts:**
+```json
+{
+  "error": "User already exists",
+  "type": "conflict",
+  "resource": "user",
+  "meta": {
+    "request_id": "abc-123-xyz"
+  }
+}
+```
+
+### Implementation Rules
+
+1. **Always include `type` field** - Never return errors with only `error` field
+2. **Use `errors.Is()` for wrapped errors** - Don't use `==` for error comparison
+3. **Never expose `details` field** - Don't include error chain/stack traces in responses
+4. **HTTP status codes must match error type** - Status code is primary signal
+5. **Keep messages user-friendly** - Avoid technical jargon
+
+### References
+
+- [Full API Response Standards](docs/api-response-standards.md)
+
+## Git Workflow
+
+**AI assistant makes code changes but does NOT automatically commit.**
+
+**Typical workflow:**
+1. Assistant makes code changes (build runs, tests pass)
+2. Review changes with `git diff`
+3. User review and stage changes with `git add <files>` or staging hunks when ready
+4. Say "lets commit" to request commit message and commit
+
+**Example:**
+```bash
+# Review changes
+git diff
+
+# Stage specific files (if needed)
+git add services/objects-service/internal/handlers/object_handler.go
+
+# Request commit
+"lets commit" → Assistant provides commit message, then executes git commit
+```
+
+**Why this workflow:**
+- **Review control** - User sees all changes before committing
+- **Quality assurance** - Verify tests pass after changes
+- **Commit messages** - Assistant crafts descriptive messages, user approves
+- **Incremental commits** - Can stage specific files separately
+
 ## graphify
 
 This project has a graphify knowledge graph at graphify-out/.

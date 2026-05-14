@@ -104,6 +104,7 @@ func TestUserHandler_handleServiceError(t *testing.T) {
 				"error": "validation error on field 'email': invalid email format",
 				"type":  "validation_error",
 				"field": "email",
+				"meta":  map[string]interface{}{"request_id": "test-request-id"},
 			},
 		},
 		{
@@ -112,10 +113,11 @@ func TestUserHandler_handleServiceError(t *testing.T) {
 			expectedStatus: http.StatusConflict,
 			expectedBody: map[string]interface{}{
 				"error":    "user with email 'test@example.com' already exists",
-				"type":     "conflict_error",
+				"type":     "conflict",
 				"resource": "user",
 				"field":    "email",
 				"value":    "test@example.com",
+				"meta":     map[string]interface{}{"request_id": "test-request-id"},
 			},
 		},
 		{
@@ -124,10 +126,11 @@ func TestUserHandler_handleServiceError(t *testing.T) {
 			expectedStatus: http.StatusNotFound,
 			expectedBody: map[string]interface{}{
 				"error":    "user with id '123' not found",
-				"type":     "not_found_error",
+				"type":     "not_found",
 				"resource": "user",
 				"field":    "id",
 				"value":    "123",
+				"meta":     map[string]interface{}{"request_id": "test-request-id"},
 			},
 		},
 		{
@@ -138,6 +141,7 @@ func TestUserHandler_handleServiceError(t *testing.T) {
 				"error":     "Internal server error",
 				"type":      "internal_error",
 				"operation": "database operation",
+				"meta":      map[string]interface{}{"request_id": "test-request-id"},
 			},
 		},
 		{
@@ -147,6 +151,7 @@ func TestUserHandler_handleServiceError(t *testing.T) {
 			expectedBody: map[string]interface{}{
 				"error": "An unexpected error occurred",
 				"type":  "unknown_error",
+				"meta":  map[string]interface{}{"request_id": "test-request-id"},
 			},
 		},
 	}
@@ -305,9 +310,9 @@ func TestUserHandler_GetUser(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: map[string]interface{}{
 				"error":   "Invalid user ID format",
-				"details": "User ID must be a valid UUID",
 				"type":    "validation_error",
 				"field":   "id",
+				"meta":    map[string]interface{}{"request_id": "test-request-id"},
 			},
 		},
 		{
@@ -319,10 +324,11 @@ func TestUserHandler_GetUser(t *testing.T) {
 			expectedStatus: http.StatusNotFound,
 			expectedBody: map[string]interface{}{
 				"error":    "user with id '" + userID.String() + "' not found",
-				"type":     "not_found_error",
+				"type":     "not_found",
 				"resource": "user",
 				"field":    "id",
 				"value":    userID.String(),
+				"meta":     map[string]interface{}{"request_id": "test-request-id"},
 			},
 		},
 	}
@@ -401,9 +407,9 @@ func TestUserHandler_ReplaceUser(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: map[string]interface{}{
 				"error":   "Invalid user ID format",
-				"details": "User ID must be a valid UUID",
 				"type":    "validation_error",
 				"field":   "id",
+				"meta":    map[string]interface{}{"request_id": "test-request-id"},
 			},
 		},
 		{
@@ -492,9 +498,9 @@ func TestUserHandler_UpdateUser(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: map[string]interface{}{
 				"error":   "Invalid user ID format",
-				"details": "User ID must be a valid UUID",
 				"type":    "validation_error",
 				"field":   "id",
+				"meta":    map[string]interface{}{"request_id": "test-request-id"},
 			},
 		},
 	}
@@ -553,9 +559,9 @@ func TestUserHandler_DeleteUser(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: map[string]interface{}{
 				"error":   "Invalid user ID format",
-				"details": "User ID must be a valid UUID",
 				"type":    "validation_error",
 				"field":   "id",
+				"meta":    map[string]interface{}{"request_id": "test-request-id"},
 			},
 		},
 		{
@@ -567,10 +573,11 @@ func TestUserHandler_DeleteUser(t *testing.T) {
 			expectedStatus: http.StatusNotFound,
 			expectedBody: map[string]interface{}{
 				"error":    "user with id '" + userID.String() + "' not found",
-				"type":     "not_found_error",
+				"type":     "not_found",
 				"resource": "user",
 				"field":    "id",
 				"value":    userID.String(),
+				"meta":     map[string]interface{}{"request_id": "test-request-id"},
 			},
 		},
 	}
@@ -658,9 +665,9 @@ func TestUserHandler_ListUsers(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 			expectedBody: map[string]interface{}{
 				"error":   "Limit too high",
-				"details": "Maximum limit is 100",
 				"type":    "validation_error",
 				"field":   "limit",
+				"meta":    map[string]interface{}{"request_id": "test-request-id"},
 			},
 		},
 		{
@@ -749,10 +756,11 @@ func TestUserHandler_GetUserByEmail(t *testing.T) {
 			expectedStatus: http.StatusNotFound,
 			expectedBody: map[string]interface{}{
 				"error":    "user with email 'notfound@example.com' not found",
-				"type":     "not_found_error",
+				"type":     "not_found",
 				"resource": "user",
 				"field":    "email",
 				"value":    "notfound@example.com",
+				"meta":     map[string]interface{}{"request_id": "test-request-id"},
 			},
 		},
 	}

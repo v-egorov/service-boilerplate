@@ -1,0 +1,10 @@
+- database access functions in object_repository.go does not check for sql.ErrNoRows
+- database access functions in object_repository does not have tracing instrumentation
+- check for deleted_at handling when serving requests - seems it's not taken into account
+- need to create utility script to automate sequence: 1) login 2) call arbitrary end-point
+- any errors becomes repository.ErrNotFound - WRONG - see relationship_service.go GetByPublicID for example
+- func (r \*relationshipRepository) createBaseObject:
+  - does not use (call) generic object create method and re-implement it
+  - does not use created_by and thus does not populate it in the db
+- migration user-service 000003_dev_test_data.up.sql include admin role permissions seeding along with true dev-only seeds - wrong
+- auth_service.role_permissions lacks created / updated columns

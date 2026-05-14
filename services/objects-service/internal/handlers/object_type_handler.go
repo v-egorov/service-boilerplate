@@ -84,9 +84,9 @@ func (h *ObjectTypeHandler) Create(c *gin.Context) {
 			"request_id": requestID,
 		}).WithError(err).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request format",
-			"details": err.Error(),
-			"type":    "validation_error",
+			"error": "Invalid request format: failed to parse request body",
+			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -110,6 +110,7 @@ func (h *ObjectTypeHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"data":    objectType,
 		"message": "Object type created successfully",
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -124,10 +125,10 @@ func (h *ObjectTypeHandler) GetByID(c *gin.Context) {
 			"id":         idStr,
 		}).WithError(err).Error("Invalid object type ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -144,7 +145,8 @@ func (h *ObjectTypeHandler) GetByID(c *gin.Context) {
 	}).Debug("Object type retrieved successfully")
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": objectType,
+		"data":    objectType,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -157,9 +159,10 @@ func (h *ObjectTypeHandler) GetByName(c *gin.Context) {
 			"request_id": requestID,
 		}).Error("Missing name parameter")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Missing name parameter",
+			"error": "Missing name parameter: name is required",
 			"type":  "validation_error",
 			"field": "name",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -177,7 +180,8 @@ func (h *ObjectTypeHandler) GetByName(c *gin.Context) {
 	}).Debug("Object type retrieved by name successfully")
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": objectType,
+		"data":    objectType,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -192,10 +196,10 @@ func (h *ObjectTypeHandler) Update(c *gin.Context) {
 			"id":         idStr,
 		}).WithError(err).Error("Invalid object type ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -206,9 +210,9 @@ func (h *ObjectTypeHandler) Update(c *gin.Context) {
 			"request_id": requestID,
 		}).WithError(err).Error("Invalid request body")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid request format",
-			"details": err.Error(),
-			"type":    "validation_error",
+			"error": "Invalid request format: failed to parse request body",
+			"type":  "validation_error",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -231,6 +235,7 @@ func (h *ObjectTypeHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"data":    objectType,
 		"message": "Object type updated successfully",
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -245,10 +250,10 @@ func (h *ObjectTypeHandler) Delete(c *gin.Context) {
 			"id":         idStr,
 		}).WithError(err).Error("Invalid object type ID format")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -292,7 +297,8 @@ func (h *ObjectTypeHandler) GetTree(c *gin.Context) {
 	}).Debug("Object type tree retrieved successfully")
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": tree,
+		"data":    tree,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -303,10 +309,10 @@ func (h *ObjectTypeHandler) GetChildren(c *gin.Context) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -318,7 +324,8 @@ func (h *ObjectTypeHandler) GetChildren(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": children,
+		"data":    children,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -329,10 +336,10 @@ func (h *ObjectTypeHandler) GetDescendants(c *gin.Context) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -352,7 +359,8 @@ func (h *ObjectTypeHandler) GetDescendants(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": descendants,
+		"data":    descendants,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -363,10 +371,10 @@ func (h *ObjectTypeHandler) GetAncestors(c *gin.Context) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -378,7 +386,8 @@ func (h *ObjectTypeHandler) GetAncestors(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": ancestors,
+		"data":    ancestors,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -389,10 +398,10 @@ func (h *ObjectTypeHandler) GetPath(c *gin.Context) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -404,7 +413,8 @@ func (h *ObjectTypeHandler) GetPath(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data": path,
+		"data":    path,
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -442,6 +452,7 @@ func (h *ObjectTypeHandler) List(c *gin.Context) {
 			"offset": filter.Offset,
 			"count":  len(objectTypes),
 		},
+		"meta": gin.H{"request_id": requestID},
 	})
 }
 
@@ -451,10 +462,10 @@ func (h *ObjectTypeHandler) Search(c *gin.Context) {
 	query := c.Query("q")
 	if query == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Missing search query",
-			"details": "Query parameter 'q' is required",
-			"type":    "validation_error",
-			"field":   "q",
+			"error": "Missing search query: query parameter 'q' is required",
+			"type":  "validation_error",
+			"field": "q",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -475,6 +486,7 @@ func (h *ObjectTypeHandler) Search(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"data":  results,
 		"query": query,
+		"meta":  gin.H{"request_id": requestID},
 	})
 }
 
@@ -485,10 +497,10 @@ func (h *ObjectTypeHandler) ValidateMove(c *gin.Context) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -496,10 +508,10 @@ func (h *ObjectTypeHandler) ValidateMove(c *gin.Context) {
 	newParentIDStr := c.Query("new_parent_id")
 	if newParentIDStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Missing new_parent_id",
-			"details": "Query parameter 'new_parent_id' is required",
-			"type":    "validation_error",
-			"field":   "new_parent_id",
+			"error": "Missing new_parent_id: query parameter 'new_parent_id' is required",
+			"type":  "validation_error",
+			"field": "new_parent_id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -507,10 +519,10 @@ func (h *ObjectTypeHandler) ValidateMove(c *gin.Context) {
 	newParentID, err := strconv.ParseInt(newParentIDStr, 10, 64)
 	if err != nil || newParentID <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid new_parent_id format",
-			"details": "new_parent_id must be a positive integer",
-			"type":    "validation_error",
-			"field":   "new_parent_id",
+			"error": "Invalid new parent id format: new parent id must be a positive integer",
+			"type":  "validation_error",
+			"field": "new_parent_id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -524,6 +536,7 @@ func (h *ObjectTypeHandler) ValidateMove(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"valid":   true,
 		"message": "Move is valid",
+		"meta":    gin.H{"request_id": requestID},
 	})
 }
 
@@ -534,10 +547,10 @@ func (h *ObjectTypeHandler) GetSubtreeObjectCount(c *gin.Context) {
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "Invalid ID format",
-			"details": "ID must be a positive integer",
-			"type":    "validation_error",
-			"field":   "id",
+			"error": "Invalid id format: id must be a positive integer",
+			"type":  "validation_error",
+			"field": "id",
+			"meta":  gin.H{"request_id": requestID},
 		})
 		return
 	}
@@ -551,5 +564,6 @@ func (h *ObjectTypeHandler) GetSubtreeObjectCount(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"object_type_id": id,
 		"count":          count,
+		"meta":           gin.H{"request_id": requestID},
 	})
 }

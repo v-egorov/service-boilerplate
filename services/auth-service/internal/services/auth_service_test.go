@@ -525,11 +525,16 @@ func TestAuthService_Login(t *testing.T) {
 			ipAddress: "192.168.1.1",
 			userAgent: "Mozilla/5.0",
 			mockUserLogin: &client.UserLoginResponse{
-				User: &client.UserData{
-					ID:    uuid.New(),
-					Email: "user@example.com",
+				Data: &struct {
+					User         *client.UserData `json:"user"`
+					PasswordHash string           `json:"password_hash"`
+				}{
+					User: &client.UserData{
+						ID:    uuid.New(),
+						Email: "user@example.com",
+					},
+					PasswordHash: "$2a$10$oolyJReLQIIPPeH4XPtEhukeV9D115vs.XbyNQfw/zlTsF4/q8nly",
 				},
-				PasswordHash: "$2a$10$oolyJReLQIIPPeH4XPtEhukeV9D115vs.XbyNQfw/zlTsF4/q8nly",
 			},
 			mockUserError:    nil,
 			mockAccessToken:  "access.jwt.token",
@@ -561,11 +566,16 @@ func TestAuthService_Login(t *testing.T) {
 			ipAddress: "192.168.1.1",
 			userAgent: "Mozilla/5.0",
 			mockUserLogin: &client.UserLoginResponse{
-				User: &client.UserData{
-					ID:    uuid.New(),
-					Email: "user@example.com",
+				Data: &struct {
+					User         *client.UserData `json:"user"`
+					PasswordHash string           `json:"password_hash"`
+				}{
+					User: &client.UserData{
+						ID:    uuid.New(),
+						Email: "user@example.com",
+					},
+					PasswordHash: "$2a$10$oolyJReLQIIPPeH4XPtEhukeV9D115vs.XbyNQfw/zlTsF4/q8nly",
 				},
-				PasswordHash: "$2a$10$oolyJReLQIIPPeH4XPtEhukeV9D115vs.XbyNQfw/zlTsF4/q8nly",
 			},
 			mockUserError: nil,
 			expectedError: "invalid credentials",
@@ -580,11 +590,16 @@ func TestAuthService_Login(t *testing.T) {
 			ipAddress: "192.168.1.1",
 			userAgent: "Mozilla/5.0",
 			mockUserLogin: &client.UserLoginResponse{
-				User: &client.UserData{
-					ID:    uuid.New(),
-					Email: "user@example.com",
+				Data: &struct {
+					User         *client.UserData `json:"user"`
+					PasswordHash string           `json:"password_hash"`
+				}{
+					User: &client.UserData{
+						ID:    uuid.New(),
+						Email: "user@example.com",
+					},
+					PasswordHash: "$2a$10$oolyJReLQIIPPeH4XPtEhukeV9D115vs.XbyNQfw/zlTsF4/q8nly",
 				},
-				PasswordHash: "$2a$10$oolyJReLQIIPPeH4XPtEhukeV9D115vs.XbyNQfw/zlTsF4/q8nly",
 			},
 			mockUserError:    nil,
 			mockAccessToken:  "",

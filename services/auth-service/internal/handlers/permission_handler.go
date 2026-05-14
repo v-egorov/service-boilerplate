@@ -47,14 +47,22 @@ func NewPermissionHandler(authService PermissionServiceInterface, permCache cach
 func (h *PermissionHandler) CheckPermission(c *gin.Context) {
 	var req CheckPermissionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid request",
+			"type":    "validation_error",
+			"meta":    gin.H{"request_id": c.GetHeader("X-Request-ID")},
+		})
 		return
 	}
 
 	allowed, err := h.authService.CheckPermission(c.Request.Context(), req.UserID, req.Permission)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to check permission")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "permission check failed"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "permission check failed",
+			"type":    "internal_error",
+			"meta":    gin.H{"request_id": c.GetHeader("X-Request-ID")},
+		})
 		return
 	}
 
@@ -68,14 +76,22 @@ func (h *PermissionHandler) CheckPermission(c *gin.Context) {
 func (h *PermissionHandler) GetUserPermissions(c *gin.Context) {
 	userID := c.Param("user_id")
 	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user_id required"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "user_id required",
+			"type":    "validation_error",
+			"meta":    gin.H{"request_id": c.GetHeader("X-Request-ID")},
+		})
 		return
 	}
 
 	permissions, err := h.authService.GetUserPermissions(c.Request.Context(), userID)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get user permissions")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get permissions"})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "failed to get permissions",
+			"type":    "internal_error",
+			"meta":    gin.H{"request_id": c.GetHeader("X-Request-ID")},
+		})
 		return
 	}
 

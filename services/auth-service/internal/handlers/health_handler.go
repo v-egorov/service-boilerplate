@@ -106,6 +106,7 @@ func NewHealthHandler(db *pgxpool.Pool, jwtUtils *utils.JWTUtils, keyRotationMan
 
 // LivenessHandler provides basic liveness check
 func (h *HealthHandler) LivenessHandler(c *gin.Context) {
+	requestID := c.GetHeader("X-Request-ID")
 	response := HealthResponse{
 		Status:    "ok",
 		Timestamp: time.Now().UTC(),
@@ -113,11 +114,15 @@ func (h *HealthHandler) LivenessHandler(c *gin.Context) {
 		Version:   h.config.App.Version,
 	}
 
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusOK, gin.H{
+		"data":    response,
+		"meta":    gin.H{"request_id": requestID},
+	})
 }
 
 // ReadinessHandler checks if the service is ready to accept traffic
 func (h *HealthHandler) ReadinessHandler(c *gin.Context) {
+	requestID := c.GetHeader("X-Request-ID")
 	// Check database connectivity if database is available
 	if h.db == nil {
 		// No database connection, but service is still ready for basic operations
@@ -127,7 +132,10 @@ func (h *HealthHandler) ReadinessHandler(c *gin.Context) {
 			Service:   h.config.App.Name,
 			Version:   h.config.App.Version,
 		}
-		c.JSON(http.StatusOK, response)
+		c.JSON(http.StatusOK, gin.H{
+			"data":    response,
+			"meta":    gin.H{"request_id": requestID},
+		})
 		return
 	}
 
@@ -140,7 +148,10 @@ func (h *HealthHandler) ReadinessHandler(c *gin.Context) {
 			Service:   h.config.App.Name,
 			Version:   h.config.App.Version,
 		}
-		c.JSON(http.StatusOK, response)
+		c.JSON(http.StatusOK, gin.H{
+			"data":    response,
+			"meta":    gin.H{"request_id": requestID},
+		})
 	} else {
 		response := HealthResponse{
 			Status:    "error",
@@ -148,17 +159,22 @@ func (h *HealthHandler) ReadinessHandler(c *gin.Context) {
 			Service:   h.config.App.Name,
 			Version:   h.config.App.Version,
 		}
-		c.JSON(http.StatusServiceUnavailable, response)
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"data":    response,
+			"meta":    gin.H{"request_id": requestID},
+		})
 	}
 }
 
 // PingHandler provides simple ping/pong response
 func (h *HealthHandler) PingHandler(c *gin.Context) {
+	requestID := c.GetHeader("X-Request-ID")
 	c.JSON(http.StatusOK, gin.H{
 		"status":    "pong",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 		"service":   h.config.App.Name,
 		"version":   h.config.App.Version,
+		"meta":      gin.H{"request_id": requestID},
 	})
 }
 
@@ -234,7 +250,11 @@ func (h *HealthHandler) StatusHandler(c *gin.Context) {
 		statusCode = http.StatusServiceUnavailable
 	}
 
-	c.JSON(statusCode, response)
+	requestID := c.GetHeader("X-Request-ID")
+	c.JSON(statusCode, gin.H{
+		"data":    response,
+		"meta":    gin.H{"request_id": requestID},
+	})
 }
 
 // checkJWTKeyHealth performs JWT key health check

@@ -154,14 +154,14 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 	}
 
 	// Verify password
-	if err := bcrypt.CompareHashAndPassword([]byte(userLogin.PasswordHash), []byte(req.Password)); err != nil {
+	if err := bcrypt.CompareHashAndPassword([]byte(userLogin.Data.PasswordHash), []byte(req.Password)); err != nil {
 		s.logger.WithField("email", req.Email).Warn("Invalid password")
 		return nil, fmt.Errorf("invalid credentials")
 	}
 
 	// Use the actual user ID from user service
-	userID := userLogin.User.ID
-	email := userLogin.User.Email
+	userID := userLogin.Data.User.ID
+	email := userLogin.Data.User.Email
 
 	// Get user roles
 	roles, err := s.repo.GetUserRoles(ctx, userID)
@@ -249,12 +249,12 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		TokenType:    "Bearer",
-		ExpiresIn:    900, // 15 minutes
+		ExpiresIn:    900,
 		User: models.UserInfo{
 			ID:        userID,
 			Email:     email,
-			FirstName: userLogin.User.FirstName,
-			LastName:  userLogin.User.LastName,
+			FirstName: userLogin.Data.User.FirstName,
+			LastName:  userLogin.Data.User.LastName,
 			Roles:     roleNames,
 		},
 	}, nil
