@@ -110,32 +110,46 @@ New object types start with **no default permissions**. Explicit grants are requ
 
 ## Roles & Permissions Matrix
 
-### Object Types Permissions
+Each cell shows the single scoped permission variant assigned to that role for the given action. Per Rule A, a role never holds more than one scope level per type:action combination. Cross-role access is determined by Rule B (union then broadest wins).
 
-| Role | create | update | delete |
-|------|--------|--------|--------|
-| admin | ✓ | ✓ | ✓ |
-| object-type-admin | ✓ | ✓ | ✓ |
-| user | — | — | — |
-| relationship-admin, relationship-viewer | — | — | — |
+### Object Types Permissions (registry)
 
-### Objects Permissions
+Permissions on the `object_types` table itself (type definitions/schema). All roles have read access; write access is restricted to admin and object-type-admin.
 
-| Role | create | read | update | delete | Scope constraint |
-|------|--------|------|--------|--------|------------------|
-| admin | all 3 variants | both variants | both variants | both variants | None |
-| object-type-admin | — | read:all | own, all | own, all | :own checks ownership |
-| user | create (default) | own, all | own, all | own, all | :own checks ownership |
+| Role | create | read | update | delete |
+|------|--------|------|--------|--------|
+| admin | `all` | `all` | `all` | `all` |
+| object-type-admin | `all` | `all` | `all` | `all` |
+| user, relationship-admin, relationship-viewer | — | `all` | — | — |
+
+### Objects Permissions (data instances)
+
+Permissions on actual object records derived from the types above.
+
+| Role | create | read | update | delete |
+|------|--------|------|--------|--------|
+| admin | `all` | `all` | `all` | `all` |
+| object-type-admin | — | `all` | — | — |
+| user | `own` | `own` | `own` | `own` |
+
+**Scope semantics:**
+- `:own` — ownership check required (user must be `created_by` of the object)
+- `:all` — no ownership check; unrestricted access to any object of this type
 
 ### Relationships Permissions
 
 | Role | create | read | update | delete | Notes |
 |------|--------|------|--------|--------|-------|
-| **admin** | `:own`, `:all` | `:own`, `:all` | `:own`, `:all` | `:own`, `:all` | Full CRUD, no restrictions |
-| **relationship-admin** (NEW) | same as admin | same as admin | same as admin | same as admin | Dedicated for relationship lifecycle mgmt |
-| **relationship-viewer** (NEW) | — | `:own`, `:all` | — | — | Read-only, audit/discovery |
-| **user** | `:own` only | `:own` only | `:own` only | `:own` only | Own objects endpoint constraint |
+| **admin** | `all` | `all` | `all` | `all` | Full CRUD, no restrictions |
+| **relationship-admin** (NEW) | `all` | `all` | `all` | `all` | Dedicated relationship lifecycle management |
+| **relationship-viewer** (NEW) | — | `all` | — | — | Read-only, audit/discovery |
+| **user** | `own` | `own` | `own` | `own` | Can act on relationships involving owned endpoints |
 | **object-type-admin** | — | — | — | — | Not applicable to relationships |
+
+> **Relationship-specific scope semantics:** Unlike plain objects, relationship ownership is asymmetric:
+> - `create:own` — user may create a relationship only if they own **both source AND target** endpoint objects
+> - `read:own` — user may read a relationship if they own **at least one** of the two endpoints (source OR target)
+> - `update:own` / `delete:own` — user may modify/delete only relationships where they are the `created_by`
 
 ---
 
