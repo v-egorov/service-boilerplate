@@ -143,7 +143,7 @@ Permissions on actual object records derived from the types above.
 | **admin** | `all` | `all` | `all` | `all` | Full CRUD, no restrictions |
 | **relationship-admin** (NEW) | `all` | `all` | `all` | `all` | Dedicated relationship lifecycle management |
 | **relationship-viewer** (NEW) | — | `all` | — | — | Read-only, audit/discovery |
-| **user** | `own` | `own` | `own` | `own` | Can act on relationships involving owned endpoints |
+| **user** | `own` | `own` | `own` | `own` | Can act on relationships involving owned endpoints; if also assigned `relationship-viewer`, union grants `read:all` |
 | **object-type-admin** | — | — | — | — | Not applicable to relationships |
 
 > **Relationship-specific scope semantics:** Unlike plain objects, relationship ownership is asymmetric:
