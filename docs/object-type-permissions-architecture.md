@@ -259,10 +259,9 @@ After registration, no default permissions are granted — administrator must ex
 ### Examples of Well-Formed Permissions
 
 ```
-portfolio:read              → no scope specified, middleware will require ownership check
 portfolio:read:own          → read only owned Portfolios  
 portfolio:read:all          → read any Portfolio (broad access)
-asset:create                → create Assets (default scope, requires ownership verification)
+asset:create:all            → create Assets
 relationships:delete:own    → delete own relationships only
 relationships:read:all      → audit/discovery mode for all relationships
 *:*                         → super-admin pattern (future, applies to all types)
@@ -288,7 +287,7 @@ relationships:read:all      → audit/discovery mode for all relationships
 
 ### Migration Path
 
-**No immediate migrations required.** The approach will be implemented incrementally following `object-type-permissions-implementation-plan.md`:
+The approach will be implemented incrementally following `object-type-permissions-implementation-plan.md`:
 
 1. **Phase 0:** Update documentation + audit current middleware enforcement behavior
 2. **Phase 1:** Add scoped permission definitions + new roles (migrations only, backward compatible)  

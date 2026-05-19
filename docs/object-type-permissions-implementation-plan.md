@@ -16,13 +16,25 @@ The current permission system uses flat resource names (`objects:read:own`, `rel
 
 This plan addresses these concerns while maintaining compatibility with existing code.
 
+### Cache Status: Disabled (Deferred for Cross-Container Support)
+
+The `PermissionCache` type exists in the auth-service but is **not wired at startup** — permission checks always hit the database directly. This was a deliberate choice because:
+
+1. The current cache uses an in-memory LRU map with TTL expiration
+2. In production, multiple auth-service replicas will be running simultaneously
+3. `Invalidate()` / `InvalidateAll()` only clear one container's memory — there is no cross-container invalidation mechanism (e.g., Redis PubSub)
+
+Without distributed caching infrastructure, an in-memory cache causes subtle bugs: after mutating permissions via admin API endpoints on replica A, requests routed to replicas B/C serve stale cached results until TTL expires. This makes end-to-end testing impossible without 60+ second delays between mutation calls and verification checks.
+
+**Current behavior:** All permission lookups go straight through `auth_repository.GetUserPermissions()` — correct but with no caching benefit. When a distributed cache (Redis, etc.) is added later, the fix will be straightforward: swap in an external store, implement cross-container invalidation via pub/sub or event-driven updates, then re-enable the existing `PermissionCache` wrapper around it.
+
 ---
 
 ## Permission Resolution Model
 
 Two rules operate at different levels:
 
-### Rule 1 — Within-role: Most Specific Wins
+### Rule A — Within-role: Most Specific Wins
 
 When multiple permissions for the same action exist in a single role, the most granular available variant is used:
 ```
@@ -30,7 +42,7 @@ Role grants: read:own + read:all → read:all takes effect (broader scope covers
 Role grants: create:own           → only that variant applies (no :all in union)
 ```
 
-### Rule 2 — Across-roles: Union then Broadest Wins
+### Rule B — Across-roles: Union then Broadest Wins
 
 When multiple roles grant permissions for the same action, all are collected into a union set. If ANY role provides the broader `:all` variant, ownership checks are bypassed entirely:
 
@@ -136,7 +148,7 @@ Ownership verification checks:
 
 **Output:** A summary of what the middleware DOES vs. what it SHOULD do per this plan.
 
-#### Step 0.3 — Update `docs/rbac-objects-service.md` [ ]
+#### Step 0.4 — Update `docs/rbac-objects-service.md` [ ]
 - [ ] Add relationship roles (relationship-admin, relationship-viewer) to role definitions table
 - [ ] Note that object-type-admin has NO relationship permissions
 - [ ] Clarify multi-role union rule in security model section
