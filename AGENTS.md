@@ -248,7 +248,7 @@ Get object:
 1. Assistant makes code changes (build runs, tests pass)
 2. Review changes with `git diff`
 3. User review and stage changes with `git add <files>` or staging hunks when ready
-4. Say "lets commit" to request commit message and commit
+4. Say "lets commit" or "now please commit" to request a commit message and commit
 
 **Example:**
 ```bash
@@ -261,6 +261,8 @@ git add services/objects-service/internal/handlers/object_handler.go
 # Request commit
 "lets commit" → Assistant provides commit message, then executes git commit
 ```
+
+**Important:** The assistant never alters which hunks or files are included in a commit. It crafts the commit message based on `git diff --cached` content only and executes `git commit` exactly as staged by the user.
 
 **Why this workflow:**
 - **Review control** - User sees all changes before committing
