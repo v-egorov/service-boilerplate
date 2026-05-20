@@ -108,6 +108,18 @@ For scoped `:own` variants, middleware verifies ownership BEFORE allowing access
 
 **Create scoped variants are exception-only:** On plain objects and object-types, `create` uses flat permission names — you always own what you create. On relationships, `create` **does** use scoped variants (`create:own`, `create:all`) because creating a relationship requires ownership of pre-existing endpoint objects (source AND target), not the relationship instance itself.
 
+### Three Distinct Ownership Models for Relationships
+
+Unlike plain objects where "owned = created by this user" applies uniformly, relationship permissions use **three different ownership models** depending on the action type:
+
+| Action | Ownership Model | Logic | What Is Checked |
+|--------|----------------|-------|-----------------|
+| `create:own` | Endpoint ownership | AND — must own BOTH endpoints | `owner_id` on source_object AND target_object match user ID |
+| `read:own`   | Partial endpoint ownership | OR — own at least ONE endpoint | `owner_id` on source_object **OR** target_object matches user ID |
+| `update:own` / `delete:own` | Creator ownership | N/A — checks the record itself | `created_by` field on the relationship object matches user ID |
+
+**Rationale:** Create requires owning both endpoints because you can only link objects under your control. Read uses OR logic to enable discovery — if I own either side of a relationship, I should be able to see it for context. Update/delete checks `created_by` (the relationship record owner) rather than endpoint ownership, since modifying or removing a relationship is an action on the link itself, not on its endpoints.
+
 ### 6. Locked-Down by Default
 
 New object types start with **no default permissions**. Explicit grants are required before any role or user can perform actions on objects of that type. This applies during initial rollout AND when new types are registered in the future.

@@ -98,23 +98,33 @@ The `create` action on relationships uses scoped variants because creating a rel
 | **user** | `own` | `own` | `own` | `own` | Can act on relationships involving owned endpoints; if also assigned `relationship-viewer`, union grants `read:all` |
 | **object-type-admin** | — | — | — | — | Not applicable to relationships |
 
-### Scoped Variants Definition
+### Three Distinct Ownership Models for Relationships
 
-| Permission | Enforcement (for "own" variants) |
-|------------|----------------------------------|
-| `create:own` | User owns BOTH source AND target objects (relationships only; flat `create` on other types has no scope) |
-| `read:own`   | User owns AT LEAST ONE endpoint (source OR target) |
-| `update:own` / `delete:own` | User created the relationship (`created_by = user_id`) |
+Unlike plain objects where "owned = created by this user" applies uniformly, relationship permissions use **three different ownership models** depending on the action type:
+
+| Action | Ownership Model | Logic | What Is Checked |
+|--------|----------------|-------|-----------------|
+| `create:own` | Endpoint ownership | AND — must own BOTH endpoints | `owner_id` on source_object AND target_object match user ID |
+| `read:own`   | Partial endpoint ownership | OR — own at least ONE endpoint | `owner_id` on source_object **OR** target_object matches user ID |
+| `update:own` / `delete:own` | Creator ownership | N/A — checks the record itself | `created_by` field on the relationship object matches user ID |
+
+**Rationale:** Create requires owning both endpoints because you can only link objects under your control. Read uses OR logic to enable discovery — if I own either side of a relationship, I should be able to see it for context. Update/delete checks `created_by` (the relationship record owner) rather than endpoint ownership, since modifying or removing a relationship is an action on the link itself, not on its endpoints.
 
 ### Ownership Check Logic
 
 ```
 For :own permissions, middleware verifies ownership BEFORE allowing action.
 For :all permissions (or if any role grants :all), no ownership check is performed.
-Ownership verification checks:
-  - create:own → owner_id of source_object AND target_object match user ID (relationships only)
-  - read:own   → owner_id of source_object OR target_object matches user ID  
-  - update/delete:own → created_by field on relationship object matches user ID
+Ownership verification checks use three distinct models:
+
+  - create:own → Endpoint ownership model (AND)
+    owner_id of source_object AND target_object match user ID (relationships only)
+
+  - read:own   → Partial endpoint ownership model (OR)
+    owner_id of source_object OR target_object matches user ID
+
+  - update/delete:own → Creator ownership model (N/A — record-level check)
+    created_by field on relationship object matches user ID
 ```
 
 ---
