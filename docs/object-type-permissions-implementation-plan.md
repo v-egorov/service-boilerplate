@@ -157,7 +157,7 @@ Ownership verification checks use three distinct models:
 
 **Output:** Validation logic + updated permission assignment endpoints with conflict detection and blocking.
 
-#### Step 0.3 — Audit current permission middleware for enforcement [ ]
+#### Step 0.3 — Audit current permission middleware for enforcement [x]
 **Files to check:**
 - `services/objects-service/internal/middleware/*`
 - `common/middleware/permission*.go` or shared auth middleware
@@ -169,7 +169,17 @@ Ownership verification checks use three distinct models:
 3. How does multi-role lookup work currently? (Does it union across roles?)
 4. Does middleware look up `object_type_id` during checks, or rely on endpoint path alone?
 
-**Output:** A summary of what the middleware DOES vs. what it SHOULD do per this plan.
+**Output:** Audit findings (middleware audit complete):
+
+1. **Scoped variant resolution?** ❌ No — middleware uses exact string match (`hasPermission()` in `auth_service.go:914`), no scoped-aware logic. Checks flat permission names only.
+2. **Ownership enforcement for :own variants?** N/A — not implemented yet; ownership checks are entirely absent from relationship handler (`relationship_handler.go`).
+3. **Multi-role union lookup?** ✅ Yes — `GetUserPermissions()` queries all roles assigned to a user via `user_roles` → `role_permissions` join, returning the full permission set.
+4. **Object type resolution?** ❌ No — checks route-level permissions (e.g., `/api/v1/relationships` maps to `relationships:*`), not per-object-type_id lookup.
+
+**Key gaps identified:**
+- `hasPermission()` does exact-string match with no scoped variant preference logic (`:own` vs `:all`)
+- If both variants exist for a role, either check passes (no deduplication or warning log)
+- Cache invalidation gap — `Invalidate()` never called from mutation endpoints; only TTL-based eviction at 60s. **Cache is disabled for now** — this is tracked as a separate task since distributed cache infrastructure (Redis pub/sub) is required before caching can be reliably re-enabled
 
 #### Step 0.4 — Update `docs/rbac-objects-service.md` [ ]
 - [ ] Add relationship roles (relationship-admin, relationship-viewer) to role definitions table
@@ -332,7 +342,7 @@ Document the safe upgrade path:
 |-------|----------------|--------|
 | 0.1 | Updated architecture doc (two-rule model, scoped-only perms) | Done |
 | 0.2 | Permission assignment validation + constraint enforcement | Not started |
-| 0.3 | Middleware audit report | Not started |
+| 0.3 | Middleware audit report | Done ✓ |
 | 0.4 | Updated RBAC docs with roles | Not started |
 | 1.1 | Scoped permission migration (000008) | Not started |
 | 1.2 | New role migrations (relationship-admin/viewer) | Not started |
