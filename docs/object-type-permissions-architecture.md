@@ -33,7 +33,7 @@ Examples:
 portfolio:read:own          → read only owned Portfolios  
 portfolio:read:all          → read any Portfolio (broad access, no ownership check)
 object-types:create         → create new object type definitions (no scope — you always own what you create)
-relationships:create        → create relationships where user owns BOTH endpoints
+relationships:create:own   → create relationships where user owns BOTH endpoints
 relationships:delete:own    → delete relationships created by the user
 *:*                         → super-admin pattern (all actions on all types, future)
 ```
@@ -106,7 +106,7 @@ For scoped `:own` variants, middleware verifies ownership BEFORE allowing access
 | `read:own`   | User owns at least ONE endpoint (source OR target) | Check `owner_id` on either object |
 | `update:own` / `delete:own` | User created the relationship (`created_by = user_id`) | Check `created_by` field on relationship object |
 
-**Create has no scoped variants:** The `create` action always uses flat permission names (e.g., `object-types:create`, `relationships:create`) with no scope suffix. Ownership is implicit — you always own what you create. For relationships, the ownership check applies to endpoint objects (source AND target), not the relationship instance itself.
+**Create scoped variants are exception-only:** On plain objects and object-types, `create` uses flat permission names — you always own what you create. On relationships, `create` **does** use scoped variants (`create:own`, `create:all`) because creating a relationship requires ownership of pre-existing endpoint objects (source AND target), not the relationship instance itself.
 
 ### 6. Locked-Down by Default
 

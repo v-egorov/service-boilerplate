@@ -43,7 +43,7 @@ Role grants: read:own  → only `read:own` applies
 Role grants: read:all  → only `read:all` applies
 ```
 
-> **Note:** The `create` action uses flat permission names (`object-types:create`, `relationships:create`) with no scoped variants on objects/types — you always own what you create. Scoped variants for `create` only apply to relationships where endpoint ownership must be verified.
+> **Note:** The `create` action uses flat permission names on objects/types (`object-types:create`, `portfolio:create`, etc.) — you always own what you create. Scoped variants for `create` only apply to relationships where endpoint ownership must be verified (`relationships:create:own`, `relationships:create:all`).
 
 ### Rule A Edge Case: Duplicate Scoped Variants in Same Role
 
