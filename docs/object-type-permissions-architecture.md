@@ -30,12 +30,12 @@ Each concrete object type has its own namespace of permissions:
 
 Examples:
 ```
-portfolio:read              → read any Portfolio (no scope = default, requires ownership check)
 portfolio:read:own          → read only owned Portfolios  
 portfolio:read:all          → read any Portfolio (broad access, no ownership check)
-asset:create                → create Assets (same as asset:create:default)
+object-types:create         → create new object type definitions (no scope — you always own what you create)
+relationships:create        → create relationships where user owns BOTH endpoints
 relationships:delete:own    → delete relationships created by the user
-*:*                         → super-admin (all actions on all types, future)
+*:*                         → super-admin pattern (all actions on all types, future)
 ```
 
 ### 2. Abstract vs Concrete Object Types
@@ -72,7 +72,7 @@ When permissions are granted by MULTIPLE roles, they are collected into a union 
 | Both              | Same as `*:all`        | No (broad access wins) |
 | Neither           | Deny                  | N/A |
 
-**Important:** Different actions are independent. Having `create:own` + `read:all` means create requires ownership verification but read does not. Actions never interfere with each other.
+**Important:** Different actions are independent. Having `update:own` + `read:all` means update requires ownership verification but read does not. Actions never interfere with each other. Note that the `create` action uses flat permission names on objects/types (no scoped variants) since you always own what you create; scoped variants for `create` only apply to relationships where endpoint ownership must be verified.
 
 ### 4. Relationships as Object Types
 
@@ -100,7 +100,7 @@ For scoped `:own` variants, middleware verifies ownership BEFORE allowing access
 | `read:own`   | User owns at least ONE endpoint (source OR target) | Check `owner_id` on either object |
 | `update:own` / `delete:own` | User created the relationship (`created_by = user_id`) | Check `created_by` field on relationship object |
 
-**Unscoped permissions:** No ownership check is performed — if a role grants broad access, the action proceeds immediately.
+**Create has no scoped variants:** The `create` action always uses flat permission names (e.g., `object-types:create`, `relationships:create`) with no scope suffix. Ownership is implicit — you always own what you create. For relationships, the ownership check applies to endpoint objects (source AND target), not the relationship instance itself.
 
 ### 6. Locked-Down by Default
 
@@ -114,29 +114,31 @@ Each cell shows the single scoped permission variant assigned to that role for t
 
 ### Object Types Permissions (registry)
 
-Permissions on the `object_types` table itself (type definitions/schema). All roles have read access; write access is restricted to admin and object-type-admin.
+Permissions on the `object_types` table itself (type definitions/schema). The `create` action uses flat permission names since you always own what you create. All roles have read access; write access is restricted to admin and object-type-admin.
 
 | Role | create | read | update | delete |
 |------|--------|------|--------|--------|
-| admin | `all` | `all` | `all` | `all` |
-| object-type-admin | `all` | `all` | `all` | `all` |
+| admin | `create` | `all` | `all` | `all` |
+| object-type-admin | `create` | `all` | `all` | `all` |
 | user, relationship-admin, relationship-viewer | — | `all` | — | — |
 
 ### Objects Permissions (data instances)
 
-Permissions on actual object records derived from the types above.
+Permissions on actual object records derived from the types above. The `create` action has no scoped variants — it uses flat permission names since you always own what you create.
 
 | Role | create | read | update | delete |
 |------|--------|------|--------|--------|
-| admin | `all` | `all` | `all` | `all` |
+| admin | `create` | `all` | `all` | `all` |
 | object-type-admin | — | `all` | — | — |
-| user | `own` | `own` | `own` | `own` |
+| user | `create` | `own` | `own` | `own` |
 
 **Scope semantics:**
 - `:own` — ownership check required (user must be `created_by` of the object)
 - `:all` — no ownership check; unrestricted access to any object of this type
 
 ### Relationships Permissions
+
+The `create` action on relationships uses scoped variants because creating a relationship requires ownership of pre-existing endpoint objects (source AND target). This differs from plain object creation, where you always own what you create.
 
 | Role | create | read | update | delete | Notes |
 |------|--------|------|--------|--------|-------|
@@ -202,7 +204,7 @@ Request: GET /api/v1/relationships
 Permission required: relationships:read
 
 Check flow:
-1. Union set U = {create:own, create:all, read:own, read:all, update:own, update:all, delete:own, delete:all} 
+1. Union set U = {create:all, read:all, update:all, delete:all} 
 2. Action = read → :all variant exists in union
 3. :all takes precedence over :own → no ownership check needed
 4. Result: 200 with ALL relationships (no filtering)
@@ -254,14 +256,15 @@ After registration, no default permissions are granted — administrator must ex
 |-----------|--------|-------------|
 | `type_key` | lowercase, alphanumeric + hyphens | The object type's type_key from registry |
 | `action` | `create`, `read`, `update`, `delete` | What action is being performed |
-| `scope` | `own`, `all` (required) | Restriction level — mandatory for all permissions |
+| `scope` | `own`, `all` (optional) | Restriction level — present for read/update/delete; absent for create on objects/types. On relationships, scope applies to endpoint ownership checks. |
 
 ### Examples of Well-Formed Permissions
 
 ```
 portfolio:read:own          → read only owned Portfolios  
 portfolio:read:all          → read any Portfolio (broad access)
-asset:create:all            → create Assets
+object-types:create         → create new object type definitions (no scope — you always own what you create)
+relationships:create        → create relationships (flat name; scoped variants :own/:all exist for endpoint ownership checks)
 relationships:delete:own    → delete own relationships only
 relationships:read:all      → audit/discovery mode for all relationships
 *:*                         → super-admin pattern (future, applies to all types)
@@ -350,12 +353,12 @@ When a new object type is registered, a webhook or event could notify an admin s
 
 | Principle | Implementation |
 |-----------|----------------|
-| Object-type-scoped permissions | `<type>:<action>[:<scope>]` format, scope always present |
+| Object-type-scoped permissions | `<type>:<action>[:<scope>]` format; `create` uses flat names on objects/types (no scope), scoped variants only for relationships (endpoint ownership) |
 | Abstract vs concrete | `objects:*` for untyped base; `<type>:*` exclusively for typed objects |
 | Permission resolution (within-role) | Duplicate assignments blocked — each role gets ONE scoped level per type:action pair |
 | Permission resolution (across-roles) | Union of all roles, broadest (`:all`) wins over narrower (`:own`) |
-| Actions are independent | `create:own` + `read:all` → create needs ownership, read does not |
+| Actions are independent | `update:own` + `read:all` → update needs ownership, read does not. Actions never interfere with each other. |
 | Assignment constraint | POST/PATCH/PUT on role_permissions blocks duplicate scoped variants for same type+action on one role |
-| Relationships | Special system object type with its own scoped permission namespace |
+| Relationships | Special system object type with its own scoped permission namespace; `create` can have scope (endpoint ownership) unlike other types |
 | New types | Locked down by default — explicit grants required |
 | Roles | 5 roles: admin, object-type-admin, user, relationship-admin (NEW), relationship-viewer (NEW) |

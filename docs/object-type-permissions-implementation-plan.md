@@ -39,8 +39,10 @@ Two rules operate at different levels:
 When multiple permissions for the same action exist in a single role, the most granular available variant is used:
 ```
 Role grants: read:own + read:all → read:all takes effect (broader scope covers more)
-Role grants: create:own           → only that variant applies (no :all in union)
+Role grants: update:own          → only that variant applies (no :all in union)
 ```
+
+> **Note:** The `create` action uses flat permission names (`object-types:create`, `relationships:create`) with no scoped variants on objects/types — you always own what you create. Scoped variants for `create` only apply to relationships where endpoint ownership must be verified.
 
 ### Rule B — Across-roles: Union then Broadest Wins
 
@@ -53,43 +55,49 @@ When multiple roles grant permissions for the same action, all are collected int
 | Both              | Same as `*:all`        | No |
 | Neither           | Deny                  | N/A |
 
-**Key insight:** Different actions are independent. Having `create:own` + `read:all` means create requires ownership verification but read does not. Actions never interfere with each other.
+**Key insight:** Different actions are independent. Having `update:own` + `read:all` means update requires ownership verification but read does not. Actions never interfere with each other.
 
 ---
 
 ## Final Roles & Permissions Matrix
 
-### Object Types Permissions
+### Object Types Permissions (registry)
 
-| Role | create | update | delete |
-|------|--------|--------|--------|
-| admin | ✓ | ✓ | ✓ |
-| object-type-admin | ✓ | ✓ | ✓ |
-| user, relationship-admin, relationship-viewer | — | — | — |
+Permissions on the `object_types` table itself. The `create` action uses flat permission names — you always own what you create, so no scoped variants apply.
 
-### Objects Permissions
+| Role | create | read | update | delete |
+|------|--------|------|--------|--------|
+| admin | `create` | `all` | `all` | `all` |
+| object-type-admin | `create` | `all` | `all` | `all` |
+| user, relationship-admin, relationship-viewer | — | `all` | — | — |
 
-| Role | create | read | update | delete | Scope constraint |
-|------|--------|------|--------|--------|------------------|
-| admin | all 3 variants | both variants | both variants | both variants | None |
-| object-type-admin | — | read:all | all 3 variants | both variants | — |
-| user | create (default) | own, all | own, all | own, all | :own checks ownership |
+### Objects Permissions (data instances)
+
+Permissions on actual object records. The `create` action uses flat permission names since you always own what you create.
+
+| Role | create | read | update | delete |
+|------|--------|------|--------|--------|
+| admin | `create` | `all` | `all` | `all` |
+| object-type-admin | — | `all` | — | — |
+| user | `create` | `own` | `own` | `own` |
 
 ### Relationships Permissions (NEW scoped model)
 
-| Role | create | update | delete | read | Notes |
-|------|--------|--------|--------|------|-------|
-| **admin** | `:own`, `:all` | `:own`, `:all` | `:own`, `:all` | `:own`, `:all` | Full CRUD, no restrictions |
-| **relationship-admin** (NEW) | same as admin | same as admin | same as admin | same as admin | Dedicated for relationship lifecycle mgmt |
-| **relationship-viewer** (NEW) | — | — | — | `:own`, `:all` | Read-only, audit/discovery |
-| **user** | `:own` only | `:own` only | `:own` only | `:own` only | Own objects endpoint constraint |
+The `create` action on relationships uses scoped variants because creating a relationship requires ownership of pre-existing endpoint objects (source AND target). This differs from plain object creation, where you always own what you create.
+
+| Role | create | read | update | delete | Notes |
+|------|--------|------|--------|--------|-------|
+| **admin** | `all` | `all` | `all` | `all` | Full CRUD, no restrictions |
+| **relationship-admin** (NEW) | `all` | `all` | `all` | `all` | Dedicated relationship lifecycle management |
+| **relationship-viewer** (NEW) | — | `all` | — | — | Read-only, audit/discovery |
+| **user** | `own` | `own` | `own` | `own` | Can act on relationships involving owned endpoints; if also assigned `relationship-viewer`, union grants `read:all` |
 | **object-type-admin** | — | — | — | — | Not applicable to relationships |
 
 ### Scoped Variants Definition
 
 | Permission | Enforcement (for "own" variants) |
 |------------|----------------------------------|
-| `create:own` | User owns BOTH source AND target objects |
+| `create:own` | User owns BOTH source AND target objects (relationships only; flat `create` on other types has no scope) |
 | `read:own`   | User owns AT LEAST ONE endpoint (source OR target) |
 | `update:own` / `delete:own` | User created the relationship (`created_by = user_id`) |
 
@@ -99,7 +107,7 @@ When multiple roles grant permissions for the same action, all are collected int
 For :own permissions, middleware verifies ownership BEFORE allowing action.
 For :all permissions (or if any role grants :all), no ownership check is performed.
 Ownership verification checks:
-  - create:own → owner_id of source_object AND target_object match user ID
+  - create:own → owner_id of source_object AND target_object match user ID (relationships only)
   - read:own   → owner_id of source_object OR target_object matches user ID  
   - update/delete:own → created_by field on relationship object matches user ID
 ```
@@ -196,9 +204,9 @@ ON CONFLICT (name) DO NOTHING;
 
 Changes needed:
 - Remove `object-type-admin` from relationships assignments entirely
-- Add `relationship-admin` → ALL scoped variants (same as admin)
-- Update `user` → only scoped variants (`:own` for all CRUD, `:own+all` for read)
-- Add `relationship-viewer` → ONLY `read:own` + `read:all`
+- Add `relationship-admin` → all scoped variants (`all` for read/update/delete; `all` for create since scope on create applies only to endpoint ownership)
+- Update `user` → flat `create` (objects/types), `own` for all CRUD on relationships, `own` for read/update/delete on objects
+- Add `relationship-viewer` → ONLY `read:all`
 
 #### Step 1.4 — Rollback and re-apply [ ]
 ```bash
@@ -273,15 +281,15 @@ Currently, the permission middleware likely checks permissions based on endpoint
 
 #### Step 3.1 — Fix test-rbac-relationships.sh RL-3 [ ]
 **Current issue:** GET `/api/v1/relationships` returns 403 for `user` role  
-**After Phase 1 fix:** User gets `read:own` + `read:all` → should return 200
+**After Phase 1 fix:** User gets `relationships:read:own` (no :all assigned to user role) → returns 200 with filtered list containing only relationships where user owns at least one endpoint
 
 #### Step 3.2 — Add scoped permission enforcement tests [ ]
-- [ ] Test that `create:own` blocks creation when user doesn't own both endpoints
+- [ ] Test that `relationships:create:own` blocks creation when user doesn't own both endpoints (source AND target)
 - [ ] Test that `read:own` filters results to relationships where user owns at least one endpoint  
 - [ ] Test that `update/delete:own` only allows modification of self-created relationships
 
 #### Step 3.3 — Add multi-role union tests [ ]
-- [ ] User with BOTH `user` role + `relationship-viewer` → should get union (create:own from user, read:all from viewer)
+- [ ] User with BOTH `user` role + `relationship-viewer` → should get union (relationships:create:own from user, read:all from viewer)
 - [ ] User with ONLY `user` role → no access to relationships they don't own
 
 ---
