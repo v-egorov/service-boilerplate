@@ -61,6 +61,12 @@ INVALID:   user → portfolio:read:own + portfolio:read:all  ← redundant, broa
 
 When multiple roles are involved, each role should assign ONLY the most specific level that covers its scope. If a user has both `portfolio:read:own` (from "user" role) and `portfolio:read:all` (from "admin" role), this is correct — it's an across-roles scenario handled by Rule B.
 
+#### Rule A Edge Case: Duplicate Scoped Variants in Same Role
+
+The API enforces that each role gets at most one scoped variant per type+action pair. However, if a race condition or data corruption causes both `type:action:own` and `type:action:all` to exist for the same role, resolution follows Rule B semantics — broadest scope wins (`:all` overrides `:own`).
+
+This is logged at warning level with: role_id, permission names involved, affected user count. The system treats this scenario identically to the cross-role union case because the practical effect is the same: a broader scope exists and should take precedence.
+
 #### Rule B: Across-roles — Union Then Broadest Wins
 
 When permissions are granted by MULTIPLE roles, they are collected into a union set. If ANY role provides the broader `:all` variant for an action, that bypasses ownership checks entirely regardless of other roles' narrower-scoped variants.

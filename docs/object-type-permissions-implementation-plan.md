@@ -34,15 +34,20 @@ Without distributed caching infrastructure, an in-memory cache causes subtle bug
 
 Two rules operate at different levels:
 
-### Rule A — Within-role: Most Specific Wins
+### Rule A — Within-role: One Scoped Level Per Role/Action
 
-When multiple permissions for the same action exist in a single role, the most granular available variant is used:
+Each role gets exactly one scoped variant per type+action pair. This is enforced at the permission assignment API level (POST/PATCH/PUT). No ambiguity exists in normal operation:
+
 ```
-Role grants: read:own + read:all → read:all takes effect (broader scope covers more)
-Role grants: update:own          → only that variant applies (no :all in union)
+Role grants: read:own  → only `read:own` applies
+Role grants: read:all  → only `read:all` applies
 ```
 
 > **Note:** The `create` action uses flat permission names (`object-types:create`, `relationships:create`) with no scoped variants on objects/types — you always own what you create. Scoped variants for `create` only apply to relationships where endpoint ownership must be verified.
+
+### Rule A Edge Case: Duplicate Scoped Variants in Same Role
+
+The API enforces one scoped level per role+action pair, but if a race condition or data corruption causes both `type:action:own` and `type:action:all` to exist for the same role, resolution follows **Rule B semantics** — broadest scope wins (`:all` overrides `:own`). This is logged at warning level with role_id, permission names involved, and affected user count. The system treats this identically to cross-role union because the practical effect is the same: a broader scope exists and takes precedence.
 
 ### Rule B — Across-roles: Union then Broadest Wins
 
