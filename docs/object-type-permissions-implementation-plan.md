@@ -140,22 +140,23 @@ Ownership verification checks use three distinct models:
 - [x] Replace unscoped permissions table in Section 4 with scoped-only variants
 - [x] Add new roles section: relationship-admin, relationship-viewer + assignment matrix
 - [x] Fix transition section — remove contradictory `objects:read:own` statement (line 201)
-- [ ] Update role list and permission assignments throughout document
+- [x] Update role list and permission assignments throughout document
 
 #### Step 0.2 — Audit & enforce permission assignment constraints [ ]
-**Files to check:**
-- `services/auth-service/internal/handlers/` — look for handlers that manage role_permissions (POST/PATCH/PUT)
-- Any admin API endpoints for role management, permission grants
+**Files checked:**
+- `services/auth-service/internal/handlers/auth_handler.go` — only `POST /roles/:role_id/permissions` exists (no PATCH/PUT)
+- `services/auth-service/internal/services/auth_service.go` — no validation in service layer
+- `services/auth-service/internal/repository/auth_repository.go:360` — `AssignPermissionToRole()` uses `ON CONFLICT DO NOTHING`, zero scoped variant detection
 
-**What to verify & implement:**
-1. Identify which API endpoints assign permissions to roles
-2. Add validation: when granting a scoped variant to a role, check if an overlapping scoped variant already exists on the same type+action → warn or error
-   - Example: if role "X" has `portfolio:read:own` and assignment tries to add `portfolio:read:all` → block with clear message about redundancy
-3. Implement enforcement constraint: PREVENT assignments where both scoped variants for the same type+action exist on the same role
-   - Rule: a single role should never have both `type:action:own` AND `type:action:all` simultaneously
-   - This is enforced at the permission assignment API level (POST/PATCH/PUT to auth_service.role_permissions)
+**Audit findings:** No constraint enforcement exists anywhere in the stack. Handler blindly passes permission_id to service, service forwards to repository, repository only prevents identical (role_id, permission_id) duplicates via DB constraint — no logic for detecting overlapping scoped variants (`:own` + `:all` on same resource+action).
 
-**Output:** Validation logic + updated permission assignment endpoints with conflict detection and blocking.
+**Deliverables:**
+- [ ] **Repository method** — `DetectConflictingPermission(ctx, roleID, targetPermName)` queries existing permissions for a role on the same `(resource, action)` pair; returns any overlapping scoped variants (e.g., if inserting `relationships:read:all`, detects whether `relationships:read:own` already exists)
+- [ ] **Service-layer validation** — updated `AssignPermissionToRole()` calls detection method before insert; if conflict → return typed error (`ErrPermissionScopeConflict`) naming the conflicting permission pair; if no conflict → proceed normally
+- [ ] **Handler response fix** — replace bare `gin.H{"message": ...}` with proper struct per API standards; add PATCH support for replacing one scoped variant with another (needed during migration from flat → scoped)
+- [ ] **Unit tests** — conflict detection: inserting `read:own` when `read:all` exists → error; non-conflict: inserting `create:own` when `read:all` exists → success (different actions); non-conflict: inserting `objects:create` when `relationships:read:all` exists → success (different resources)
+
+**Scope:** ~1 new repo method, 1 service modification, handler response fix + optional PATCH endpoint, ~3 test functions. All self-contained in auth-service.
 
 #### Step 0.3 — Audit current permission middleware for enforcement [x]
 **Files to check:**
@@ -341,7 +342,7 @@ Document the safe upgrade path:
 | Phase | Key Deliverable | Status |
 |-------|----------------|--------|
 | 0.1 | Updated architecture doc (two-rule model, scoped-only perms) | Done |
-| 0.2 | Permission assignment validation + constraint enforcement | Not started |
+| 0.2 | Permission assignment audit complete (deliverables defined) | Audit done, delivery pending |
 | 0.3 | Middleware audit report | Done ✓ |
 | 0.4 | Updated RBAC docs with roles | Not started |
 | 1.1 | Scoped permission migration (000008) | Not started |
