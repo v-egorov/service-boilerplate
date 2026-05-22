@@ -393,9 +393,9 @@ Document the safe upgrade path:
 | 0.2 | Permission assignment audit complete; moved to Phase 2 as Step 2.0 | Audit done, delivery pending |
 | 0.3 | Middleware audit report | Done ✓ |
 | 0.4 | Updated RBAC docs with roles | Not started |
-| 1.1 | Scoped permission migration (000008) | Not started |
-| 1.2 | New role migrations (relationship-admin/viewer) | Not started |
-| 1.3 | Updated assignments (000009) + rollback/reapply | Not started |
+| 1.1 | Scoped permission migration (000008) | Done ✓ |
+| 1.2 | New role migrations (relationship-admin/viewer) | Done ✓ |
+| 1.3 | Updated assignments (000009) + rollback/reapply | Done ✓ |
 | 1.5 | Migration authoring discipline checklist | Not started |
 | 2.0 | Permission assignment constraint enforcement | Not started |
 | 2.0a | Permission parsing and validation utilities (ParsePermission + ValidatePermission) | Not started |
