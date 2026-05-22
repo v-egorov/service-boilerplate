@@ -142,7 +142,7 @@ Ownership verification checks use three distinct models:
 - [x] Fix transition section — remove contradictory `objects:read:own` statement (line 201)
 - [x] Update role list and permission assignments throughout document
 
-#### Step 0.2 — Audit & enforce permission assignment constraints [ ]
+#### Step 0.2 — Audit & enforce permission assignment constraints [x] (moved to Phase 2)
 **Files checked:**
 - `services/auth-service/internal/handlers/auth_handler.go` — only `POST /roles/:role_id/permissions` exists (no PATCH/PUT)
 - `services/auth-service/internal/services/auth_service.go` — no validation in service layer
@@ -150,13 +150,7 @@ Ownership verification checks use three distinct models:
 
 **Audit findings:** No constraint enforcement exists anywhere in the stack. Handler blindly passes permission_id to service, service forwards to repository, repository only prevents identical (role_id, permission_id) duplicates via DB constraint — no logic for detecting overlapping scoped variants (`:own` + `:all` on same resource+action).
 
-**Deliverables:**
-- [ ] **Repository method** — `DetectConflictingPermission(ctx, roleID, targetPermName)` queries existing permissions for a role on the same `(resource, action)` pair; returns any overlapping scoped variants (e.g., if inserting `relationships:read:all`, detects whether `relationships:read:own` already exists)
-- [ ] **Service-layer validation** — updated `AssignPermissionToRole()` calls detection method before insert; if conflict → return typed error (`ErrPermissionScopeConflict`) naming the conflicting permission pair; if no conflict → proceed normally
-- [ ] **Handler response fix** — replace bare `gin.H{"message": ...}` with proper struct per API standards; add PATCH support for replacing one scoped variant with another (needed during migration from flat → scoped)
-- [ ] **Unit tests** — conflict detection: inserting `read:own` when `read:all` exists → error; non-conflict: inserting `create:own` when `read:all` exists → success (different actions); non-conflict: inserting `objects:create` when `relationships:read:all` exists → success (different resources)
-
-**Scope:** ~1 new repo method, 1 service modification, handler response fix + optional PATCH endpoint, ~3 test functions. All self-contained in auth-service.
+**Note:** This step is a code deliverable and has been moved to Phase 2 as Step 2.0 below. Migrations execute directly against PostgreSQL via golang-migrate CLI — they bypass auth-service entirely, so runtime constraint enforcement does not protect migration safety. Migration guardrails rely on manual review (see Step 1.5).
 
 #### Step 0.3 — Audit current permission middleware for enforcement [x]
 **Files to check:**
@@ -242,14 +236,37 @@ make db-migrate-down SERVICE_NAME=auth-service   # rolls back 000009, then 00000
 Makefile: make db-migrate-up SERVICE_NAME=auth-service   # re-apply all in sequence
 ```
 
+#### Step 1.5 — Migration authoring discipline [ ]
+Migrations execute directly against PostgreSQL via golang-migrate CLI with no Go validation layer. Guardrails rely on manual review before merging migration files.
+
+**Checklist for migration authors:**
+- [ ] No two scoped variants for the same role+resource+action pair across any single migration file — e.g., if `000008` creates both `read:own` and `read:all`, then `000009` must not assign both to the same role
+- [ ] Each environment's migration files reviewed independently (dev/staging/prod may have different sequences due to test-data-only migrations)
+- [ ] Rollback `.down.sql` files verified to remove all permissions added by corresponding `.up.sql` before reapply — ensures clean rollback/replay cycle
+
+**Note:** Step 0.2 (constraint enforcement at API level) protects runtime assignments but does not apply here. The Phase 1 migration safety net is reviewer discipline, not code-level blocking.
+
 ---
 
 ### Phase 2: Middleware Enhancement (code changes)
 
 > **Goal:** Update permission middleware to enforce scoped variants and implement multi-role union logic.
 
+#### Step 2.0 — Permission assignment constraint enforcement [ ]
+(Moved from Step 0.2 — code-level guardrails for runtime API assignments.)
+
+Migrations execute directly against PostgreSQL and bypass auth-service, so this only protects the admin endpoint used at runtime. See Step 1.5 for migration safety approach.
+
+**Deliverables:**
+- [ ] **Repository method** — `DetectConflictingPermission(ctx, roleID, targetPermName)` queries existing permissions for a role on the same `(resource, action)` pair; returns any overlapping scoped variants (e.g., if inserting `relationships:read:all`, detects whether `relationships:read:own` already exists)
+- [ ] **Service-layer validation** — updated `AssignPermissionToRole()` calls detection method before insert; if conflict → return typed error (`ErrScopedVariantConflict`) naming the conflicting permission pair; if no conflict → proceed normally
+- [ ] **Handler response fix** — replace bare `gin.H{"message": ...}` with proper struct per API standards; add PATCH support for replacing one scoped variant with another (needed during migration from flat → scoped)
+- [ ] **Unit tests** — conflict detection: inserting `read:own` when `read:all` exists → error; non-conflict: inserting `create:own` when `read:all` exists → success (different actions); non-conflict: inserting `objects:create` when `relationships:read:all` exists → success (different resources)
+
+**Scope:** ~1 new repo method, 1 service modification, handler response fix + optional PATCH endpoint, ~3 test functions. All self-contained in auth-service.
+
 #### Step 2.1 — Scoped variant enforcement [ ]
-**Location:** Permission checking function (to be identified during audit in Phase 0.2)  
+**Location:** Permission checking function (`hasPermission()` in `auth_service.go:914`)  
 **Changes needed:**
 
 ```go
@@ -342,12 +359,14 @@ Document the safe upgrade path:
 | Phase | Key Deliverable | Status |
 |-------|----------------|--------|
 | 0.1 | Updated architecture doc (two-rule model, scoped-only perms) | Done |
-| 0.2 | Permission assignment audit complete (deliverables defined) | Audit done, delivery pending |
+| 0.2 | Permission assignment audit complete; moved to Phase 2 as Step 2.0 | Audit done, delivery pending |
 | 0.3 | Middleware audit report | Done ✓ |
 | 0.4 | Updated RBAC docs with roles | Not started |
 | 1.1 | Scoped permission migration (000008) | Not started |
 | 1.2 | New role migrations (relationship-admin/viewer) | Not started |
 | 1.3 | Updated assignments (000009) + rollback/reapply | Not started |
+| 1.5 | Migration authoring discipline checklist | Not started |
+| 2.0 | Permission assignment constraint enforcement | Not started |
 | 2.1 | Scoped variant enforcement in middleware | Not started |
 | 2.2 | Multi-role union collection logic | Not started |
 | 2.3 | Object type resolution (future-proofing) | Deferred to Phase N+1 |
