@@ -260,10 +260,41 @@ Migrations execute directly against PostgreSQL and bypass auth-service, so this 
 **Deliverables:**
 - [ ] **Repository method** — `DetectConflictingPermission(ctx, roleID, targetPermName)` queries existing permissions for a role on the same `(resource, action)` pair; returns any overlapping scoped variants (e.g., if inserting `relationships:read:all`, detects whether `relationships:read:own` already exists)
 - [ ] **Service-layer validation** — updated `AssignPermissionToRole()` calls detection method before insert; if conflict → return typed error (`ErrScopedVariantConflict`) naming the conflicting permission pair; if no conflict → proceed normally
-- [ ] **Handler response fix** — replace bare `gin.H{"message": ...}` with proper struct per API standards; add PATCH support for replacing one scoped variant with another (needed during migration from flat → scoped)
+- [ ] **Handler response fix + PATCH endpoint** — replace bare `gin.H{"message": ...}` with proper struct per API standards; add PATCH `/roles/:role_id/permissions/:permission_id` for replacing one scoped variant with another atomically (needed during migration from flat → scoped)
 - [ ] **Unit tests** — conflict detection: inserting `read:own` when `read:all` exists → error; non-conflict: inserting `create:own` when `read:all` exists → success (different actions); non-conflict: inserting `objects:create` when `relationships:read:all` exists → success (different resources)
 
-**Scope:** ~1 new repo method, 1 service modification, handler response fix + optional PATCH endpoint, ~3 test functions. All self-contained in auth-service.
+**Scope:** ~1 new repo method, 1 service modification, handler response fix + PATCH endpoint, ~4 test functions. All self-contained in auth-service.
+
+#### Step 2.0a — Permission parsing and validation utilities [ ]
+
+All permission name operations depend on reliably decomposing the string into `(resource, action, scope)`. This step provides that foundation for Steps 2.0 and 2.1.
+
+**Function: `ParsePermission(name string) (PermissionSpec, error)`**
+```go
+type PermissionSpec struct {
+    Resource string // e.g., "relationships", "objects", "*"
+    Action   string // e.g., "read", "create"
+    Scope    string // "" for flat, "own" or "all" for scoped
+}
+
+// Valid permission formats:
+// 2 parts — flat (valid only for objects/types):   relationships:create → ERROR (relationships must have scope)
+//                                             objects:create                    → resource=objects, action=create, scope=""
+// 3 parts — scoped:                              relationships:read:own      → resource=relationships, action=read, scope="own"
+//                                              object-types:delete:all         → resource=object-types, action=delete, scope="all"
+// Wildcard (future):                             *:*                          → resource="*", action="*", scope=""
+```
+
+**Function: `ValidatePermission(spec PermissionSpec) error`**
+```go
+// Validation rules applied after parsing:
+// 1. Resource and Action must be non-empty
+// 2. Relationships always require a scope suffix (relationships:create is invalid — use create:own or create:all)
+// 3. Wildcard *:* is accepted as a future super-admin pattern
+// 4. Scope must be "" or one of {"own", "all"}
+```
+
+**Used by:** Step 2.0 `DetectConflictingPermission` (needs to extract resource+action from permission names to find scope siblings), Step 2.0 handler validation (rejects invalid input before DB write), Step 2.1 scoped variant resolution logic, migration review checklist (mental model for valid formats)
 
 #### Step 2.1 — Scoped variant enforcement [ ]
 **Location:** Permission checking function (`hasPermission()` in `auth_service.go:914`)  
@@ -367,6 +398,7 @@ Document the safe upgrade path:
 | 1.3 | Updated assignments (000009) + rollback/reapply | Not started |
 | 1.5 | Migration authoring discipline checklist | Not started |
 | 2.0 | Permission assignment constraint enforcement | Not started |
+| 2.0a | Permission parsing and validation utilities (ParsePermission + ValidatePermission) | Not started |
 | 2.1 | Scoped variant enforcement in middleware | Not started |
 | 2.2 | Multi-role union collection logic | Not started |
 | 2.3 | Object type resolution (future-proofing) | Deferred to Phase N+1 |
