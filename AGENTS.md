@@ -259,10 +259,15 @@ git diff
 git add services/objects-service/internal/handlers/object_handler.go
 
 # Request commit
-"lets commit" → Assistant provides commit message, then executes git commit
+"lets commit" → Assistant checks `git diff --cached`, crafts message, executes `git commit`
 ```
 
-**Important:** The assistant never alters which hunks or files are included in a commit. It crafts the commit message based on `git diff --cached` content only and executes `git commit` exactly as staged by the user.
+**When "lets commit" is requested, the assistant should:**
+1. Check only staged changes via `git diff --cached --stat` and `git diff --cached`
+2. Craft a commit message based on what's actually staged
+3. Execute `git commit` — nothing more
+
+**The assistant never stages any files during a "lets commit" request, regardless of unstaged changes.** It never alters which hunks or files are included in a commit. All staging decisions are the user's responsibility.
 
 **Why this workflow:**
 - **Review control** - User sees all changes before committing
