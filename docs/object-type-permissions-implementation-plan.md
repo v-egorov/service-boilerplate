@@ -205,12 +205,10 @@ INSERT INTO auth_service.permissions (name, resource, action) VALUES
     ('relationships:delete:own',     'relationships', 'delete'),
     ('relationships:delete:all',     'relationships', 'delete')
 ON CONFLICT (name) DO NOTHING;
-
--- Keep flat names for backward compatibility during transition period (deprecated)
 ```
 
-#### Step 1.2 — Add new roles via migration `000010_add_relationship_roles.up.sql` [ ]
-**New file needed:**
+#### Step 1.2 — Add new roles via inline creation in migration `000009` (Step 2.0) [x]
+**Completed:** Roles created idempotently as part of `000009_assign_relationships_permissions.up.sql`, Step 2.0:
 ```sql
 INSERT INTO auth_service.roles (name, description) VALUES
     ('relationship-admin', 'Dedicated role for full relationship instance management'),
@@ -218,7 +216,7 @@ INSERT INTO auth_service.roles (name, description) VALUES
 ON CONFLICT (name) DO NOTHING;
 ```
 
-#### Step 1.3 — Update migration `000009_assign_relationships_permissions.up.sql` [ ]
+#### Step 1.3 — Update migration `000009_assign_relationships_permissions.up.sql` [x]
 **Current state:** Assigns ALL permissions to admin + object-type-admin  
 **Target state:** Per-role assignment matrix per the table above
 
@@ -395,7 +393,8 @@ Document the safe upgrade path:
 | 0.4 | Updated RBAC docs with roles | Not started |
 | 1.1 | Scoped permission migration (000008) | Done ✓ |
 | 1.2 | New role migrations (relationship-admin/viewer) | Done ✓ |
-| 1.3 | Updated assignments (000009) + rollback/reapply | Done ✓ |
+| 1.3 | Updated assignments (000009) | Done ✓ |
+| 1.4 | Rollback and re-apply on dev | Done ✓ |
 | 1.5 | Migration authoring discipline checklist | Not started |
 | 2.0 | Permission assignment constraint enforcement | Not started |
 | 2.0a | Permission parsing and validation utilities (ParsePermission + ValidatePermission) | Not started |
