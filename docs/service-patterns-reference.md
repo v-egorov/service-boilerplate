@@ -472,6 +472,26 @@ func main() {
 
 ---
 
+## Error Handling Conventions
+
+Prefer typed domain errors over generic wrapped errors for business logic. Use `errors.Is()` to match sentinel errors and type assertions to inspect structured error fields.
+
+**Rule of thumb:**
+- **Typed struct errors** (`ValidationError`, `ConflictError`, etc.) — use when the handler needs structured data (field name, resource ID) beyond just "what went wrong"
+- **Sentinel errors** (`var ErrNotFound = errors.New(...)`) — use for simple cross-package signaling where only the error type matters (used with `errors.Is()`)
+- **`fmt.Errorf("...: %w", err)` wrapping** — use discretely, one level per layer. Never wrap more than once per call stack frame; let the outermost layer provide context
+
+Example at each layer:
+- Repository returns sentinel or typed error for domain conditions (`ErrNotFound`, `ValidationError`)
+- Service wraps with `fmt.Errorf("failed to create user: %w", err)` — one level of wrapping, not two
+- Handler matches via `errors.Is()` for sentinels, type switch/`errors.As()` for typed errors
+
+**Anti-patterns:**
+- `fmt.Errorf("something failed: %w", fmt.Errorf("inner: %w", err))` — double-wrapping in one call chain
+- Mixing `==` comparison with wrapped errors (`err == fmt.Errorf(...)`) — always use `errors.Is()`
+
+---
+
 ## Common Components Usage
 
 ### Database with Tracing
