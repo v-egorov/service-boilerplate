@@ -1,6 +1,10 @@
 package models
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/google/uuid"
+)
 
 // Custom error types for better error handling
 type ValidationError struct {
@@ -60,4 +64,25 @@ func NewNotFoundError(resource, field, value string) NotFoundError {
 
 func NewInternalError(operation string, err error) InternalError {
 	return InternalError{Operation: operation, Err: err}
+}
+
+// PermissionParseError represents a malformed permission name (bad format/structure).
+type PermissionParseError struct {
+	Name string // The invalid permission name that was passed
+	Reason  string // Human-readable explanation of why parsing failed
+}
+
+func (e PermissionParseError) Error() string {
+	return fmt.Sprintf("invalid permission format %q: %s", e.Name, e.Reason)
+}
+
+// ScopedVariantConflictError represents a scope conflict between two permissions in the same role.
+type ScopedVariantConflictError struct {
+	RoleID      uuid.UUID // Role where the conflict was detected
+	Permission1 string    // First conflicting permission name
+	Permission2 string    // Second conflicting permission name
+}
+
+func (e ScopedVariantConflictError) Error() string {
+	return fmt.Sprintf("scoped variant conflict in role %s: %q conflicts with %q", e.RoleID, e.Permission1, e.Permission2)
 }
