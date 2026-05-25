@@ -8,3 +8,4 @@
   - does not use created_by and thus does not populate it in the db
 - migration user-service 000003_dev_test_data.up.sql include admin role permissions seeding along with true dev-only seeds - wrong
 - auth_service.role_permissions lacks created / updated columns
+- errors definitions are not uniform across codebase
