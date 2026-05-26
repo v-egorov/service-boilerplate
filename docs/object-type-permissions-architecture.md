@@ -282,7 +282,7 @@ After registration, no default permissions are granted — administrator must ex
 portfolio:read:own          → read only owned Portfolios  
 portfolio:read:all          → read any Portfolio (broad access)
 object-types:create         → create new object type definitions (no scope — you always own what you create)
-relationships:create        → create relationships (flat name; scoped variants :own/:all exist for endpoint ownership checks)
+relationships:create:own    → create relationships (scoped variants :own/:all exist for endpoint ownership checks - special case for relationships only)
 relationships:delete:own    → delete own relationships only
 relationships:read:all      → audit/discovery mode for all relationships
 *:*                         → super-admin pattern (future, applies to all types)
