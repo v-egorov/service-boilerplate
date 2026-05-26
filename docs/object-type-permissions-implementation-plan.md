@@ -387,7 +387,7 @@ Document the safe upgrade path:
 
 | Phase | Key Deliverable | Status |
 |-------|----------------|--------|
-| 0.1 | Updated architecture doc (two-rule model, scoped-only perms) | Done |
+| 0.1 | Updated architecture doc (two-rule model, scoped-only perms) | Done ✓ |
 | 0.2 | Permission assignment audit complete; moved to Phase 2 as Step 2.0 | Audit done, delivery pending |
 | 0.3 | Middleware audit report | Done ✓ |
 | 0.4 | Updated RBAC docs with roles | Not started |
@@ -397,7 +397,7 @@ Document the safe upgrade path:
 | 1.4 | Rollback and re-apply on dev | Done ✓ |
 | 1.5 | Migration authoring discipline checklist | Not started |
 | 2.0 | Permission assignment constraint enforcement | Not started |
-| 2.0a | Permission parsing and validation utilities (ParsePermission + ValidatePermission) | Not started |
+| 2.0a | Permission parsing and validation utilities (ParsePermission + ValidatePermission) | Done ✓ |
 | 2.1 | Scoped variant enforcement in middleware | Not started |
 | 2.2 | Multi-role union collection logic | Not started |
 | 2.3 | Object type resolution (future-proofing) | Deferred to Phase N+1 |
