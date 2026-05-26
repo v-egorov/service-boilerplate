@@ -268,6 +268,10 @@ After registration, no default permissions are granted — administrator must ex
 <type_key>:<action>[:<scope>]
 ```
 
+**Mapping to database:** The `type_key` field of each entry in `objects_service.object_types` becomes the `resource` value in `auth_service.permissions`. For example, an object type with `type_key = 'portfolio'` maps to permissions like `portfolio:read:own`, `portfolio:update:all`, etc. System types like `relationships` are also registered as `type_key` entries (line 248) and follow the same mapping.
+
+In auth-service code, the term *resource* is used (matching the `auth_service.permissions.resource` column), while in the object type registry the term *type_key* is used. They refer to the same value.
+
 ### Components
 
 | Component | Values | Description |
