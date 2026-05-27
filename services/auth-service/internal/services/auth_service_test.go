@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -2048,6 +2049,7 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 		roleID           uuid.UUID
 		permissionID     uuid.UUID
 		mockGetPermErr   error
+		mockGetRoleErr   error
 		mockAssignError  error
 		expectError      bool
 		expectedErrorMsg string
@@ -2068,6 +2070,15 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 			expectError:      true,
 			expectedErrorMsg: "failed to get permission",
 		},
+		{
+			name:             "get role error - not found",
+			roleID:           roleID,
+			permissionID:     permissionID,
+			mockGetRoleErr:   sql.ErrNoRows,
+			mockAssignError:  nil,
+			expectError:      true,
+			expectedErrorMsg: "not found",
+		},
 	}
 
 	for _, tt := range tests {
@@ -2079,6 +2090,12 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 						return nil, tt.mockGetPermErr
 					}
 					return &models.Permission{ID: id, Name: "objects:create"}, nil
+				},
+				getRoleFunc: func(ctx context.Context, rid uuid.UUID) (*models.Role, error) {
+					if tt.mockGetRoleErr != nil {
+						return nil, tt.mockGetRoleErr
+					}
+					return &models.Role{ID: rid, Name: "test-role"}, nil
 				},
 				assignPermissionToRoleFunc: func(ctx context.Context, rid, pid uuid.UUID) error {
 					return tt.mockAssignError

@@ -700,6 +700,21 @@ func (h *AuthHandler) AssignPermissionToRole(c *gin.Context) {
 			return
 		}
 
+		var notFound models.NotFoundError
+		if errors.As(err, &notFound) {
+			h.logger.WithFields(logrus.Fields{
+				"resource": notFound.Resource,
+				"value":    notFound.Value,
+			}).Warn("Not found during permission assignment")
+			h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_permission_to_role", traceID, spanID, false, notFound.Error())
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": notFound.Error(),
+				"type":  "not_found",
+				"meta":  gin.H{"request_id": c.GetHeader("X-Request-ID")},
+			})
+			return
+		}
+
 		h.logger.WithError(err).Error("Failed to assign permission to role")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_permission_to_role", traceID, spanID, false, err.Error())
 		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to assign permission to role")

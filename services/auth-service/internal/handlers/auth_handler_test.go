@@ -1085,6 +1085,20 @@ func TestAuthHandler_AssignPermissionToRole(t *testing.T) {
 			mockError:      errors.New("assignment failed"),
 			expectedStatus: http.StatusInternalServerError,
 		},
+		{
+			name:           "permission not found returns 404",
+			roleID:         roleID.String(),
+			permissionID:   permissionID.String(),
+			mockError:      models.NotFoundError{Resource: "permission", Field: "id", Value: permissionID.String()},
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "role not found returns 404",
+			roleID:         roleID.String(),
+			permissionID:   permissionID.String(),
+			mockError:      models.NotFoundError{Resource: "role", Field: "id", Value: roleID.String()},
+			expectedStatus: http.StatusNotFound,
+		},
 	}
 
 	for _, tt := range tests {

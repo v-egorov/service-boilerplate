@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -760,8 +761,21 @@ func (s *AuthService) DeletePermission(ctx context.Context, permissionID uuid.UU
 func (s *AuthService) AssignPermissionToRole(ctx context.Context, roleID, permissionID uuid.UUID) error {
 	permission, err := s.repo.GetPermission(ctx, permissionID)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			s.logger.WithField("permission_id", permissionID.String()).Warn("Permission not found for role assignment")
+			return models.NewNotFoundError("permission", "id", permissionID.String())
+		}
 		s.logger.WithError(err).Error("Failed to get permission for conflict detection")
 		return fmt.Errorf("failed to get permission: %w", err)
+	}
+
+	if _, err := s.repo.GetRole(ctx, roleID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			s.logger.WithField("role_id", roleID.String()).Warn("Role not found for permission assignment")
+			return models.NewNotFoundError("role", "id", roleID.String())
+		}
+		s.logger.WithError(err).Error("Failed to get role for validation")
+		return fmt.Errorf("failed to validate role: %w", err)
 	}
 
 	if err := s.repo.DetectConflictingPermission(ctx, roleID, permission.Name); err != nil {
