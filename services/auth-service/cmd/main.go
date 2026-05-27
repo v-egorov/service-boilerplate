@@ -312,6 +312,7 @@ func main() {
 
 					// Role-Permission management
 					admin.POST("/roles/:role_id/permissions", authHandler.AssignPermissionToRole)
+					admin.PATCH("/roles/:role_id/permissions", authHandler.ReplaceScopedPermission)
 					admin.DELETE("/roles/:role_id/permissions/:perm_id", authHandler.RemovePermissionFromRole)
 					admin.GET("/roles/:role_id/permissions", authHandler.GetRolePermissions)
 

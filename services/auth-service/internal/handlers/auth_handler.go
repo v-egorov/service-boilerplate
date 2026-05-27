@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/middleware"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/services"
+	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/utils"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -683,6 +685,21 @@ func (h *AuthHandler) AssignPermissionToRole(c *gin.Context) {
 
 	err = h.authService.AssignPermissionToRole(c.Request.Context(), roleID, permissionID)
 	if err != nil {
+		var conflict models.ScopedVariantConflictError
+		if errors.As(err, &conflict) {
+			h.logger.WithFields(logrus.Fields{
+				"role_id":       roleID.String(),
+				"existing_perm": conflict.Permission1,
+				"new_perm":      conflict.Permission2,
+			}).Warn("Scoped variant conflict detected")
+			c.JSON(http.StatusConflict, gin.H{
+				"error": fmt.Sprintf("scoped variant conflict: %s conflicts with %s", conflict.Permission1, conflict.Permission2),
+				"type":  "conflict",
+				"meta":  gin.H{"request_id": c.GetHeader("X-Request-ID")},
+			})
+			return
+		}
+
 		h.logger.WithError(err).Error("Failed to assign permission to role")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_permission_to_role", traceID, spanID, false, err.Error())
 		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to assign permission to role")
@@ -690,7 +707,103 @@ func (h *AuthHandler) AssignPermissionToRole(c *gin.Context) {
 	}
 
 	h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_permission_to_role", traceID, spanID, true, fmt.Sprintf("permission_id: %s", permissionID.String()))
-	c.JSON(http.StatusOK, gin.H{"message": "Permission assigned to role successfully"})
+	c.JSON(http.StatusOK, gin.H{
+		"data":    map[string]string{"role_id": roleID.String(), "permission_id": permissionID.String()},
+		"message": "Permission assigned to role successfully",
+		"meta":    gin.H{"request_id": c.GetHeader("X-Request-ID")},
+	})
+}
+
+// ReplaceScopedPermission replaces all scoped variants for the same (resource, action) pair with a new one.
+func (h *AuthHandler) ReplaceScopedPermission(c *gin.Context) {
+	span := trace.SpanFromContext(c.Request.Context())
+	traceID := span.SpanContext().TraceID().String()
+	spanID := span.SpanContext().SpanID().String()
+
+	actorUserID := middleware.GetAuthenticatedUserID(c)
+
+	roleID, err := uuid.Parse(c.Param("role_id"))
+	if err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), c.Param("role_id"), c.ClientIP(), c.GetHeader("User-Agent"), "replace_scoped_permission", traceID, spanID, false, "Invalid role ID")
+		h.validationError(c, "Invalid role ID")
+		return
+	}
+
+	var req struct {
+		PermissionName string `json:"permission_name" binding:"required"`
+		PermissionID   string `json:"permission_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "replace_scoped_permission", traceID, spanID, false, "Invalid request data")
+		h.validationError(c, "Invalid request data")
+		return
+	}
+
+	newPermissionID, err := uuid.Parse(req.PermissionID)
+	if err != nil {
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "replace_scoped_permission", traceID, spanID, false, "Invalid permission ID")
+		h.validationError(c, "Invalid permission ID")
+		return
+	}
+
+	spec, parseErr := utils.ParsePermission(req.PermissionName)
+	if parseErr != nil {
+		var ppe models.PermissionParseError
+		if errors.As(parseErr, &ppe) {
+			msg := fmt.Sprintf("invalid permission name format: %s", req.PermissionName)
+			h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "replace_scoped_permission", traceID, spanID, false, msg)
+			h.validationError(c, msg)
+			return
+		}
+		msg := fmt.Sprintf("invalid permission name format: %s", req.PermissionName)
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "replace_scoped_permission", traceID, spanID, false, msg)
+		h.validationError(c, msg)
+		return
+	}
+
+	if err := utils.ValidatePermission(spec); err != nil {
+		var validationErr models.ValidationError
+		if errors.As(err, &validationErr) {
+			msg := fmt.Sprintf("%s (permission: %s)", validationErr.Message, req.PermissionName)
+			h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "replace_scoped_permission", traceID, spanID, false, msg)
+			h.validationError(c, msg)
+			return
+		}
+		msg := fmt.Sprintf("invalid permission name: %s", req.PermissionName)
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "replace_scoped_permission", traceID, spanID, false, msg)
+		h.validationError(c, msg)
+		return
+	}
+
+	err = h.authService.ReplaceScopedPermission(c.Request.Context(), roleID, req.PermissionName, newPermissionID)
+	if err != nil {
+		var conflict models.ScopedVariantConflictError
+		if errors.As(err, &conflict) {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": fmt.Sprintf("scoped variant conflict: %s conflicts with %s", conflict.Permission1, conflict.Permission2),
+				"type":  "conflict",
+				"meta":  gin.H{"request_id": c.GetHeader("X-Request-ID")},
+			})
+			return
+		}
+
+		h.logger.WithError(err).Error("Failed to replace scoped permission")
+		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "replace_scoped_permission", traceID, spanID, false, err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "scoped permission replacement failed: " + err.Error(),
+			"type":  "validation_error",
+			"meta":  gin.H{"request_id": c.GetHeader("X-Request-ID")},
+		})
+		return
+	}
+
+	h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "replace_scoped_permission", traceID, spanID, true, fmt.Sprintf("new_permission: %s", req.PermissionName))
+	c.JSON(http.StatusOK, gin.H{
+		"data":    map[string]string{"role_id": roleID.String(), "permission_name": req.PermissionName},
+		"message": "Scoped permission replaced successfully",
+		"meta":    gin.H{"request_id": c.GetHeader("X-Request-ID")},
+	})
 }
 
 // RemovePermissionFromRole removes a permission from a role
@@ -726,7 +839,11 @@ func (h *AuthHandler) RemovePermissionFromRole(c *gin.Context) {
 	}
 
 	h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "remove_permission_from_role", traceID, spanID, true, fmt.Sprintf("permission_id: %s", permissionID.String()))
-	c.JSON(http.StatusOK, gin.H{"message": "Permission removed from role successfully"})
+	c.JSON(http.StatusOK, gin.H{
+		"data":    map[string]string{"role_id": roleID.String(), "permission_id": permissionID.String()},
+		"message": "Permission removed from role successfully",
+		"meta":    gin.H{"request_id": c.GetHeader("X-Request-ID")},
+	})
 }
 
 // GetRolePermissions returns permissions for a role
@@ -744,7 +861,11 @@ func (h *AuthHandler) GetRolePermissions(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"permissions": permissions})
+	c.JSON(http.StatusOK, gin.H{
+		"data":    map[string]any{"role_id": roleID.String(), "permissions": permissions},
+		"message": "Role permissions retrieved successfully",
+		"meta":    gin.H{"request_id": c.GetHeader("X-Request-ID")},
+	})
 }
 
 // User Role Management Handlers

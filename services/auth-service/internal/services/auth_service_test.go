@@ -37,6 +37,8 @@ type MockAuthRepository struct {
 	countRolesWithPermissionFunc func(ctx context.Context, permissionID uuid.UUID) (int, error)
 	deletePermissionFunc         func(ctx context.Context, permissionID uuid.UUID) error
 	assignPermissionToRoleFunc   func(ctx context.Context, roleID, permissionID uuid.UUID) error
+	detectScopedConflictFunc     func(ctx context.Context, roleID uuid.UUID, permissionName string) error
+	replaceScopedPermFunc        func(ctx context.Context, roleID uuid.UUID, newPermissionName string, newPermissionID uuid.UUID) error
 	removePermissionFromRoleFunc func(ctx context.Context, roleID, permissionID uuid.UUID) error
 	getRolePermissionsFunc       func(ctx context.Context, roleID uuid.UUID) ([]models.Permission, error)
 	assignRoleToUserFunc         func(ctx context.Context, userID, roleID uuid.UUID) error
@@ -187,6 +189,20 @@ func (m *MockAuthRepository) DeletePermission(ctx context.Context, permissionID 
 func (m *MockAuthRepository) AssignPermissionToRole(ctx context.Context, roleID, permissionID uuid.UUID) error {
 	if m.assignPermissionToRoleFunc != nil {
 		return m.assignPermissionToRoleFunc(ctx, roleID, permissionID)
+	}
+	return nil
+}
+
+func (m *MockAuthRepository) DetectConflictingPermission(ctx context.Context, roleID uuid.UUID, permissionName string) error {
+	if m.detectScopedConflictFunc != nil {
+		return m.detectScopedConflictFunc(ctx, roleID, permissionName)
+	}
+	return nil
+}
+
+func (m *MockAuthRepository) ReplaceScopedPermission(ctx context.Context, roleID uuid.UUID, newPermissionName string, newPermissionID uuid.UUID) error {
+	if m.replaceScopedPermFunc != nil {
+		return m.replaceScopedPermFunc(ctx, roleID, newPermissionName, newPermissionID)
 	}
 	return nil
 }
@@ -2031,6 +2047,7 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 		name             string
 		roleID           uuid.UUID
 		permissionID     uuid.UUID
+		mockGetPermErr   error
 		mockAssignError  error
 		expectError      bool
 		expectedErrorMsg string
@@ -2043,12 +2060,13 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 			expectError:     false,
 		},
 		{
-			name:             "assignment error",
+			name:             "get permission error",
 			roleID:           roleID,
 			permissionID:     permissionID,
-			mockAssignError:  errors.New("assignment failed"),
+			mockGetPermErr:   errors.New("database connection failed"),
+			mockAssignError:  nil,
 			expectError:      true,
-			expectedErrorMsg: "failed to assign permission to role",
+			expectedErrorMsg: "failed to get permission",
 		},
 	}
 
@@ -2056,6 +2074,12 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup mock
 			mockRepo := &MockAuthRepository{
+				getPermissionFunc: func(ctx context.Context, id uuid.UUID) (*models.Permission, error) {
+					if tt.mockGetPermErr != nil {
+						return nil, tt.mockGetPermErr
+					}
+					return &models.Permission{ID: id, Name: "objects:create"}, nil
+				},
 				assignPermissionToRoleFunc: func(ctx context.Context, rid, pid uuid.UUID) error {
 					return tt.mockAssignError
 				},
@@ -2391,6 +2415,141 @@ func TestAuthService_UpdateUserRoles(t *testing.T) {
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedErrorMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestAuthService_DetectConflictingPermission(t *testing.T) {
+	roleID := uuid.New()
+	readAllPermName := "relationships:read:all"
+	readOwnPermName := "relationships:read:own"
+	createOwnPermName := "relationships:create:own"
+	objectsCreatePermName := "objects:create"
+
+	tests := []struct {
+		name           string
+		existingPerms  []string
+		newPermName    string
+		expectConflict bool
+		expectedMsg    string
+	}{
+		{
+			name:           "conflict - read:own when read:all exists",
+			existingPerms:  []string{"relationships:read:all"},
+			newPermName:    readOwnPermName,
+			expectConflict: true,
+			expectedMsg:    "scoped variant conflict",
+		},
+		{
+			name:           "conflict - read:all when read:own exists",
+			existingPerms:  []string{"relationships:read:own"},
+			newPermName:    readAllPermName,
+			expectConflict: true,
+			expectedMsg:    "scoped variant conflict",
+		},
+		{
+			name:           "no conflict - different actions (create vs read)",
+			existingPerms:  []string{"relationships:read:all"},
+			newPermName:    createOwnPermName,
+			expectConflict: false,
+		},
+		{
+			name:           "no conflict - different resources",
+			existingPerms:  []string{"relationships:read:all"},
+			newPermName:    objectsCreatePermName,
+			expectConflict: false,
+		},
+		{
+			name:           "no existing scoped perms",
+			existingPerms:  nil,
+			newPermName:    readOwnPermName,
+			expectConflict: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := &MockAuthRepository{
+				detectScopedConflictFunc: func(ctx context.Context, rid uuid.UUID, permName string) error {
+					for _, existing := range tt.existingPerms {
+						resA, actA, _ := utils.GetResourceAction(existing)
+						resB, actB, _ := utils.GetResourceAction(permName)
+						if resA == resB && actA == actB {
+							existingSpec, existingErr := utils.ParsePermission(existing)
+							newSpec, newErr := utils.ParsePermission(permName)
+							if existingErr == nil && newErr == nil && existingSpec.Scope != "" && newSpec.Scope != "" && existingSpec.Scope != newSpec.Scope {
+								return models.ScopedVariantConflictError{
+									RoleID:      rid,
+									Permission1: existing,
+									Permission2: permName,
+								}
+							}
+						}
+					}
+					return nil
+				},
+			}
+
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			service := NewAuthService(mockRepo, nil, nil, logger)
+
+			err := service.DetectConflictingPermission(context.Background(), roleID, tt.newPermName)
+
+			if tt.expectConflict {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestAuthService_ReplaceScopedPermission(t *testing.T) {
+	roleID := uuid.New()
+	newPermName := "relationships:read:all"
+	newPermID := uuid.New()
+
+	tests := []struct {
+		name        string
+		mockRepoErr error
+		expectError bool
+		expectedMsg string
+	}{
+		{
+			name:        "successful replacement",
+			mockRepoErr: nil,
+			expectError: false,
+		},
+		{
+			name:        "conflict during replacement",
+			mockRepoErr: models.ScopedVariantConflictError{RoleID: roleID, Permission1: "read:all", Permission2: "read:own"},
+			expectError: true,
+			expectedMsg: "scoped variant conflict",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := &MockAuthRepository{
+				replaceScopedPermFunc: func(ctx context.Context, rid uuid.UUID, name string, pid uuid.UUID) error {
+					return tt.mockRepoErr
+				},
+			}
+
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			service := NewAuthService(mockRepo, nil, nil, logger)
+
+			err := service.ReplaceScopedPermission(context.Background(), roleID, newPermName, newPermID)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedMsg)
 			} else {
 				assert.NoError(t, err)
 			}

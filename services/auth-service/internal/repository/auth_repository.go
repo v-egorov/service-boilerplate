@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -9,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/v-egorov/service-boilerplate/common/database"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
+	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/utils"
 )
 
 // DBPoolInterface defines the database operations needed
@@ -441,4 +444,122 @@ func (r *AuthRepository) CountRolesWithPermission(ctx context.Context, permissio
 	var count int
 	err := r.db.QueryRow(ctx, query, permissionID).Scan(&count)
 	return count, err
+}
+
+// DetectConflictingPermission checks for scoped variant conflicts in a role.
+// It queries existing permissions for the given role on the same (resource, action) pair
+// and returns ScopedVariantConflictError if both :own and :all variants exist.
+func (r *AuthRepository) DetectConflictingPermission(ctx context.Context, roleID uuid.UUID, permissionName string) error {
+	resource, action, err := utils.GetResourceAction(permissionName)
+	if err != nil {
+		return fmt.Errorf("failed to extract resource/action from %q: %w", permissionName, err)
+	}
+
+	query := `
+		SELECT p.name FROM auth_service.permissions p
+		JOIN auth_service.role_permissions rp ON p.id = rp.permission_id
+		WHERE rp.role_id = $1 AND p.resource = $2 AND p.action = $3
+			AND (p.name LIKE '%:own' OR p.name LIKE '%:all')`
+
+	rows, err := r.db.Query(ctx, query, roleID, resource, action)
+	if err != nil {
+		return fmt.Errorf("failed to detect scoped variant conflicts for role %s: %w", roleID, err)
+	}
+	defer rows.Close()
+
+	var assignedScoped []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return fmt.Errorf("failed to scan permission name during conflict detection: %w", err)
+		}
+		assignedScoped = append(assignedScoped, name)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("row iteration error during conflict detection for role %s: %w", roleID, err)
+	}
+
+	// Check if adding this permission would create a conflict with existing scoped variants
+	for _, assigned := range assignedScoped {
+		if hasDifferentScope(assigned, permissionName) {
+			return models.ScopedVariantConflictError{
+				RoleID:      roleID,
+				Permission1: assigned,
+				Permission2: permissionName,
+			}
+		}
+	}
+
+	return nil
+}
+
+// hasDifferentScope returns true if two scoped permissions share the same (resource, action) but differ in scope.
+func hasDifferentScope(a, b string) bool {
+	resA, actA, _ := utils.GetResourceAction(a)
+	resB, actB, _ := utils.GetResourceAction(b)
+
+	return resA == resB && actA == actB && extractScope(a) != extractScope(b)
+}
+
+// extractScope returns the scope suffix ("own" or "all") from a permission name.
+func extractScope(name string) string {
+	idx := strings.LastIndex(name, ":")
+	if idx == -1 || idx >= len(name)-1 {
+		return ""
+	}
+	return name[idx+1:]
+}
+
+// ReplaceScopedPermission removes all scoped variants for the same (resource, action) pair on a role
+// and inserts the target permission. Returns ScopedVariantConflictError if no matching variant was found to replace.
+func (r *AuthRepository) ReplaceScopedPermission(ctx context.Context, roleID uuid.UUID, newPermissionName string, newPermissionID uuid.UUID) error {
+	resource, action, err := utils.GetResourceAction(newPermissionName)
+	if err != nil {
+		return fmt.Errorf("failed to extract resource/action from %q: %w", newPermissionName, err)
+	}
+
+	query := `
+		SELECT rp.permission_id FROM auth_service.permissions p
+		JOIN auth_service.role_permissions rp ON p.id = rp.permission_id
+		WHERE rp.role_id = $1 AND p.resource = $2 AND p.action = $3`
+
+	rows, err := r.db.Query(ctx, query, roleID, resource, action)
+	if err != nil {
+		return fmt.Errorf("failed to query scoped variants for replacement: %w", err)
+	}
+	defer rows.Close()
+
+	var existingPermIDs []uuid.UUID
+	for rows.Next() {
+		var permID uuid.UUID
+		if err := rows.Scan(&permID); err != nil {
+			return fmt.Errorf("failed to scan permission ID during replacement query: %w", err)
+		}
+		existingPermIDs = append(existingPermIDs, permID)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("row iteration error during scoped variant replacement for role %s: %w", roleID, err)
+	}
+
+	if len(existingPermIDs) == 0 {
+		return models.ValidationError{Field: "permission_id", Message: "no existing scoped permission found on this (resource, action) pair to replace"}
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction for scoped variant replacement: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	for _, id := range existingPermIDs {
+		if _, err := tx.Exec(ctx, `DELETE FROM auth_service.role_permissions WHERE role_id = $1 AND permission_id = $2`, roleID, id); err != nil {
+			return fmt.Errorf("failed to remove scoped variant %s: %w", id, err)
+		}
+	}
+if _, err := tx.Exec(ctx, `INSERT INTO auth_service.role_permissions (role_id, permission_id) VALUES ($1, $2)`, roleID, newPermissionID); err != nil {
+
+		return fmt.Errorf("failed to insert new scoped variant %s: %w", newPermissionName, err)
+	}
+
+	return tx.Commit(ctx)
 }

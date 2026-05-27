@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/cache"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/client"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
-
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/utils"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -43,6 +43,8 @@ type RepositoryInterface interface {
 	CountRolesWithPermission(ctx context.Context, permissionID uuid.UUID) (int, error)
 	DeletePermission(ctx context.Context, permissionID uuid.UUID) error
 	AssignPermissionToRole(ctx context.Context, roleID, permissionID uuid.UUID) error
+	DetectConflictingPermission(ctx context.Context, roleID uuid.UUID, permissionName string) error
+	ReplaceScopedPermission(ctx context.Context, roleID uuid.UUID, newPermissionName string, newPermissionID uuid.UUID) error
 	RemovePermissionFromRole(ctx context.Context, roleID, permissionID uuid.UUID) error
 	GetRolePermissions(ctx context.Context, roleID uuid.UUID) ([]models.Permission, error)
 	AssignRoleToUser(ctx context.Context, userID, roleID uuid.UUID) error
@@ -89,6 +91,8 @@ type AuthServiceInterface interface {
 	UpdatePermission(ctx context.Context, permissionID uuid.UUID, name, resource, action string) (*models.Permission, error)
 	DeletePermission(ctx context.Context, permissionID uuid.UUID) error
 	AssignPermissionToRole(ctx context.Context, roleID, permissionID uuid.UUID) error
+	DetectConflictingPermission(ctx context.Context, roleID uuid.UUID, permissionName string) error
+	ReplaceScopedPermission(ctx context.Context, roleID uuid.UUID, newPermissionName string, newPermissionID uuid.UUID) error
 	RemovePermissionFromRole(ctx context.Context, roleID, permissionID uuid.UUID) error
 	GetRolePermissions(ctx context.Context, roleID uuid.UUID) ([]models.Permission, error)
 	AssignRoleToUser(ctx context.Context, userID, roleID uuid.UUID) error
@@ -754,7 +758,31 @@ func (s *AuthService) DeletePermission(ctx context.Context, permissionID uuid.UU
 
 // Role-Permission Management Service Methods
 func (s *AuthService) AssignPermissionToRole(ctx context.Context, roleID, permissionID uuid.UUID) error {
-	err := s.repo.AssignPermissionToRole(ctx, roleID, permissionID)
+	permission, err := s.repo.GetPermission(ctx, permissionID)
+	if err != nil {
+		s.logger.WithError(err).Error("Failed to get permission for conflict detection")
+		return fmt.Errorf("failed to get permission: %w", err)
+	}
+
+	if err := s.repo.DetectConflictingPermission(ctx, roleID, permission.Name); err != nil {
+		var conflict models.ScopedVariantConflictError
+		if errors.As(err, &conflict) {
+			s.logger.WithFields(logrus.Fields{
+				"role_id":       roleID.String(),
+				"existing_perm": conflict.Permission1,
+				"new_perm":      conflict.Permission2,
+			}).Warn("Scoped variant conflict detected in role")
+			return fmt.Errorf("scoped variant conflict: %w", models.ScopedVariantConflictError{
+				RoleID:      roleID,
+				Permission1: conflict.Permission1,
+				Permission2: conflict.Permission2,
+			})
+		}
+		s.logger.WithError(err).Error("Failed to detect scoped variant conflicts")
+		return fmt.Errorf("failed to detect scoped variant conflicts for permission %s: %w", permission.Name, err)
+	}
+
+	err = s.repo.AssignPermissionToRole(ctx, roleID, permissionID)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to assign permission to role")
 		return fmt.Errorf("failed to assign permission to role: %w", err)
@@ -764,6 +792,41 @@ func (s *AuthService) AssignPermissionToRole(ctx context.Context, roleID, permis
 		"role_id":       roleID,
 		"permission_id": permissionID,
 	}).Info("Permission assigned to role successfully")
+
+	return nil
+}
+
+func (s *AuthService) DetectConflictingPermission(ctx context.Context, roleID uuid.UUID, permissionName string) error {
+	return s.repo.DetectConflictingPermission(ctx, roleID, permissionName)
+}
+
+func (s *AuthService) ReplaceScopedPermission(ctx context.Context, roleID uuid.UUID, newPermissionName string, newPermissionID uuid.UUID) error {
+	if err := s.repo.ReplaceScopedPermission(ctx, roleID, newPermissionName, newPermissionID); err != nil {
+		var conflict models.ScopedVariantConflictError
+		if errors.As(err, &conflict) {
+			s.logger.WithFields(logrus.Fields{
+				"role_id":       roleID.String(),
+				"existing_perm": conflict.Permission1,
+				"new_perm":      conflict.Permission2,
+			}).Warn("Scoped variant conflict detected during replacement")
+			return fmt.Errorf("scoped variant conflict: %w", models.ScopedVariantConflictError{
+				RoleID:      roleID,
+				Permission1: conflict.Permission1,
+				Permission2: conflict.Permission2,
+			})
+		}
+		var validationErr models.ValidationError
+		if errors.As(err, &validationErr) {
+			return fmt.Errorf("scoped permission replacement failed: %w", err)
+		}
+		s.logger.WithError(err).Error("Failed to replace scoped permission")
+		return fmt.Errorf("failed to replace scoped permission for role %s: %w", roleID, err)
+	}
+
+	s.logger.WithFields(logrus.Fields{
+		"role_id":       roleID,
+		"new_permission": newPermissionName,
+	}).Info("Scoped permission replaced successfully")
 
 	return nil
 }

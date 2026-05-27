@@ -47,6 +47,8 @@ type MockAuthService struct {
 	checkPermissionFunc          func(ctx context.Context, userID, permission string) (bool, error)
 	getUserPermissionsFunc       func(ctx context.Context, userID string) ([]string, error)
 	getUserRolesSimpleFunc       func(ctx context.Context, userID string) ([]string, error)
+	detectScopedConflictFunc     func(ctx context.Context, roleID uuid.UUID, permissionName string) error
+	replaceScopedPermFunc        func(ctx context.Context, roleID uuid.UUID, newPermissionName string, newPermissionID uuid.UUID) error
 }
 
 func (m *MockAuthService) Login(ctx context.Context, req *models.LoginRequest, ipAddress, userAgent string) (*models.TokenResponse, error) {
@@ -229,6 +231,20 @@ func (m *MockAuthService) CheckPermission(ctx context.Context, userID, permissio
 		return m.checkPermissionFunc(ctx, userID, permission)
 	}
 	return false, errors.New("not implemented")
+}
+
+func (m *MockAuthService) DetectConflictingPermission(ctx context.Context, roleID uuid.UUID, permissionName string) error {
+	if m.detectScopedConflictFunc != nil {
+		return m.detectScopedConflictFunc(ctx, roleID, permissionName)
+	}
+	return errors.New("not implemented")
+}
+
+func (m *MockAuthService) ReplaceScopedPermission(ctx context.Context, roleID uuid.UUID, newPermissionName string, newPermissionID uuid.UUID) error {
+	if m.replaceScopedPermFunc != nil {
+		return m.replaceScopedPermFunc(ctx, roleID, newPermissionName, newPermissionID)
+	}
+	return errors.New("not implemented")
 }
 
 func (m *MockAuthService) GetUserPermissions(ctx context.Context, userID string) ([]string, error) {
@@ -2110,6 +2126,95 @@ func TestAuthHandler_DeletePermission(t *testing.T) {
 			handler.DeletePermission(c)
 
 			// Assert
+			assert.Equal(t, tt.expectedStatus, w.Code)
+		})
+	}
+}
+
+func TestAuthHandler_ReplaceScopedPermission(t *testing.T) {
+	roleID := uuid.New()
+	validPermUUID := uuid.New()
+
+	tests := []struct {
+		name           string
+		body           map[string]string
+		mockError      error
+		expectedStatus int
+	}{
+		{
+			name: "valid scoped permission replacement",
+			body: map[string]string{
+				"permission_name":  "relationships:read:all",
+				"permission_id":    validPermUUID.String(),
+			},
+			mockError:      nil,
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name: "unscoped relationships permission rejected",
+			body: map[string]string{
+				"permission_name":  "relationships:create",
+				"permission_id":    validPermUUID.String(),
+			},
+			mockError:      nil,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "unscoped objects permission accepted",
+			body: map[string]string{
+				"permission_name":  "objects:create",
+				"permission_id":    validPermUUID.String(),
+			},
+			mockError:      nil,
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name: "invalid scope value rejected",
+			body: map[string]string{
+				"permission_name":  "relationships:create:internal",
+				"permission_id":    validPermUUID.String(),
+			},
+			mockError:      nil,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name: "conflict during replacement returns 409",
+			body: map[string]string{
+				"permission_name":  "relationships:read:all",
+				"permission_id":    validPermUUID.String(),
+			},
+			mockError:      models.ScopedVariantConflictError{RoleID: roleID, Permission1: "relationships:read:own", Permission2: "relationships:read:all"},
+			expectedStatus: http.StatusConflict,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+
+			jsonBody, _ := json.Marshal(tt.body)
+			req := httptest.NewRequest("PATCH", "/admin/roles/"+roleID.String()+"/permissions", bytes.NewBuffer(jsonBody))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Request-ID", "test-request-id")
+			c.Request = req
+
+			mockService := &MockAuthService{
+				replaceScopedPermFunc: func(ctx context.Context, rid uuid.UUID, permName string, permID uuid.UUID) error {
+					return tt.mockError
+				},
+			}
+
+			logger := logrus.New()
+			logger.SetLevel(logrus.ErrorLevel)
+			handler := NewAuthHandler(mockService, logger)
+
+			c.Params = []gin.Param{{Key: "role_id", Value: roleID.String()}}
+			c.Set("user_roles", []string{"admin"})
+
+			handler.ReplaceScopedPermission(c)
+
 			assert.Equal(t, tt.expectedStatus, w.Code)
 		})
 	}
