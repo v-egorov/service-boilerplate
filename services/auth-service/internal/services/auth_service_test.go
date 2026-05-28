@@ -2574,6 +2574,95 @@ func TestAuthService_ReplaceScopedPermission(t *testing.T) {
 	}
 }
 
+func TestHasPermission_ScopedVariants(t *testing.T) {
+	tests := []struct {
+		name        string
+		permissions []string
+		required    string
+		expectTrue  bool
+	}{
+		{
+			name:        "exact scoped match - own",
+			permissions: []string{"relationships:read:own"},
+			required:    "relationships:read:own",
+			expectTrue:  true,
+		},
+		{
+			name:        "exact scoped match - all",
+			permissions: []string{"relationships:delete:all"},
+			required:    "relationships:delete:all",
+			expectTrue:  true,
+		},
+		{
+			name:        "broad wins over narrow - own required user has all",
+			permissions: []string{"relationships:create:all"},
+			required:    "relationships:create:own",
+			expectTrue:  true,
+		},
+		{
+			name:        "broad wins over narrow - read own required user has all",
+			permissions: []string{"relationships:read:all"},
+			required:    "relationships:read:own",
+			expectTrue:  true,
+		},
+		{
+			name:        "narrow does not grant broad - all required user only has own",
+			permissions: []string{"relationships:update:own"},
+			required:    "relationships:update:all",
+			expectTrue:  false,
+		},
+		{
+			name:        "different actions do not match",
+			permissions: []string{"relationships:create:own"},
+			required:    "relationships:read:own",
+			expectTrue:  false,
+		},
+		{
+			name:        "different resources do not match",
+			permissions: []string{"objects:read:all"},
+			required:    "relationships:read:own",
+			expectTrue:  false,
+		},
+		{
+			name:        "flat permission still works - exact match",
+			permissions: []string{"objects:create"},
+			required:    "objects:create",
+			expectTrue:  true,
+		},
+		{
+			name:        "multi-role union - own from one role all from another",
+			permissions: []string{"relationships:read:own", "relationships:read:all"},
+			required:    "relationships:read:own",
+			expectTrue:  true,
+		},
+		{
+			name:        "multi-role union - own required user has all from different role",
+			permissions: []string{"relationships:create:own", "relationships:delete:all"},
+			required:    "relationships:create:own",
+			expectTrue:  true,
+		},
+		{
+			name:        "no matching permission at all",
+			permissions: []string{"objects:read:all"},
+			required:    "relationships:update:own",
+			expectTrue:  false,
+		},
+		{
+			name:        "empty permissions list",
+			permissions: []string{},
+			required:    "relationships:read:own",
+			expectTrue:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := hasPermission(tt.permissions, tt.required)
+			assert.Equal(t, tt.expectTrue, result)
+		})
+	}
+}
+
 // Helper function to create string pointer
 func stringPtr(s string) *string {
 	return &s

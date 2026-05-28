@@ -989,9 +989,24 @@ func (s *AuthService) GetUserRolesSimple(ctx context.Context, userID string) ([]
 }
 
 func hasPermission(permissions []string, required string) bool {
+	requiredSpec, err := utils.ParsePermission(required)
+	if err != nil {
+		return false
+	}
+
 	for _, p := range permissions {
-		if p == required {
-			return true
+		parsed, err := utils.ParsePermission(p)
+		if err != nil {
+			continue
+		}
+
+		if parsed.Resource == requiredSpec.Resource && parsed.Action == requiredSpec.Action {
+			if parsed.Scope == requiredSpec.Scope {
+				return true
+			}
+			if requiredSpec.Scope == "own" && parsed.Scope == "all" {
+				return true
+			}
 		}
 	}
 	return false
