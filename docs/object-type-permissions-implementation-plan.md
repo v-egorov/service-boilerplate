@@ -250,21 +250,23 @@ Migrations execute directly against PostgreSQL via golang-migrate CLI with no Go
 
 > **Goal:** Update permission middleware to enforce scoped variants and implement multi-role union logic.
 
-#### Step 2.0 — Permission assignment constraint enforcement [ ]
+#### Step 2.0 — Permission assignment constraint enforcement [x]
+**Completed:** `5ac5fc0` — repository method, service-layer detection, PATCH endpoint, handler validation.
 (Moved from Step 0.2 — code-level guardrails for runtime API assignments.)
 
 Migrations execute directly against PostgreSQL and bypass auth-service, so this only protects the admin endpoint used at runtime. See Step 1.5 for migration safety approach.
 
 **Deliverables:**
-- [ ] **Repository method** — `DetectConflictingPermission(ctx, roleID, targetPermName)` queries existing permissions for a role on the same `(resource, action)` pair; returns any overlapping scoped variants (e.g., if inserting `relationships:read:all`, detects whether `relationships:read:own` already exists)
-- [ ] **Service-layer validation** — updated `AssignPermissionToRole()` calls detection method before insert; if conflict → return typed error (`ErrScopedVariantConflict`) naming the conflicting permission pair; if no conflict → proceed normally
-- [ ] **Handler response fix + PATCH endpoint** — replace bare `gin.H{"message": ...}` with proper struct per API standards; add PATCH `/roles/:role_id/permissions/:permission_id` for replacing one scoped variant with another atomically (needed during migration from flat → scoped)
-- [ ] **Unit tests** — conflict detection: inserting `read:own` when `read:all` exists → error; non-conflict: inserting `create:own` when `read:all` exists → success (different actions); non-conflict: inserting `objects:create` when `relationships:read:all` exists → success (different resources)
+- [x] **Repository method** — `DetectConflictingPermission(ctx, roleID, targetPermName)` queries existing permissions for a role on the same `(resource, action)` pair; returns any overlapping scoped variants (e.g., if inserting `relationships:read:all`, detects whether `relationships:read:own` already exists)
+- [x] **Service-layer validation** — updated `AssignPermissionToRole()` calls detection method before insert; if conflict → return typed error (`ErrScopedVariantConflict`) naming the conflicting permission pair; if no conflict → proceed normally
+- [x] **Handler response fix + PATCH endpoint** — replace bare `gin.H{"message": ...}` with proper struct per API standards; add PATCH `/roles/:role_id/permissions` for replacing one scoped variant with another atomically (needed during migration from flat → scoped)
+- [x] **Unit tests** — conflict detection: inserting `read:own` when `read:all` exists → error; non-conflict: inserting `create:own` when `read:all` exists → success (different actions); non-conflict: inserting `objects:create` when `relationships:read:all` exists → success (different resources)
 
 **Scope:** ~1 new repo method, 1 service modification, handler response fix + PATCH endpoint, ~4 test functions. All self-contained in auth-service.
 
-#### Step 2.0a — Permission parsing and validation utilities [ ]
+#### Step 2.0a — Permission parsing and validation utilities [x]
 
+**Completed:** `b0339be` — `ParsePermission`, `ValidatePermission`, `GetResourceAction` in `utils/permission.go`; typed errors (`PermissionParseError`, `ScopedVariantConflictError`) in `models/errors.go`.
 All permission name operations depend on reliably decomposing the string into `(resource, action, scope)`. This step provides that foundation for Steps 2.0 and 2.1.
 
 **Function: `ParsePermission(name string) (PermissionSpec, error)`**
@@ -388,7 +390,7 @@ Document the safe upgrade path:
 | Phase | Key Deliverable | Status |
 |-------|----------------|--------|
 | 0.1 | Updated architecture doc (two-rule model, scoped-only perms) | Done ✓ |
-| 0.2 | Permission assignment audit complete; moved to Phase 2 as Step 2.0 | Audit done, delivery pending |
+| 0.2 | Permission assignment audit complete; enforcement delivered via Steps 2.0/2.0a | Done ✓ |
 | 0.3 | Middleware audit report | Done ✓ |
 | 0.4 | Updated RBAC docs with roles | Not started |
 | 1.1 | Scoped permission migration (000008) | Done ✓ |
