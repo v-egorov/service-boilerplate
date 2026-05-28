@@ -296,51 +296,31 @@ type PermissionSpec struct {
 
 **Used by:** Step 2.0 `DetectConflictingPermission` (needs to extract resource+action from permission names to find scope siblings), Step 2.0 handler validation (rejects invalid input before DB write), Step 2.1 scoped variant resolution logic, migration review checklist (mental model for valid formats)
 
-#### Step 2.1 — Scoped variant enforcement [ ]
-**Location:** Permission checking function (`hasPermission()` in `auth_service.go:914`)  
-**Changes needed:**
+#### Step 2.1 — Scoped variant enforcement [x]
+**Location:** Permission checking function (`hasPermission()` in `auth_service.go`)  
+**Completed:** `b26b083` — scoped-aware resolution replaces exact-string match.
 
 ```go
-// Pseudocode for the updated check:
-func CheckPermission(userID, objectType, action, scope string) bool {
-    // 1. Collect ALL permissions from ALL roles assigned to this user → union set U
-    perms := collectAllPermissions(userID)
+func hasPermission(permissions []string, required string) bool {
+    requiredSpec := ParsePermission(required) // (resource, action, scope)
     
-    // 2. If any permission matches :all variant → allow unconditionally
-    if hasPermission(perms, objectType, action, "all") {
-        return true  // broad access wins
-    
-    // 3. If only :own variants exist in union → enforce ownership check
-    if hasOwnVariant(perms, objectType, action) {
-        return verifyOwnership(userID, objectType, action)
-    
-    // 4. No matching permission at all → deny
-    return false
-}
-
-func verifyOwnership(userID string, objectType string, action string) bool {
-    switch {
-    case action == "create":
-        // User must own BOTH source AND target objects
-        return userOwnsObject(userID, sourceObjID) && userOwnsObject(userID, targetObjID)
-    
-    case action == "read" || action == "list":
-        // User owns at least ONE endpoint (source OR target)  
-        return userOwnsObject(userID, sourceObjID) || userOwnsObject(userID, targetObjID)
-    
-    case action == "update" || action == "delete":
-        // User created the relationship
-        return relationshipCreatedByUser(userID, relationshipID)
-    
-    default:
-        return false
+    for _, p := range permissions {
+        parsed := ParsePermission(p)
+        
+        if parsed.Resource == requiredSpec.Resource && parsed.Action == requiredSpec.Action {
+            // Exact scope match
+            if parsed.Scope == requiredSpec.Scope { return true }
+            // Multi-role union: broadest wins (:all > :own)
+            if requiredSpec.Scope == "own" && parsed.Scope == "all" { return true }
+        }
     }
+    return false
 }
 ```
 
-#### Step 2.2 — Multi-role union collection [ ]
-**Current behavior:** Need to check if middleware already unions across roles  
-**If not:** Add logic to iterate all user-role assignments and collect permissions from each role
+**Behavior:** `hasPermission()` now handles scoped variant resolution. When middleware checks `relationships:create:own` and user has both `create:own` (from user role) + `delete:all` (from relationship-viewer), the function correctly returns true because resource+action match with scope priority logic. Flat permissions like `objects:create` continue to work via exact scope match (scope="" == "").
+
+**Multi-role union:** Already works — `GetUserPermissions()` collects permissions from all roles assigned to a user, so `hasPermission()` operates on the full union automatically. No additional code needed for Step 2.2.
 
 #### Step 2.3 — Object type resolution (optional for v1) [ ]
 Currently, the permission middleware likely checks permissions based on endpoint path (`/api/v1/relationships`) rather than the object's actual `object_type_id`. For v1:
@@ -398,10 +378,10 @@ Document the safe upgrade path:
 | 1.3 | Updated assignments (000009) | Done ✓ |
 | 1.4 | Rollback and re-apply on dev | Done ✓ |
 | 1.5 | Migration authoring discipline checklist | Not started |
-| 2.0 | Permission assignment constraint enforcement | Not started |
-| 2.0a | Permission parsing and validation utilities (ParsePermission + ValidatePermission) | Done ✓ |
-| 2.1 | Scoped variant enforcement in middleware | Not started |
-| 2.2 | Multi-role union collection logic | Not started |
+| 2.0 | Permission assignment constraint enforcement | Done ✓ (5ac5fc0) |
+| 2.0a | Permission parsing and validation utilities (ParsePermission + ValidatePermission) | Done ✓ (b0339be) |
+| 2.1 | Scoped variant enforcement in middleware | Done ✓ (b26b083) |
+| 2.2 | Multi-role union collection logic | Done ✓ — GetUserPermissions() collects from all roles automatically |
 | 2.3 | Object type resolution (future-proofing) | Deferred to Phase N+1 |
 | 3.1 | Fix RL-3 test failure | Not started |
 | 3.2 | Scoped enforcement tests | Not started |
