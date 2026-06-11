@@ -258,6 +258,17 @@ Example at each layer:
 - `fmt.Errorf("something failed: %w", fmt.Errorf("inner: %w", err))` — double-wrapping in one call chain
 - Mixing `==` comparison with wrapped errors (`err == fmt.Errorf(...)`) — always use `errors.Is()`
 
+## Planning & Implementation Workflow
+
+For systematic feature development, see [Development Workflow](docs/workflow.md).
+
+**Quick reference:**
+- Plans stored in `plans/YYYY-MM-DD-<feature-name>.md`
+- Use plan template with Status, Context, Tasks, Development Approach, Progress Tracking
+- Review plans with revdiff (automatic via plugin or manual with `/revdiff`)
+- Track progress with checkboxes `[x]` and status updates
+- See [workflow.md](docs/workflow.md) for complete documentation
+
 ## Git Workflow
 
 **AI assistant makes code changes but does NOT automatically commit.**
