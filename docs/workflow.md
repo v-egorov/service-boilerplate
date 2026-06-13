@@ -15,8 +15,8 @@ The workflow consists of three phases:
 
 When a new feature or task is requested:
 
-1. **Create plan file** in `plans/` directory with format: `YYYY-MM-DD-<feature-name>.md`
-   - Example: `plans/2026-06-11-user-authentication.md`
+1. **Create plan file** in `docs/plans/` directory with format: `YYYY-MM-DD-<feature-name>.md`
+   - Example: `docs/plans/2026-06-11-feature-name.md`
    - Date prefix ensures chronological sorting
 
 2. **Use the plan template** (see below)
@@ -91,7 +91,7 @@ Additional context or decisions.
 
 ### Starting Implementation
 
-1. **Read approved plan** from `plans/` directory
+1. **Read approved plan** from `docs/plans/` directory
 2. **Change status to `IN_PROGRESS`**
 3. **Inform user** that implementation is starting
 
@@ -152,7 +152,7 @@ Implementation review has two parts:
 
 ### Future Enhancements (Optional)
 
-- A separate tracking file (e.g., `plans/STATUS.md`) can be added later
+- A separate tracking file (e.g., `docs/plans/STATUS.md`) can be added later
 - CLI scripts or Makefile targets for plan management can be considered
 - Enhanced plugin for automatic implementation reviews
 
@@ -172,7 +172,7 @@ Implementation review has two parts:
 
 ### Files and Directories
 
-- `plans/` - Plan files with date prefix
+- `docs/plans/` - Plan files with date prefix
 - `docs/workflow.md` - This workflow documentation
 - `PROGRESS.md` - Optional session progress tracking
 - `docs/compaction/` - Session state preservation
@@ -185,9 +185,9 @@ Implementation review has two parts:
 User: I need to add user profile image upload feature
 
 AI: I'll create a plan for this feature.
-[Creates plans/2026-06-11-profile-image-upload.md with template]
+[Creates docs/plans/YYYY-MM-DD-<feature-name>.md with template]
 [Sets status to DRAFT]
-Plan created at plans/2026-06-11-profile-image-upload.md
+Plan created at docs/plans/YYYY-MM-DD-<feature-name>.md
 Status: DRAFT - ready for your review
 ```
 

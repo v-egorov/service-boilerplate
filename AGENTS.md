@@ -263,7 +263,7 @@ Example at each layer:
 For systematic feature development, see [Development Workflow](docs/workflow.md).
 
 **Quick reference:**
-- Plans stored in `plans/YYYY-MM-DD-<feature-name>.md`
+- Plans stored in `docs/plans/YYYY-MM-DD-<feature-name>.md`
 - Use plan template with Status, Context, Tasks, Development Approach, Progress Tracking
 - Review plans with revdiff (automatic via plugin or manual with `/revdiff`)
 - Track progress with checkboxes `[x]` and status updates
