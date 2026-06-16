@@ -109,13 +109,14 @@ func (r *objectTypeRepository) Create(ctx context.Context, input *models.CreateO
 
 	query := `
 		INSERT INTO objects_service.object_types (
-			name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_by, updated_by
+			name, type_key, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_by, updated_by
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8
-		) RETURNING id, created_at, updated_at, created_by, updated_by`
+			$1, $2, $3, $4, $5, $6, $7, $8, $9
+		) RETURNING id, type_key, created_at, updated_at, created_by, updated_by`
 
 	var objectType models.ObjectType
 	objectType.Name = input.Name
+	objectType.TypeKey = input.TypeKey
 	objectType.ParentTypeID = input.ParentTypeID
 	objectType.ConcreteTableName = input.ConcreteTableName
 	objectType.Description = input.Description
@@ -138,10 +139,10 @@ func (r *objectTypeRepository) Create(ctx context.Context, input *models.CreateO
 	}
 
 	err := r.db.QueryRow(ctx, query,
-		objectType.Name, objectType.ParentTypeID, objectType.ConcreteTableName,
+		objectType.Name, objectType.TypeKey, objectType.ParentTypeID, objectType.ConcreteTableName,
 		objectType.Description, objectType.IsSealed, objectType.Metadata,
 		objectType.CreatedBy, objectType.UpdatedBy,
-	).Scan(&objectType.ID, &objectType.CreatedAt, &objectType.UpdatedAt, &objectType.CreatedBy, &objectType.UpdatedBy)
+	).Scan(&objectType.ID, &objectType.TypeKey, &objectType.CreatedAt, &objectType.UpdatedAt, &objectType.CreatedBy, &objectType.UpdatedBy)
 	if err != nil {
 		r.metrics.ErrorCount++
 		return nil, fmt.Errorf("failed to create object type: %w", err)
@@ -163,7 +164,7 @@ func (r *objectTypeRepository) GetByID(ctx context.Context, id int64) (*models.O
 	r.metrics.QueryCount++
 
 	query := `
-		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
+		SELECT id, name, type_key, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
 		FROM objects_service.object_types
 		WHERE id = $1`
 
@@ -171,7 +172,7 @@ func (r *objectTypeRepository) GetByID(ctx context.Context, id int64) (*models.O
 	var parentID sql.NullInt64
 
 	err := r.db.QueryRow(ctx, query, id).Scan(
-		&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
+		&objectType.ID, &objectType.Name, &objectType.TypeKey, &parentID, &objectType.ConcreteTableName,
 		&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
 		&objectType.CreatedAt, &objectType.UpdatedAt,
 	)
@@ -211,7 +212,7 @@ func (r *objectTypeRepository) GetByName(ctx context.Context, name string) (*mod
 	r.metrics.QueryCount++
 
 	query := `
-		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
+		SELECT id, name, type_key, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
 		FROM objects_service.object_types 
 		WHERE name = $1`
 
@@ -219,7 +220,7 @@ func (r *objectTypeRepository) GetByName(ctx context.Context, name string) (*mod
 	var parentID sql.NullInt64
 
 	err := r.db.QueryRow(ctx, query, name).Scan(
-		&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
+		&objectType.ID, &objectType.Name, &objectType.TypeKey, &parentID, &objectType.ConcreteTableName,
 		&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
 		&objectType.CreatedAt, &objectType.UpdatedAt,
 	)
@@ -271,6 +272,12 @@ func (r *objectTypeRepository) Update(ctx context.Context, id int64, input *mode
 	if input.Name != nil {
 		setClauses = append(setClauses, fmt.Sprintf("name = $%d", argIndex))
 		args = append(args, *input.Name)
+		argIndex++
+	}
+
+	if input.TypeKey != nil {
+		setClauses = append(setClauses, fmt.Sprintf("type_key = $%d", argIndex))
+		args = append(args, *input.TypeKey)
 		argIndex++
 	}
 
@@ -380,7 +387,7 @@ func (r *objectTypeRepository) GetTree(ctx context.Context, rootID *int64) ([]*m
 		WITH RECURSIVE object_tree AS (
 			-- Base case: root nodes
 			SELECT 
-				id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata,
+				id, name, type_key, parent_type_id, concrete_table_name, description, is_sealed, metadata,
 				created_at, updated_at
 			FROM objects_service.object_types 
 			WHERE ($1::bigint IS NULL AND parent_type_id IS NULL) OR id = $1::bigint
@@ -389,7 +396,7 @@ func (r *objectTypeRepository) GetTree(ctx context.Context, rootID *int64) ([]*m
 			
 			-- Recursive case: children
 			SELECT 
-				ot.id, ot.name, ot.parent_type_id, ot.concrete_table_name, ot.description, ot.is_sealed, ot.metadata,
+				ot.id, ot.name, ot.type_key, ot.parent_type_id, ot.concrete_table_name, ot.description, ot.is_sealed, ot.metadata,
 				ot.created_at, ot.updated_at
 			FROM objects_service.object_types ot
 			INNER JOIN object_tree t ON ot.parent_type_id = t.id
@@ -450,7 +457,7 @@ func (r *objectTypeRepository) GetChildren(ctx context.Context, parentID int64) 
 	r.metrics.QueryCount++
 
 	query := `
-		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
+		SELECT id, name, type_key, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
 		FROM objects_service.object_types
 		WHERE parent_type_id = $1
 		ORDER BY name ASC`
@@ -468,7 +475,7 @@ func (r *objectTypeRepository) GetChildren(ctx context.Context, parentID int64) 
 		var parentID sql.NullInt64
 
 		err := rows.Scan(
-			&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
+			&objectType.ID, &objectType.Name, &objectType.TypeKey, &parentID, &objectType.ConcreteTableName,
 			&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
 			&objectType.CreatedAt, &objectType.UpdatedAt,
 		)
@@ -562,17 +569,17 @@ func (r *objectTypeRepository) GetDescendants(ctx context.Context, rootID int64,
 	query := `
 		WITH RECURSIVE descendants AS (
 			-- Base case: the root node itself
-			SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at, 1 as depth
+			SELECT id, name, type_key, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at, 1 as depth
 			FROM objects_service.object_types WHERE id = $1
 
 			UNION ALL
 
 			-- Recursive case: children of current nodes
-			SELECT ot.id, ot.name, ot.parent_type_id, ot.concrete_table_name, ot.description, ot.is_sealed, ot.metadata, ot.created_at, ot.updated_at, d.depth + 1
+			SELECT ot.id, ot.name, ot.type_key, ot.parent_type_id, ot.concrete_table_name, ot.description, ot.is_sealed, ot.metadata, ot.created_at, ot.updated_at, d.depth + 1
 			FROM objects_service.object_types ot
 			INNER JOIN descendants d ON ot.parent_type_id = d.id
 		)
-		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
+		SELECT id, name, type_key, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
 		FROM descendants`
 
 	args := []interface{}{rootID}
@@ -600,7 +607,7 @@ func (r *objectTypeRepository) GetDescendants(ctx context.Context, rootID int64,
 		var depth int
 
 		err := rows.Scan(
-			&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
+			&objectType.ID, &objectType.Name, &objectType.TypeKey, &parentID, &objectType.ConcreteTableName,
 			&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
 			&objectType.CreatedAt, &objectType.UpdatedAt,
 		)
@@ -739,7 +746,7 @@ func (r *objectTypeRepository) List(ctx context.Context, filter *models.ObjectTy
 	}
 
 	query := `
-		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
+		SELECT id, name, type_key, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
 		FROM objects_service.object_types`
 	whereClauses := []string{}
 	args := []interface{}{}
@@ -793,7 +800,7 @@ func (r *objectTypeRepository) List(ctx context.Context, filter *models.ObjectTy
 		var parentID sql.NullInt64
 
 		err := rows.Scan(
-			&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
+			&objectType.ID, &objectType.Name, &objectType.TypeKey, &parentID, &objectType.ConcreteTableName,
 			&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
 			&objectType.CreatedAt, &objectType.UpdatedAt,
 		)
@@ -822,7 +829,7 @@ func (r *objectTypeRepository) Search(ctx context.Context, query string, limit i
 	}
 
 	searchQuery := `
-		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
+		SELECT id, name, type_key, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
 		FROM objects_service.object_types
 		WHERE name ILIKE $1 OR description ILIKE $1
 		ORDER BY
@@ -844,13 +851,13 @@ func (r *objectTypeRepository) Search(ctx context.Context, query string, limit i
 		var parentID sql.NullInt64
 
 		err := rows.Scan(
-			&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
+			&objectType.ID, &objectType.Name, &objectType.TypeKey, &parentID, &objectType.ConcreteTableName,
 			&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
 			&objectType.CreatedAt, &objectType.UpdatedAt,
 		)
 		if err != nil {
 			r.metrics.ErrorCount++
-			return nil, fmt.Errorf("failed to scan search result: %w", err)
+			return nil, fmt.Errorf("failed to scan object type row: %w", err)
 		}
 
 		if parentID.Valid {

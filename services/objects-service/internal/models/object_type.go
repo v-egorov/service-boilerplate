@@ -9,6 +9,7 @@ import (
 type ObjectType struct {
 	ID                int64           `json:"id" db:"id"`
 	Name              string          `json:"name" db:"name"`
+	TypeKey           string          `json:"type_key" db:"type_key"`
 	ParentTypeID      *int64          `json:"parent_type_id,omitempty" db:"parent_type_id"`
 	ConcreteTableName *string         `json:"concrete_table_name,omitempty" db:"concrete_table_name"`
 	Description       string          `json:"description,omitempty" db:"description"`

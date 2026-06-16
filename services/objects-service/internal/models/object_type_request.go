@@ -8,6 +8,7 @@ import (
 // CreateObjectTypeRequest represents the request payload for creating an object type
 type CreateObjectTypeRequest struct {
 	Name              string                 `json:"name" binding:"required" validate:"required,min=1,max=255"`
+	TypeKey           string                 `json:"type_key" validate:"required,min=1,max=100,alphanumascii"`
 	ParentTypeID      *int64                 `json:"parent_type_id,omitempty" validate:"omitempty,gt=0"`
 	ConcreteTableName *string                `json:"concrete_table_name,omitempty" validate:"omitempty,min=1,max=255"`
 	Description       string                 `json:"description,omitempty" validate:"max=1000"`
@@ -20,6 +21,7 @@ type CreateObjectTypeRequest struct {
 // UpdateObjectTypeRequest represents the request payload for updating an object type
 type UpdateObjectTypeRequest struct {
 	Name              *string                 `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
+	TypeKey           *string                 `json:"type_key,omitempty" validate:"omitempty,min=1,max=100,alphanumascii"`
 	ParentTypeID      *int64                  `json:"parent_type_id,omitempty" validate:"omitempty,gt=0"`
 	ConcreteTableName *string                 `json:"concrete_table_name,omitempty" validate:"omitempty,min=1,max=255"`
 	Description       *string                 `json:"description,omitempty" validate:"omitempty,max=1000"`
@@ -54,6 +56,7 @@ type ObjectTypeFilter struct {
 type ObjectTypeResponse struct {
 	ID                int64                  `json:"id"`
 	Name              string                 `json:"name"`
+	TypeKey           string                 `json:"type_key"`
 	ParentTypeID      *int64                 `json:"parent_type_id,omitempty"`
 	ParentName        *string                `json:"parent_name,omitempty"`
 	ConcreteTableName *string                `json:"concrete_table_name,omitempty"`
@@ -109,6 +112,7 @@ func (ot *ObjectType) ToResponse() *ObjectTypeResponse {
 	return &ObjectTypeResponse{
 		ID:                ot.ID,
 		Name:              ot.Name,
+		TypeKey:           ot.TypeKey,
 		ParentTypeID:      ot.ParentTypeID,
 		ParentName:        parentName,
 		ConcreteTableName: ot.ConcreteTableName,
@@ -145,6 +149,7 @@ func (ot *ObjectType) ToMinimalResponse() *ObjectTypeResponse {
 	return &ObjectTypeResponse{
 		ID:                ot.ID,
 		Name:              ot.Name,
+		TypeKey:           ot.TypeKey,
 		ParentTypeID:      ot.ParentTypeID,
 		ParentName:        parentName,
 		ConcreteTableName: ot.ConcreteTableName,

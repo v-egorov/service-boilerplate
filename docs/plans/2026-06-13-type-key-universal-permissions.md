@@ -6,7 +6,7 @@ Plan committed to git. Implementation will proceed one task at a time — each t
 
 ## Overview
 
-Replace hardcoded permission strings in Gin route groups with data-driven, `type_key`-based routing so that adding a new object type requires only database rows — no code changes. Simultaneously unify the ownership model to a single `created_by == user_id` check across all types (relationships included).
+Replace hardcoded permission strings in Gin route groups with data-driven, `type_key`-based routing so that adding a new object type requires minimal code changes. Each new type still needs its own route group in main.go and handler/service/repo files (same pattern as today), but the middleware call becomes uniform — only the type_key string differs per type. Simultaneously unify the ownership model to a single `created_by == user_id` check across all types (relationships included).
 
 **What becomes data-driven:** Permission checking middleware constructs permission strings from `RouteConfig{TypeKey, HTTPMethod}` instead of hardcoded permission names like `"objects:read:own"`.
 
@@ -85,12 +85,23 @@ When adding a new type (e.g., `portfolio`), you still manually add routes in mai
 
 ### Task 2: Seed existing type_keys
 **File:** `services/objects-service/migrations/{development,staging,production}/000011_seed_type_keys.up.sql` (and `.down.sql`)
-- Update existing rows with their type_key values based on name mapping:
-  - `"object-types"` → `type_key = "object-types"`
-  - `"Objects"` → `type_key = "objects"`
-  - `"RelationshipType"` → `type_key = "relationship-types"`
-  - `"Relationship"` → `type_key = "relationships"`
-- Add unique constraint on `type_key` (after seeding)
+
+Update existing object_types rows with their corresponding `type_key` values. The mapping is derived from the `resource` column in `auth_service.permissions`:
+
+| `object_types.name` | `type_key` | Environments |
+|---------------------|------------|--------------|
+| `RelationshipType` | `"relationship-types"` | all (dev, staging, prod) |
+| `Relationship` | `"relationships"` | dev, staging only (not in prod yet — migrations 000007/000009 are dev-only) |
+
+**Important: `object-types` and `objects` from the plan overview are permission resource names in auth_service.permissions — they are NOT actual rows in object_types.** There is no ObjectType entry for `"Objects"` or `"object-types"`. Routes for `/api/v1/object-types/*` will use hardcoded permissions (`"object-types:create"`, etc.) because they operate on the registry table itself, not as typed data instances.
+
+**Dev/staging seed data rows** (Category, Product, Article, Location from `000002_tax_test_data.up.sql`) — these are test-only root types that may need type_keys seeded in dev/staging for testing, but they're not production types. The migration uses individual UPDATEs with WHERE name=... — non-existent rows are silently skipped.
+
+**After seeding:** Add unique constraint on type_key (`ALTER TABLE objects_service.object_types ADD CONSTRAINT object_types_type_key_unique UNIQUE (type_key)`)
+
+**Down migrations:**
+- Remove unique constraint
+- Set type_key = NULL for all seeded rows
 
 ### Task 3: Update ObjectType model and repository queries
 **Files:**
@@ -317,7 +328,7 @@ These are object types that need their own concrete table alongside the base obj
 - [ ] Task 12: Create "How To Add A New Object Type" guide
 
 ## Acceptance Criteria
-1. `type_key` column exists on `object_types` with all 4 existing types seeded and unique constraint applied
+1. `type_key` column exists on `object_types` with RelationshipType (`"relationship-types"`) and Relationship (`"relationships"`, dev/staging only) seeded, unique constraint applied
 2. No hardcoded permission strings remain in main.go routes — all resolved via universal middleware from type_key + HTTP method
 3. Relationship endpoints work correctly (no more 403 due to flat vs scoped mismatch)
 4. Object.List filters by `created_by` when user has only `:own` scope verified
