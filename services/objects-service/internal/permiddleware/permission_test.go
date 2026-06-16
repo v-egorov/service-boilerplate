@@ -36,19 +36,12 @@ func TestRequirePermission_Allowed(t *testing.T) {
 	mockClient := new(MockAuthClient)
 	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:create", "").Return(true, nil)
 
-	cfg := PermissionMiddlewareConfig{
-		AuthClient: mockClient,
-		Logger:     nil,
-	}
-
-	middleware := NewPermissionMiddleware(cfg)
-
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		c.Set("user_id", "user-123")
 		c.Next()
 	})
-	router.Use(middleware("objects:create"))
+	router.Use(NewPermissionMiddleware(RouteConfig{TypeKey: "objects", HTTPMethod: "POST"}, mockClient, nil))
 	router.GET("/test", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -66,20 +59,14 @@ func TestRequirePermission_Denied(t *testing.T) {
 
 	mockClient := new(MockAuthClient)
 	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:delete:all", "").Return(false, nil)
-
-	cfg := PermissionMiddlewareConfig{
-		AuthClient: mockClient,
-		Logger:     nil,
-	}
-
-	middleware := NewPermissionMiddleware(cfg)
+	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:delete:own", "").Return(false, nil)
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		c.Set("user_id", "user-123")
 		c.Next()
 	})
-	router.Use(middleware("objects:delete:all"))
+	router.Use(NewPermissionMiddleware(RouteConfig{TypeKey: "objects", HTTPMethod: "DELETE"}, mockClient, nil))
 	router.GET("/test", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -98,15 +85,8 @@ func TestRequirePermission_Unauthorized(t *testing.T) {
 
 	mockClient := new(MockAuthClient)
 
-	cfg := PermissionMiddlewareConfig{
-		AuthClient: mockClient,
-		Logger:     nil,
-	}
-
-	middleware := NewPermissionMiddleware(cfg)
-
 	router := gin.New()
-	router.Use(middleware("objects:create"))
+	router.Use(NewPermissionMiddleware(RouteConfig{TypeKey: "objects", HTTPMethod: "POST"}, mockClient, nil))
 	router.GET("/test", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -125,19 +105,12 @@ func TestRequirePermission_Error(t *testing.T) {
 	mockClient := new(MockAuthClient)
 	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:create", "").Return(false, assert.AnError)
 
-	cfg := PermissionMiddlewareConfig{
-		AuthClient: mockClient,
-		Logger:     nil,
-	}
-
-	middleware := NewPermissionMiddleware(cfg)
-
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		c.Set("user_id", "user-123")
 		c.Next()
 	})
-	router.Use(middleware("objects:create"))
+	router.Use(NewPermissionMiddleware(RouteConfig{TypeKey: "objects", HTTPMethod: "POST"}, mockClient, nil))
 	router.GET("/test", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -158,19 +131,12 @@ func TestRequirePermission_AnyOfMultiplePermissions(t *testing.T) {
 	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:all", "").Return(false, nil)
 	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:own", "").Return(true, nil)
 
-	cfg := PermissionMiddlewareConfig{
-		AuthClient: mockClient,
-		Logger:     nil,
-	}
-
-	middleware := NewPermissionMiddleware(cfg)
-
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		c.Set("user_id", "user-123")
 		c.Next()
 	})
-	router.Use(middleware("objects:read:all", "objects:read:own"))
+	router.Use(NewPermissionMiddleware(RouteConfig{TypeKey: "objects", HTTPMethod: "GET"}, mockClient, nil))
 	router.GET("/test", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -181,4 +147,28 @@ func TestRequirePermission_AnyOfMultiplePermissions(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	mockClient.AssertExpectations(t)
+}
+
+func TestBuildPermissionStrings_POST(t *testing.T) {
+	cfg := RouteConfig{TypeKey: "relationships", HTTPMethod: "POST"}
+	perms := buildPermissionStrings(cfg)
+	assert.Equal(t, []string{"relationships:create"}, perms)
+}
+
+func TestBuildPermissionStrings_GET(t *testing.T) {
+	cfg := RouteConfig{TypeKey: "objects", HTTPMethod: "GET"}
+	perms := buildPermissionStrings(cfg)
+	assert.Equal(t, []string{"objects:read:all", "objects:read:own"}, perms)
+}
+
+func TestBuildPermissionStrings_PUT(t *testing.T) {
+	cfg := RouteConfig{TypeKey: "documents", HTTPMethod: "PUT"}
+	perms := buildPermissionStrings(cfg)
+	assert.Equal(t, []string{"documents:update:all", "documents:update:own"}, perms)
+}
+
+func TestBuildPermissionStrings_DELETE(t *testing.T) {
+	cfg := RouteConfig{TypeKey: "files", HTTPMethod: "DELETE"}
+	perms := buildPermissionStrings(cfg)
+	assert.Equal(t, []string{"files:delete:all", "files:delete:own"}, perms)
 }

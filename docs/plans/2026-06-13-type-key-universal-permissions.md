@@ -110,20 +110,21 @@ Update existing object_types rows with their corresponding `type_key` values. Th
 
 ### Task 4: Create permission middleware (replaces existing permiddleware entirely, no backward compat needed)
 **Files:**
-- `services/objects-service/internal/permiddleware/universal_permission.go` (new file)
-- This replaces the current per-route hardcoded approach. The middleware receives a route config that specifies: the HTTP method and type_key. It dynamically constructs permission strings like `type_key + ":" + action + ":scope"`.
+- `services/objects-service/internal/permiddleware/permission.go` — **delete old file**, create new one with same name. The new implementation replaces the current per-route hardcoded approach entirely.
+
+This replaces the current `NewPermissionMiddleware(cfg RequirePermissionFunc)` factory pattern with a direct middleware function that takes a `RouteConfig`.
 
 **Design:**
 ```go
 // RouteConfig holds runtime-per-route configuration. TypeKey is required — every object type has one.
 type RouteConfig struct {
-    TypeKey      string // e.g. "relationships", "objects" (required, never empty)
-    HTTPMethod   string // "GET", "POST", "PUT", "DELETE"
+    TypeKey    string // e.g. "relationships", "objects" (required, never empty)
+    HTTPMethod string // "GET", "POST", "PUT", "DELETE"
 }
 
-// permissionMiddleware creates a gin.HandlerFunc from config.
-// Replaces the existing permiddleware.NewPermissionMiddleware entirely — no backward compatibility needed.
-func permissionMiddleware(cfg RouteConfig, authClient client.AuthClient, logger *logrus.Logger) gin.HandlerFunc { ... }
+// newPermissionMiddleware creates a gin.HandlerFunc from config.
+// Replaces the old NewPermissionMiddleware factory entirely — no backward compatibility needed.
+func newPermissionMiddleware(cfg RouteConfig, authClient client.AuthClient, logger *logrus.Logger) gin.HandlerFunc { ... }
 ```
 
 **Permission mapping:**
@@ -140,8 +141,20 @@ func permissionMiddleware(cfg RouteConfig, authClient client.AuthClient, logger 
 
 ### Task 5: Refactor main.go routes to use new permission middleware
 **File:** `services/objects-service/cmd/main.go`
-- Replace all `permissionMiddleware("<hardcoded-string>")` calls with `permissionMiddleware(RouteConfig{TypeKey: "...", HTTPMethod: "..."})`
-- Remove hardcoded permission strings entirely — only type_key and method remain as route config
+- Replace all `permissionMiddleware("<hardcoded-string>")` calls with the import alias pattern (same variable name, different function under the hood):
+
+```go
+// Before:
+v1.Group("/objects").Use(permissionMiddleware("objects:create"))
+
+// After — same syntax, new function signature behind the scenes:
+// permissionMiddleware is now an imported alias for permiddleware.newPermissionMiddleware
+v1.Group("/objects").Use(permiddleware.New(middleware.RouteConfig{TypeKey: "objects", HTTPMethod: "POST"}))
+```
+
+**Special cases:**
+- `/api/v1/object-types/*` routes currently use multi-permission calls like `permissionMiddleware("object-types:create", "object-types:update", "object-types:delete")`. These remain as manual permission checks per method since they operate on the registry table itself (not typed data instances). Each gets its own RouteConfig with TypeKey `"object-types"`.
+- Bulk operations stay as-is — separate groups for POST/PUT/DELETE with appropriate RouteConfig per method.
 
 ### Task 6: Fix relationship handler created_by assignment
 **File:** `services/objects-service/internal/handlers/relationship_handler.go`
@@ -314,11 +327,11 @@ These are object types that need their own concrete table alongside the base obj
 - Update this plan when scope changes during implementation
 
 ## Progress Tracking
-- [x] Task 1: Schema migration — add type_key column (000010) ✅
-- [ ] Task 2: Seed existing type_keys (000011)
-- [ ] Task 3: Update ObjectType model and repository queries
-- [ ] Task 4: Create permission middleware (replaces existing permiddleware entirely, no backward compat needed)
-- [ ] Task 5: Refactor main.go routes to use new permission middleware
+- [x] Task 1: Schema migration — add type_key column (000010) ✅ committed d9ab677
+- [x] Task 2: Seed existing type_keys (000011) ✅ committed d9ab677
+- [x] Task 3: Update ObjectType model and repository queries ✅ committed d9ab677
+- [x] Task 4: Create permission middleware (replaces existing permiddleware entirely, no backward compat needed)
+- [x] Task 5: Refactor main.go routes to use new permission middleware
 - [ ] Task 6: Fix relationship handler created_by assignment + checkOwnership
 - [ ] Task 7: Unified ownership — List filtering by created_by for objects and relationships
 - [ ] Task 8: Fix handleServiceError → errors.Is()

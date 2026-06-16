@@ -126,11 +126,10 @@ func main() {
 		Timeout: time.Duration(cfg.AuthService.Timeout) * time.Second,
 	}, logger.Logger)
 
-	// Initialize permission middleware (fail-closed)
-	permissionMiddleware := permiddleware.NewPermissionMiddleware(permiddleware.PermissionMiddlewareConfig{
-		AuthClient: authClient,
-		Logger:     logger.Logger,
-	})
+	// Permission middleware constructor — uses data-driven type_key routing
+	perm := func(cfg permiddleware.RouteConfig) gin.HandlerFunc {
+		return permiddleware.NewPermissionMiddleware(cfg, authClient, logger.Logger)
+	}
 
 	// Initialize alert manager
 	alertManager := alerting.NewAlertManager(logger.Logger, cfg.App.Name, &cfg.Alerting, serviceLogger.GetMetricsCollector())
@@ -193,20 +192,20 @@ func main() {
 
 		// Object Type endpoints (only if database is available)
 		if objectTypeHandler != nil {
-			// Object Types - Admin only (create, update, delete)
+			// Object Types - Admin only (create, update, delete) — multi-permission check for registry operations
 			// Note: RequireAuth removed - gateway already validates JWT and forwards user info via X-User-* headers
 			objectTypesAdmin := v1.Group("/object-types")
-			objectTypesAdmin.Use(permissionMiddleware("object-types:create", "object-types:update", "object-types:delete"))
+			objectTypesAdmin.Use(permiddleware.MultiPermissionMiddleware([]string{"object-types:create", "object-types:update", "object-types:delete"}, authClient, logger.Logger))
 			{
 				objectTypesAdmin.POST("", objectTypeHandler.Create)
 				objectTypesAdmin.PUT("/:id", objectTypeHandler.Update)
 				objectTypesAdmin.DELETE("/:id", objectTypeHandler.Delete)
 			}
 
-			// Object Types - Read (authenticated users)
+			// Object Types - Read (authenticated users) — data-driven type_key routing
 			// Note: RequireAuth removed - gateway forwards user info via X-User-* headers
 			objectTypesRead := v1.Group("/object-types")
-			objectTypesRead.Use(permissionMiddleware("object-types:read"))
+			objectTypesRead.Use(perm(permiddleware.RouteConfig{TypeKey: "object-types", HTTPMethod: "GET"}))
 			{
 				objectTypesRead.GET("/:id", objectTypeHandler.GetByID)
 				objectTypesRead.GET("/name/:name", objectTypeHandler.GetByName)
@@ -227,7 +226,7 @@ func main() {
 			// Objects - Create
 			// Note: RequireAuth removed - gateway forwards user info via X-User-* headers
 			objectsCreate := v1.Group("/objects")
-			objectsCreate.Use(permissionMiddleware("objects:create"))
+			objectsCreate.Use(perm(permiddleware.RouteConfig{TypeKey: "objects", HTTPMethod: "POST"}))
 			{
 				objectsCreate.POST("", objectHandler.Create)
 			}
@@ -235,7 +234,7 @@ func main() {
 			// Objects - Read
 			// Note: RequireAuth removed - gateway forwards user info via X-User-* headers
 			objectsRead := v1.Group("/objects")
-			objectsRead.Use(permissionMiddleware("objects:read:all", "objects:read:own"))
+			objectsRead.Use(perm(permiddleware.RouteConfig{TypeKey: "objects", HTTPMethod: "GET"}))
 			{
 				objectsRead.GET("/:id", objectHandler.GetByID)
 				objectsRead.GET("/public-id/:public_id", objectHandler.GetByPublicID)
@@ -255,7 +254,7 @@ func main() {
 			// Objects - Update
 			// Note: RequireAuth removed - gateway forwards user info via X-User-* headers
 			objectsUpdate := v1.Group("/objects")
-			objectsUpdate.Use(permissionMiddleware("objects:update:all", "objects:update:own"))
+			objectsUpdate.Use(perm(permiddleware.RouteConfig{TypeKey: "objects", HTTPMethod: "PUT"}))
 			{
 				objectsUpdate.PUT("/:id", objectHandler.Update)
 				objectsUpdate.PUT("/:id/metadata", objectHandler.UpdateMetadata)
@@ -266,15 +265,15 @@ func main() {
 			// Objects - Delete
 			// Note: RequireAuth removed - gateway forwards user info via X-User-* headers
 			objectsDelete := v1.Group("/objects")
-			objectsDelete.Use(permissionMiddleware("objects:delete:all", "objects:delete:own"))
+			objectsDelete.Use(perm(permiddleware.RouteConfig{TypeKey: "objects", HTTPMethod: "DELETE"}))
 			{
 				objectsDelete.DELETE("/:id", objectHandler.Delete)
 			}
 
-			// Objects - Bulk operations
+			// Objects - Bulk operations (multi-permission check)
 			objectsBulk := v1.Group("/objects")
 			objectsBulk.Use(middleware.RequireAuth())
-			objectsBulk.Use(permissionMiddleware("objects:create", "objects:update:all", "objects:delete:all"))
+			objectsBulk.Use(permiddleware.MultiPermissionMiddleware([]string{"objects:create", "objects:update:all", "objects:delete:all"}, authClient, logger.Logger))
 			{
 				objectsBulk.POST("/bulk", objectHandler.BulkCreate)
 				objectsBulk.PUT("/bulk", objectHandler.BulkUpdate)
@@ -283,18 +282,18 @@ func main() {
 
 			// Relationship Types endpoints
 			if relationshipTypeHandler != nil {
-				// Relationship Types - Admin only (create, update, delete)
+				// Relationship Types - Admin only (create, update, delete) — multi-permission check for registry operations
 				relationshipTypesAdmin := v1.Group("/relationship-types")
-				relationshipTypesAdmin.Use(permissionMiddleware("relationship-types:create", "relationship-types:update", "relationship-types:delete"))
+				relationshipTypesAdmin.Use(permiddleware.MultiPermissionMiddleware([]string{"relationship-types:create", "relationship-types:update", "relationship-types:delete"}, authClient, logger.Logger))
 				{
 					relationshipTypesAdmin.POST("", relationshipTypeHandler.Create)
 					relationshipTypesAdmin.PUT("/:type_key", relationshipTypeHandler.Update)
 					relationshipTypesAdmin.DELETE("/:type_key", relationshipTypeHandler.Delete)
 				}
 
-				// Relationship Types - Read (authenticated users)
+				// Relationship Types - Read (authenticated users) — data-driven type_key routing
 				relationshipTypesRead := v1.Group("/relationship-types")
-				relationshipTypesRead.Use(permissionMiddleware("relationship-types:read"))
+				relationshipTypesRead.Use(perm(permiddleware.RouteConfig{TypeKey: "relationship-types", HTTPMethod: "GET"}))
 				{
 					relationshipTypesRead.GET("/:type_key", relationshipTypeHandler.GetByTypeKey)
 					relationshipTypesRead.GET("", relationshipTypeHandler.List)
@@ -303,31 +302,31 @@ func main() {
 
 			// Relationships endpoints
 			if relationshipHandler != nil {
-				// Relationships - Create (authenticated users)
+				// Relationships - Create (authenticated users) — data-driven type_key routing
 				relationshipsCreate := v1.Group("/relationships")
-				relationshipsCreate.Use(permissionMiddleware("relationships:create"))
+				relationshipsCreate.Use(perm(permiddleware.RouteConfig{TypeKey: "relationships", HTTPMethod: "POST"}))
 				{
 					relationshipsCreate.POST("", relationshipHandler.Create)
 				}
 
-				// Relationships - Read (authenticated users)
+				// Relationships - Read (authenticated users) — data-driven type_key routing
 				relationshipsRead := v1.Group("/relationships")
-				relationshipsRead.Use(permissionMiddleware("relationships:read"))
+				relationshipsRead.Use(perm(permiddleware.RouteConfig{TypeKey: "relationships", HTTPMethod: "GET"}))
 				{
 					relationshipsRead.GET("/:public_id", relationshipHandler.GetByPublicID)
 					relationshipsRead.GET("", relationshipHandler.List)
 				}
 
-				// Relationships - Update (authenticated users)
+				// Relationships - Update (authenticated users) — data-driven type_key routing
 				relationshipsUpdate := v1.Group("/relationships")
-				relationshipsUpdate.Use(permissionMiddleware("relationships:update"))
+				relationshipsUpdate.Use(perm(permiddleware.RouteConfig{TypeKey: "relationships", HTTPMethod: "PUT"}))
 				{
 					relationshipsUpdate.PUT("/:public_id", relationshipHandler.Update)
 				}
 
-				// Relationships - Delete (authenticated users)
+				// Relationships - Delete (authenticated users) — data-driven type_key routing
 				relationshipsDelete := v1.Group("/relationships")
-				relationshipsDelete.Use(permissionMiddleware("relationships:delete"))
+				relationshipsDelete.Use(perm(permiddleware.RouteConfig{TypeKey: "relationships", HTTPMethod: "DELETE"}))
 				{
 					relationshipsDelete.DELETE("/:public_id", relationshipHandler.Delete)
 				}

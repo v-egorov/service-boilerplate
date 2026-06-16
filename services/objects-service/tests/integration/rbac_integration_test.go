@@ -47,16 +47,11 @@ func TestPermissionMiddleware_Allowed(t *testing.T) {
 	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:create", "").Return(true, nil)
 
 	router := gin.New()
-	permissionMiddleware := permiddleware.NewPermissionMiddleware(permiddleware.PermissionMiddlewareConfig{
-		AuthClient: mockAuthClient,
-		Logger:     nil,
-	})
-
 	router.Use(func(c *gin.Context) {
 		c.Set("user_id", "user-123")
 		c.Next()
 	})
-	router.POST("/objects", permissionMiddleware("objects:create"), func(c *gin.Context) {
+	router.POST("/objects", permiddleware.NewPermissionMiddleware(permiddleware.RouteConfig{TypeKey: "objects", HTTPMethod: "POST"}, mockAuthClient, nil), func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
@@ -73,16 +68,11 @@ func TestPermissionMiddleware_Denied(t *testing.T) {
 	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:create", "").Return(false, nil)
 
 	router := gin.New()
-	permissionMiddleware := permiddleware.NewPermissionMiddleware(permiddleware.PermissionMiddlewareConfig{
-		AuthClient: mockAuthClient,
-		Logger:     nil,
-	})
-
 	router.Use(func(c *gin.Context) {
 		c.Set("user_id", "user-123")
 		c.Next()
 	})
-	router.POST("/objects", permissionMiddleware("objects:create"), func(c *gin.Context) {
+	router.POST("/objects", permiddleware.NewPermissionMiddleware(permiddleware.RouteConfig{TypeKey: "objects", HTTPMethod: "POST"}, mockAuthClient, nil), func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
@@ -99,12 +89,7 @@ func TestPermissionMiddleware_Unauthorized(t *testing.T) {
 	mockAuthClient := new(MockAuthClientForRBAC)
 
 	router := gin.New()
-	permissionMiddleware := permiddleware.NewPermissionMiddleware(permiddleware.PermissionMiddlewareConfig{
-		AuthClient: mockAuthClient,
-		Logger:     nil,
-	})
-
-	router.POST("/objects", permissionMiddleware("objects:create"), func(c *gin.Context) {
+	router.POST("/objects", permiddleware.NewPermissionMiddleware(permiddleware.RouteConfig{TypeKey: "objects", HTTPMethod: "POST"}, mockAuthClient, nil), func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
@@ -121,16 +106,11 @@ func TestPermissionMiddleware_AuthServiceDown(t *testing.T) {
 	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:create", "").Return(false, assert.AnError)
 
 	router := gin.New()
-	permissionMiddleware := permiddleware.NewPermissionMiddleware(permiddleware.PermissionMiddlewareConfig{
-		AuthClient: mockAuthClient,
-		Logger:     nil,
-	})
-
 	router.Use(func(c *gin.Context) {
 		c.Set("user_id", "user-123")
 		c.Next()
 	})
-	router.POST("/objects", permissionMiddleware("objects:create"), func(c *gin.Context) {
+	router.POST("/objects", permiddleware.NewPermissionMiddleware(permiddleware.RouteConfig{TypeKey: "objects", HTTPMethod: "POST"}, mockAuthClient, nil), func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
@@ -357,16 +337,11 @@ func TestMatchedPermissions_AllAndOwn(t *testing.T) {
 	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:own", "").Return(true, nil)
 
 	router := gin.New()
-	permissionMiddleware := permiddleware.NewPermissionMiddleware(permiddleware.PermissionMiddlewareConfig{
-		AuthClient: mockAuthClient,
-		Logger:     nil,
-	})
-
 	router.Use(func(c *gin.Context) {
 		c.Set("user_id", "user-123")
 		c.Next()
 	})
-	router.GET("/objects", permissionMiddleware("objects:read:all", "objects:read:own"), func(c *gin.Context) {
+	router.GET("/objects", permiddleware.NewPermissionMiddleware(permiddleware.RouteConfig{TypeKey: "objects", HTTPMethod: "GET"}, mockAuthClient, nil), func(c *gin.Context) {
 		perms, _ := c.Get("matched_permissions")
 		c.JSON(http.StatusOK, gin.H{"permissions": perms})
 	})
