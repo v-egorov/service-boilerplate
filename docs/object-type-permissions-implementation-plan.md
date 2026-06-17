@@ -62,6 +62,16 @@ When multiple roles grant permissions for the same action, all are collected int
 
 **Key insight:** Different actions are independent. Having `update:own` + `read:all` means update requires ownership verification but read does not. Actions never interfere with each other.
 
+### Updated Implementation Approach (vs. Original Plan)
+
+The original plan described scoped-aware permission parsing (`ParsePermission`) and runtime scope priority resolution (`hasPermission()`). The actual implementation uses a **universal data-driven approach**:
+
+- Permission middleware constructs permission strings dynamically from `RouteConfig{TypeKey, HTTPMethod}` — no hardcoded strings in route definitions
+- Middleware checks if user has ANY of the required permissions (no scope priority logic needed)
+- Ownership verification (`created_by == userID`) is handled uniformly at handler/service layer via shared `checkOwnership()` utility — not three distinct ownership models
+
+This simplification eliminates the need for runtime scoped variant parsing while maintaining all semantic guarantees. See Tasks 4–7 implementation commits for details.
+
 ---
 
 ## Final Roles & Permissions Matrix
@@ -380,11 +390,19 @@ Document the safe upgrade path:
 | 1.5 | Migration authoring discipline checklist | Not started |
 | 2.0 | Permission assignment constraint enforcement | Done ✓ (5ac5fc0) |
 | 2.0a | Permission parsing and validation utilities (ParsePermission + ValidatePermission) | Done ✓ (b0339be) |
-| 2.1 | Scoped variant enforcement in middleware | Done ✓ (b26b083) |
+| 2.1 | Scoped variant enforcement in middleware | Implemented as universal data-driven approach (RoutesConfig-based, no runtime parsing) — Tasks 4-5 commits |
 | 2.2 | Multi-role union collection logic | Done ✓ — GetUserPermissions() collects from all roles automatically |
 | 2.3 | Object type resolution (future-proofing) | Deferred to Phase N+1 |
 | 3.1 | Fix RL-3 test failure | Not started |
 | 3.2 | Scoped enforcement tests | Not started |
 | 3.3 | Multi-role union tests | Not started |
-| 4.1 | Final architecture doc with pseudocode | Not started |
+| 4.1 | Final architecture doc with pseudocode | Done ✓ (Tasks 6-7 unified ownership; Task 11 updated docs) |
 | 4.2 | Deployment migration guide | Not started |
+
+## Phase Status Update (Post-Tasks 9–12)
+
+Phase 0, 1, and 2 are substantially complete with the shift to universal data-driven approach:
+- **Phase 0**: Documentation updated, audit completed, middleware rewritten as RouteConfig-based dynamic construction (Tasks 4-5)
+- **Phase 1**: All migrations applied across dev/staging/prod with action column fixes and relationship permissions (Tasks 9-10)  
+- **Phase 2**: Ownership unified to single model (`created_by == userID`), bulk operations fixed with per-endpoint checks (Tasks 6-8, Task 9)
+- Remaining items: Phase 3 test updates, Phase 4 migration guide for existing deployments, Step 0.4 RBAC docs update, Step 1.5 authoring discipline checklist

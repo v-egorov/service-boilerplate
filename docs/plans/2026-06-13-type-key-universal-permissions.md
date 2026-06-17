@@ -204,13 +204,13 @@ Note: Task 8 was completed as part of the same commit as Task 6 (d23be46).
 
 ### Task 11: Update architecture documentation
 **Files:**
-- `docs/object-type-permissions-architecture.md` — remove "three ownership models" section for relationships; clarify endpoint ownership is service-layer validation, not permission logic; add type_key → resource mapping table
-- `docs/object-type-permissions-implementation-plan.md` — mark completed phases, note the shift to universal data-driven approach
+- `docs/object-type-permissions-architecture.md` — remove "three distinct ownership models for relationships" section (contradicts unified ownership model from Tasks 6/7); clarify that endpoint ownership validation is service-layer business logic, not permission middleware responsibility; add type_key → resource mapping table with actual registered types only (no super-admin wildcard `*:*`)
+- `docs/object-type-permissions-implementation-plan.md` — mark completed phases as done; note the shift from described scoped-aware parsing + scope priority resolution to universal data-driven approach using RouteConfig-based dynamic permission construction
 
 ### Task 12: Create "How To Add A New Object Type" guide (in docs/)
 **File:** `docs/adding-new-object-types-guide.md` (new document)
 
-Step-by-step procedure for two scenarios:
+Step-by-step procedure for two scenarios, updated with current API patterns (`perm()` helper in main.go, RouteConfig middleware, shared checkOwnership utility):
 
 #### Scenario A: No CTI table needed (simple types with JSONB metadata only)
 
@@ -219,59 +219,54 @@ These are object types whose data fits entirely in the base `objects` table + JS
 **Steps:**
 1. **Register the type in auth-service permissions** (`auth_service.permissions`):
    - Insert permission records for each action (e.g., `document:create`, `document:read:all`, `document:read:own`, etc.)
-   - Assign to roles via `auth_service.role_permissions` (which roles get which permissions)
+   - Assign to roles via `auth_service.role_permissions`
 
 2. **Add the type_key to object_types** (`object_types`):
    ```sql
    INSERT INTO objects_service.object_types (name, description, is_sealed, metadata, created_at, updated_at)
    VALUES ('Document', 'Simple document type with JSONB metadata', false, '{}', NOW(), NOW());
 
-   -- Update the newly inserted row:
    UPDATE object_types SET type_key = 'document' WHERE name = 'Document';
    ```
 
 3. **Create model** (`internal/models/document.go`):
-   - Define `Document` struct with base fields from `Object` (name, description, status, metadata JSONB) plus any Document-specific fields that fit in the base table
+   - Define `Document` struct with base fields from `Object` plus any Document-specific fields that fit in the base table
    - Add request/response DTOs for Create/Update/List operations
 
 4. **Create repository** (`internal/repository/document_repository.go`):
    - Implement CRUD queries against `objects_service.objects` where `object_type_id = (SELECT id FROM object_types WHERE type_key = 'document')`
-   - No CTI table joins needed — all data lives in base table + metadata JSONB
+   - No CTI table joins — all data lives in base table + metadata JSONB
 
 5. **Create service** (`internal/services/document_service.go`):
    - Wire repository, add business validation
-   - Uses the same ownership model as objects: `created_by == userID` for `:own` checks
+   - Ownership model: `created_by == userID` for `:own` checks (same as objects)
 
 6. **Create handler** (`internal/handlers/document_handler.go`):
    - Implement Create/GetByID/List/Update/Delete handlers
-   - Reuse shared `checkOwnership()` utility from Task 7
-   - Map service errors using shared error mapping pattern (like `handleServiceError`)
+   - Reuse shared `checkOwnership()` utility from `handlers/base.go`
+   - Map service errors using shared error mapping pattern (`handleServiceError`)
 
-7. **Wire in main.go**:
+7. **Wire in main.go** (using current `perm()` helper + RouteConfig pattern):
    ```go
    documentRepo := repository.NewDocumentRepository(pgDatabase, repoOptions)
    documentService := services.NewDocumentService(documentRepo)
    documentHandler := handlers.NewDocumentHandler(documentService, logger.Logger)
 
-   documentsGroup := v1.Group("/documents")
    documentsRead := v1.Group("/documents")
-   // ... more groups for create/update/delete as needed
-
-   documentsRead.Use(permissionMiddleware(RouteConfig{TypeKey: "document", HTTPMethod: "GET"}))
+   documentsRead.Use(perm(permiddleware.RouteConfig{TypeKey: "document", HTTPMethod: "GET"}))
    {
        documentsRead.GET("/:id", documentHandler.GetByID)
        documentsRead.GET("", documentHandler.List)
    }
-   
-   documentsGroup.Use(permissionMiddleware(RouteConfig{TypeKey: "document", HTTPMethod: "POST"}))
+
+   documentsCreate := v1.Group("/documents")
+   documentsCreate.Use(perm(permiddleware.RouteConfig{TypeKey: "document", HTTPMethod: "POST"}))
    {
-       // POST routes for create, etc.
+       documentsCreate.POST("", documentHandler.Create)
    }
    ```
 
-8. **Add to objects-service main.go service initialization** (same pattern as today):
-   - Add `documentRepo`, `documentService`, `documentHandler` to the init block where they're created from repositories
-   - Wire route groups in the router section
+8. **Add to objects-service main.go service initialization** block where repositories are created
 
 #### Scenario B: CTI table needed (types with type-specific columns)
 
@@ -302,32 +297,19 @@ These are object types that need their own concrete table alongside the base obj
 3. **Add type_key to object_types** (same as Scenario A, plus potentially `concrete_table_name = "products"`)
 
 4. **Create base model** (`internal/models/product.go`):
-   - Define `Product` struct with both base fields (`Object` embedded or composed) and CTI-specific fields
-   - Base model uses the shared `Object` type for common fields
+   - Define `Product` struct with both base fields and CTI-specific fields
    - Request/response DTOs include both base and CTI-specific fields
 
 5. **Create repository** (`internal/repository/product_repository.go`):
    - CRUD operations use CTE pattern: join `objects_service.objects` with `products` via `object_id`
-   - Example query pattern (same as relationship_repository today):
-     ```sql
-     WITH product_data AS (
-         SELECT 
-             o.id, o.public_id, o.name, o.description, o.status, o.metadata,
-             p.sku, p.price, p.inventory_count
-         FROM objects_service.objects o
-         INNER JOIN products_service.products p ON o.id = p.object_id
-         WHERE o.object_type_id = (SELECT id FROM object_types WHERE type_key = 'product')
-           AND o.deleted_at IS NULL
-     )
-     SELECT * FROM product_data;
-     ```
+   - Same query pattern as relationship_repository today
    - Create: insert into `objects` first → get `object_id` → insert into CTI table using same ID
    - Delete: delete from CTI table → then delete from objects (on cascade)
 
 6. **Create service** (`internal/services/product_service.go`):
    - Wire both product repository and object repository (for base object operations)
    - Business validation for CTI-specific constraints
-   - Same ownership model as all other types: `created_by == userID`
+   - Ownership model: `created_by == userID`
 
 7. **Create handler** (`internal/handlers/product_handler.go`):
    - Implement Create/GetByID/List/Update/Delete handlers with CTE-aware responses
@@ -355,8 +337,8 @@ These are object types that need their own concrete table alongside the base obj
 - [x] Task 8: Fix handleServiceError → errors.Is() ✅ committed d23be46
 - [x] Task 9: Fix bulk operations with per-method permission checks ✅ committed 6fdb6a2
 - [x] Task 10: Auth-service fixes — action column migration (dev/staging 000010, prod 000008 after renumbering) + TraceDBQuery on GetUserPermissions ✅ committed 566fadb
-- [ ] Task 11: Update architecture documentation
-- [ ] Task 12: Create "How To Add A New Object Type" guide
+- [x] Task 11: Update architecture documentation (removed three ownership models section, added type_key→resource mapping table, clarified service-layer endpoint validation) ✅ pending commit
+- [x] Task 12: Create "How To Add A New Object Type" guide (`docs/adding-new-object-types-guide.md`) with both scenarios (with and without CTI tables), updated for current API patterns ✅ pending commit
 
 ## Acceptance Criteria
 1. `type_key` column exists on `object_types` with RelationshipType (`"relationship-types"`) and Relationship (`"relationships"`, dev/staging only) seeded, unique constraint applied

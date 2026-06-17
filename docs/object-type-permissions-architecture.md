@@ -98,27 +98,19 @@ relationships:delete:all      → delete any relationship
 
 ### 5. Ownership Check Logic
 
-For scoped `:own` variants, middleware verifies ownership BEFORE allowing access:
+For scoped `:own` variants, the permission middleware verifies that the user has the required permission string(s). Actual ownership verification (checking `created_by = user_id`) is performed at the **handler/service layer**, not in the permission middleware. This unified approach applies to all resource types — objects, relationships, and any future object types.
 
-| Permission | "Own" means... | Enforcement |
-|------------|----------------|-------------|
-| `create:own` | User owns BOTH source AND target objects | Check `owner_id` on both endpoint objects |
-| `read:own`   | User owns at least ONE endpoint (source OR target) | Check `owner_id` on either object |
-| `update:own` / `delete:own` | User created the relationship (`created_by = user_id`) | Check `created_by` field on relationship object |
+- **Permission middleware** (`permiddleware.NewPermissionMiddleware`): checks if user has required permissions like `objects:read:own`, `relationships:update:all`, etc.
+- **Handler layer** (`handlers/base.go` → `checkOwnership()`): after permission is granted, verifies ownership by comparing `created_by` field on the resource to the authenticated user ID
 
-**Create scoped variants are exception-only:** On plain objects and object-types, `create` uses flat permission names — you always own what you create. On relationships, `create` **does** use scoped variants (`create:own`, `create:all`) because creating a relationship requires ownership of pre-existing endpoint objects (source AND target), not the relationship instance itself.
+```go
+// Permission middleware checks: does user have "objects:read:own" or "objects:read:all"?
+// Handler checkOwnership() then verifies: created_by == userID (for :own scope)
+```
 
-### Three Distinct Ownership Models for Relationships
+**Key principle:** Ownership is a single unified model (`created_by == userID`) applied uniformly across all resource types. Relationship endpoint ownership checks (e.g., needing to own both source and target objects before creating a relationship) are **service-layer business rules**, not permission middleware logic. The permission system only cares that the user has `relationships:create:own` — how they prove ownership of endpoints is handled by the service layer's validation logic.
 
-Unlike plain objects where "owned = created by this user" applies uniformly, relationship permissions use **three different ownership models** depending on the action type:
-
-| Action | Ownership Model | Logic | What Is Checked |
-|--------|----------------|-------|-----------------|
-| `create:own` | Endpoint ownership | AND — must own BOTH endpoints | `owner_id` on source_object AND target_object match user ID |
-| `read:own`   | Partial endpoint ownership | OR — own at least ONE endpoint | `owner_id` on source_object **OR** target_object matches user ID |
-| `update:own` / `delete:own` | Creator ownership | N/A — checks the record itself | `created_by` field on the relationship object matches user ID |
-
-**Rationale:** Create requires owning both endpoints because you can only link objects under your control. Read uses OR logic to enable discovery — if I own either side of a relationship, I should be able to see it for context. Update/delete checks `created_by` (the relationship record owner) rather than endpoint ownership, since modifying or removing a relationship is an action on the link itself, not on its endpoints.
+**Create permissions on plain objects/types:** Use flat permission names (`objects:create`, `object-types:create`) since you always own what you create — no scoped variants needed. Relationship creation uses scoped variants (`relationships:create:own`, `relationships:create:all`) because the business rule requires ownership of endpoint objects, not the relationship instance itself.
 
 ### 6. Locked-Down by Default
 
@@ -289,8 +281,18 @@ object-types:create         → create new object type definitions (no scope —
 relationships:create:own    → create relationships (scoped variants :own/:all exist for endpoint ownership checks - special case for relationships only)
 relationships:delete:own    → delete own relationships only
 relationships:read:all      → audit/discovery mode for all relationships
-*:*                         → super-admin pattern (future, applies to all types)
 ```
+
+### Type Key → Resource Mapping Table
+
+The `type_key` field in `objects_service.object_types` maps directly to the `resource` column in `auth_service.permissions`. Permission middleware constructs permission strings dynamically from `RouteConfig{TypeKey, HTTPMethod}` — no hardcoded permission names remain in route definitions.
+
+| type_key | auth_service.permissions.resource | Example permissions |
+|----------|----------------------------------|---------------------|
+| `objects` | `objects` | `objects:create`, `objects:read:all`, `objects:update:own` |
+| `object-types` | `object-types` | `object-types:create`, `object-types:read` |
+| `relationships` | `relationships` | `relationships:create:own`, `relationships:read:all`, `relationships:delete:own` |
+| `relationship-types` | `relationship-types` | `relationship-types:create`, `relationship-types:read` |
 
 ---
 
@@ -381,6 +383,6 @@ When a new object type is registered, a webhook or event could notify an admin s
 | Permission resolution (across-roles) | Union of all roles, broadest (`:all`) wins over narrower (`:own`) |
 | Actions are independent | `update:own` + `read:all` → update needs ownership, read does not. Actions never interfere with each other. |
 | Assignment constraint | POST/PATCH/PUT on role_permissions blocks duplicate scoped variants for same type+action on one role |
-| Relationships | Special system object type with its own scoped permission namespace; `create` can have scope (endpoint ownership) unlike other types |
+| Relationships | Special system object type with its own scoped permission namespace; `create` scope checked by service layer for endpoint ownership (not middleware); unified ownership model (`created_by == userID`) applies to all resource types including relationships |
 | New types | Locked down by default — explicit grants required |
 | Roles | 5 roles: admin, object-type-admin, user, relationship-admin (NEW), relationship-viewer (NEW) |
