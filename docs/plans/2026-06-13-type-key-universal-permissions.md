@@ -172,7 +172,7 @@ v1.Group("/objects").Use(permiddleware.New(middleware.RouteConfig{TypeKey: "obje
   - Removed `object-type-admin` bypass from `checkOwnership` — aligned with shared base function
   - Changed permission matching to use `strings.HasSuffix(perm, ":all")` instead of exact `slices.Contains(perms, allPermission)`
 
-### Task 7: Unified ownership model across handlers and repos ✅ committed <hash>
+### Task 7: Unified ownership model across handlers and repos ✅ committed d341ecb
 **Files:**
 - `services/objects-service/internal/models/object_request.go` — added `UserID *string` field to `ObjectFilter` struct
 - `services/objects-service/internal/models/relationship.go` — changed `RelationshipFilter.UserID` from `*int64` to `*string` (created_by in DB is string)
@@ -350,7 +350,7 @@ These are object types that need their own concrete table alongside the base obj
 - [x] Task 4: Create permission middleware (replaces existing permiddleware entirely, no backward compat needed) ✅ committed 4211e10
 - [x] Task 5: Refactor main.go routes to use new permission middleware ✅ committed 4211e10
 - [x] Task 6: Fix relationship handler created_by assignment + unified ownership model ✅ committed d23be46
-- [x] Task 7: Unified ownership — List filtering by created_by for objects and relationships ✅ committed <hash>
+- [x] Task 7: Unified ownership — List filtering by created_by for objects and relationships ✅ committed d341ecb
 - [x] Task 8: Fix handleServiceError → errors.Is() ✅ committed d23be46
 - [ ] Task 9: Fix bulk operations permission model
 - [ ] Task 10: Auth-service fixes (action column + tracing)
