@@ -2,10 +2,11 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -76,23 +77,24 @@ func (h *ObjectHandler) handleServiceError(c *gin.Context, err error, operation 
 		"request_id": requestID,
 	}).WithError(err).Error(operation)
 
-	switch err {
-	case nil:
+	if err == nil {
 		return
-	case repository.ErrOptimisticLock:
+	}
+
+	if errors.Is(err, repository.ErrOptimisticLock) {
 		c.JSON(http.StatusConflict, gin.H{
 			"error": "Version conflict - the object has been modified by another request",
 			"type":  "conflict",
 			"meta":  gin.H{"request_id": requestID},
 		})
 		return
-	default:
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Internal server error",
-			"type":  "internal_error",
-			"meta":  gin.H{"request_id": requestID},
-		})
 	}
+
+	c.JSON(http.StatusInternalServerError, gin.H{
+		"error": "Internal server error",
+		"type":  "internal_error",
+		"meta":  gin.H{"request_id": requestID},
+	})
 }
 
 func (h *ObjectHandler) checkOwnership(c *gin.Context, object *models.Object, allPermission string) bool {
@@ -103,7 +105,7 @@ func (h *ObjectHandler) checkOwnership(c *gin.Context, object *models.Object, al
 
 	userRoles := middleware.GetAuthenticatedUserRoles(c)
 	for _, role := range userRoles {
-		if role == "admin" || role == "object-type-admin" {
+		if role == "admin" {
 			return true
 		}
 	}
@@ -115,11 +117,13 @@ func (h *ObjectHandler) checkOwnership(c *gin.Context, object *models.Object, al
 
 	perms, ok := matchedPermissions.([]string)
 	if !ok {
-		return object.CreatedBy == userID
+		return false
 	}
 
-	if slices.Contains(perms, allPermission) {
-		return true
+	for _, perm := range perms {
+		if strings.HasSuffix(perm, ":all") {
+			return true
+		}
 	}
 
 	return object.CreatedBy == userID

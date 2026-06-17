@@ -8,7 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/v-egorov/service-boilerplate/common/logging"
+	"github.com/v-egorov/service-boilerplate/common/middleware"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/models"
+	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/repository"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/services"
 )
 
@@ -40,6 +42,11 @@ func (h *RelationshipHandler) Create(c *gin.Context) {
 			"meta":    gin.H{"request_id": requestID},
 		})
 		return
+	}
+
+	userID := middleware.GetAuthenticatedUserID(c)
+	if userID != "" {
+		req.CreatedBy = userID
 	}
 
 	rel, err := h.service.Create(c.Request.Context(), &req)
@@ -80,6 +87,11 @@ func (h *RelationshipHandler) GetByPublicID(c *gin.Context) {
 		return
 	}
 
+	if !CheckOwnership(c, *rel.CreatedBy) {
+		HandleOwnershipViolation(c, requestID)
+		return
+	}
+
 	h.logger.WithFields(logrus.Fields{
 		"request_id":      requestID,
 		"relationship_id": rel.ObjectID,
@@ -106,6 +118,17 @@ func (h *RelationshipHandler) Update(c *gin.Context) {
 		return
 	}
 
+	existingRel, err := h.service.GetByPublicID(c.Request.Context(), publicID)
+	if err != nil {
+		h.handleError(c, requestID, err, "update relationship")
+		return
+	}
+
+	if !CheckOwnership(c, *existingRel.CreatedBy) {
+		HandleOwnershipViolation(c, requestID)
+		return
+	}
+
 	var req models.UpdateRelationshipRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.logger.WithFields(logrus.Fields{
@@ -117,6 +140,11 @@ func (h *RelationshipHandler) Update(c *gin.Context) {
 			"meta":    gin.H{"request_id": requestID},
 		})
 		return
+	}
+
+	userID := middleware.GetAuthenticatedUserID(c)
+	if userID != "" {
+		req.UpdatedBy = userID
 	}
 
 	rel, err := h.service.Update(c.Request.Context(), publicID, &req)
@@ -148,6 +176,17 @@ func (h *RelationshipHandler) Delete(c *gin.Context) {
 			"field":   "public_id",
 			"meta":    gin.H{"request_id": requestID},
 		})
+		return
+	}
+
+	existingRel, err := h.service.GetByPublicID(c.Request.Context(), publicID)
+	if err != nil {
+		h.handleError(c, requestID, err, "delete relationship")
+		return
+	}
+
+	if !CheckOwnership(c, *existingRel.CreatedBy) {
+		HandleOwnershipViolation(c, requestID)
 		return
 	}
 
@@ -355,6 +394,10 @@ func (h *RelationshipHandler) handleError(c *gin.Context, requestID string, err 
 	case errors.Is(err, services.ErrSourceTargetSame):
 		statusCode = http.StatusBadRequest
 		errorMessage = "Source and target cannot be the same"
+		errorType = "validation_error"
+	case errors.Is(err, repository.ErrInvalidInput):
+		statusCode = http.StatusBadRequest
+		errorMessage = err.Error()
 		errorType = "validation_error"
 	}
 
