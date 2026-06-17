@@ -189,7 +189,7 @@ v1.Group("/objects").Use(permiddleware.New(middleware.RouteConfig{TypeKey: "obje
 
 Note: Task 8 was completed as part of the same commit as Task 6 (d23be46).
 
-### Task 9: Fix bulk operations permission model ✅ implemented (pending commit)
+### Task 9: Fix bulk operations permission model ✅ committed 6fdb6a2
 **File:** `services/objects-service/cmd/main.go`
 - Split the single bulk route group into three separate groups, each using its own middleware:
   - POST `/bulk` → `RouteConfig{TypeKey: "objects", HTTPMethod: "POST"}` (requires `objects:create`)
@@ -197,7 +197,7 @@ Note: Task 8 was completed as part of the same commit as Task 6 (d23be46).
   - DELETE `/bulk` → `RouteConfig{TypeKey: "objects", HTTPMethod: "DELETE"}` (requires `objects:delete:all`, `objects:delete:own`)
 - Uses data-driven permission middleware — each HTTP method gets its own permission check, no user with only `create` can delete objects anymore
 
-### Task 10: Auth-service — fix action column consistency + tracing
+### Task 10: Auth-service — fix action column consistency + tracing ✅ committed 566fadb
 **Files:**
 - `services/auth-service/migrations/{development,staging}/000010_fix_action_column.up.sql` (and `.down.sql`) / `services/auth-service/migrations/production/000008_fix_action_column.up.sql` (and `.down.sql`) — standardize the `action` column to store only base action (`read`, `create`, `update`, `delete`) for all permissions; strip scope suffixes from ALL problematic records across all resources (objects, object-types, relationship-types, relationships), not just objects-scoped ones. Note: dev/staging use 000010 (after dev-only migrations at 06/07); prod uses 000008 (existing 08/09 renumbered to 06/07 to close pre-existing gap)
 - `services/auth-service/internal/repository/auth_repository.go` — add `database.TraceDBQuery()` wrapper around the `GetUserPermissions` query (fixes ISSUE-15)
