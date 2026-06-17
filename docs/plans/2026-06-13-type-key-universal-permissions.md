@@ -353,7 +353,7 @@ These are object types that need their own concrete table alongside the base obj
 - [x] Task 6: Fix relationship handler created_by assignment + unified ownership model ✅ committed d23be46
 - [x] Task 7: Unified ownership — List filtering by created_by for objects and relationships ✅ committed d341ecb
 - [x] Task 8: Fix handleServiceError → errors.Is() ✅ committed d23be46
-- [ ] Task 9: Fix bulk operations permission model
+- [x] Task 9: Fix bulk operations with per-method permission checks ✅ committed 6fdb6a2
 - [ ] Task 10: Auth-service fixes (action column + tracing)
 - [ ] Task 11: Update architecture documentation
 - [ ] Task 12: Create "How To Add A New Object Type" guide
