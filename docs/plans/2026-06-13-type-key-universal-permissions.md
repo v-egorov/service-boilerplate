@@ -354,7 +354,7 @@ These are object types that need their own concrete table alongside the base obj
 - [x] Task 7: Unified ownership — List filtering by created_by for objects and relationships ✅ committed d341ecb
 - [x] Task 8: Fix handleServiceError → errors.Is() ✅ committed d23be46
 - [x] Task 9: Fix bulk operations with per-method permission checks ✅ committed 6fdb6a2
-- [x] Task 10: Auth-service fixes — action column migration (000012 up/down for all envs) + TraceDBQuery on GetUserPermissions (pending commit)
+- [x] Task 10: Auth-service fixes — action column migration (dev/staging 000010, prod 000008 after renumbering) + TraceDBQuery on GetUserPermissions ✅ committed 566fadb
 - [ ] Task 11: Update architecture documentation
 - [ ] Task 12: Create "How To Add A New Object Type" guide
 
