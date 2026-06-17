@@ -172,13 +172,16 @@ v1.Group("/objects").Use(permiddleware.New(middleware.RouteConfig{TypeKey: "obje
   - Removed `object-type-admin` bypass from `checkOwnership` — aligned with shared base function
   - Changed permission matching to use `strings.HasSuffix(perm, ":all")` instead of exact `slices.Contains(perms, allPermission)`
 
-### Task 7: Unified ownership model across handlers and repos (deferred)
+### Task 7: Unified ownership model across handlers and repos ✅ committed <hash>
 **Files:**
-- `services/objects-service/internal/repository/object_repository.go` — in `List()`, accept optional `created_by` filter and apply when user matched `:own` scope (fixes BUG-2)
-- `services/objects-service/internal/handlers/object_handler.go` — pass ownership scope to repo based on which permission matched (`:own` vs `:all`)
-- `services/objects-service/internal/repository/relationship_repository.go` — add optional `created_by` filter parameter to `List()` and apply when `:own` scope is active
+- `services/objects-service/internal/models/object_request.go` — added `UserID *string` field to `ObjectFilter` struct
+- `services/objects-service/internal/models/relationship.go` — changed `RelationshipFilter.UserID` from `*int64` to `*string` (created_by in DB is string)
+- `services/objects-service/internal/repository/object_repository.go` — added `if filter.UserID != nil && *filter.UserID != "" { qb.Where("created_by = $1", *filter.UserID) }` in List() method
+- `services/objects-service/internal/repository/relationship_repository.go` — added `if filter.UserID != nil && *filter.UserID != "" { ... r.created_by = $N ... }` in List() method  
+- `services/objects-service/internal/handlers/object_handler.go` — extracts userID from middleware and passes to ObjectFilter.UserID
+- `services/objects-service/internal/handlers/relationship_handler.go` — extracts userID from middleware and passes to RelationshipFilter.UserID (only if not already set by query params)
 
-**Note:** List-level data scoping deferred per user request (low effort ~10 lines, orthogonal to Task 6). Can be revisited without touching handler/service code from Task 6.
+**Note:** This enables data-level filtering by owner at the repository layer. Combined with Task 6's ownership checks, it ensures users only see their own resources when they have `:own` scope permissions.
 
 ### Task 8: Fix handleServiceError to use errors.Is() ✅ committed d23be46
 **File:** `services/objects-service/internal/handlers/object_handler.go`
@@ -347,7 +350,7 @@ These are object types that need their own concrete table alongside the base obj
 - [x] Task 4: Create permission middleware (replaces existing permiddleware entirely, no backward compat needed) ✅ committed 4211e10
 - [x] Task 5: Refactor main.go routes to use new permission middleware ✅ committed 4211e10
 - [x] Task 6: Fix relationship handler created_by assignment + unified ownership model ✅ committed d23be46
-- [ ] Task 7: Unified ownership — List filtering by created_by for objects and relationships (deferred)
+- [x] Task 7: Unified ownership — List filtering by created_by for objects and relationships ✅ committed <hash>
 - [x] Task 8: Fix handleServiceError → errors.Is() ✅ committed d23be46
 - [ ] Task 9: Fix bulk operations permission model
 - [ ] Task 10: Auth-service fixes (action column + tracing)

@@ -384,6 +384,12 @@ func (r *relationshipRepository) List(ctx context.Context, filter *models.Relati
 		argNum++
 	}
 
+	if filter.UserID != nil && *filter.UserID != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("r.created_by = $%d", argNum))
+		args = append(args, *filter.UserID)
+		argNum++
+	}
+
 	where := strings.Join(whereClauses, " AND ")
 
 	orderBy := "r.created_at"

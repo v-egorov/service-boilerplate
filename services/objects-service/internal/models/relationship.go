@@ -97,7 +97,7 @@ type RelationshipFilter struct {
 	TargetObjectPublicID *string `json:"target_object_id,omitempty" form:"target_object_id"`
 	RelationshipTypeKey  *string `json:"type_key,omitempty" form:"type_key"`
 	Status               *string `json:"status,omitempty" form:"status"`
-	UserID               *int64  `json:"user_id,omitempty"`
+	UserID               *string `json:"user_id,omitempty" form:"user_id"`
 	Page                 int     `json:"page,omitempty" form:"page"`
 	PageSize             int     `json:"page_size,omitempty" form:"page_size"`
 	SortBy               string  `json:"sort_by,omitempty" form:"sort_by"`

@@ -410,6 +410,11 @@ func (h *ObjectHandler) List(c *gin.Context) {
 		filter.Status = status
 	}
 
+	userID := middleware.GetAuthenticatedUserID(c)
+	if userID != "" {
+		filter.UserID = &userID
+	}
+
 	filter.Limit = 50
 	filter.Offset = 0
 

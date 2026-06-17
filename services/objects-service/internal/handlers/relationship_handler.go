@@ -227,6 +227,11 @@ func (h *RelationshipHandler) List(c *gin.Context) {
 		filter.PageSize = 20
 	}
 
+	userID := middleware.GetAuthenticatedUserID(c)
+	if userID != "" && (filter.UserID == nil || *filter.UserID == "") {
+		filter.UserID = &userID
+	}
+
 	rels, err := h.service.List(c.Request.Context(), &filter)
 	if err != nil {
 		h.handleError(c, requestID, err, "list relationships")

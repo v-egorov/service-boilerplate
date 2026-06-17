@@ -468,6 +468,10 @@ func (r *objectRepository) List(ctx context.Context, filter *models.ObjectFilter
 		})
 	}
 
+	if filter.UserID != nil && *filter.UserID != "" {
+		qb.Where("created_by = $1", *filter.UserID)
+	}
+
 	// Always exclude deleted objects unless explicitly requested
 	if filter.Status != models.StatusDeleted {
 		qb.Where("deleted_at IS NULL")

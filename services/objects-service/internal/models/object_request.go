@@ -56,6 +56,7 @@ type ObjectFilter struct {
 	HasMetadata    bool       `json:"has_metadata,omitempty" form:"has_metadata"`
 	MetadataKey    string     `json:"metadata_key,omitempty" form:"metadata_key"`
 	MetadataValue  string     `json:"metadata_value,omitempty" form:"metadata_value"`
+	UserID         *string    `json:"user_id,omitempty" form:"user_id"`
 	Limit          int        `json:"limit,omitempty" form:"limit"`
 	Offset         int        `json:"offset,omitempty" form:"offset"`
 	SortBy         string     `json:"sort_by,omitempty" form:"sort_by"`
