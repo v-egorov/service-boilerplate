@@ -199,7 +199,7 @@ Note: Task 8 was completed as part of the same commit as Task 6 (d23be46).
 
 ### Task 10: Auth-service — fix action column consistency + tracing
 **Files:**
-- `services/auth-service/migrations/{development,staging,production}/000012_fix_action_column.up.sql` (and `.down.sql`) — standardize the `action` column to store only base action (`read`, `create`, `update`, `delete`) for all permissions; strip scope suffixes from ALL problematic records across all resources (objects, object-types, relationship-types, relationships), not just objects-scoped ones
+- `services/auth-service/migrations/{development,staging}/000010_fix_action_column.up.sql` (and `.down.sql`) / `services/auth-service/migrations/production/000008_fix_action_column.up.sql` (and `.down.sql`) — standardize the `action` column to store only base action (`read`, `create`, `update`, `delete`) for all permissions; strip scope suffixes from ALL problematic records across all resources (objects, object-types, relationship-types, relationships), not just objects-scoped ones. Note: dev/staging use 000010 (after dev-only migrations at 06/07); prod uses 000008 (existing 08/09 renumbered to 06/07 to close pre-existing gap)
 - `services/auth-service/internal/repository/auth_repository.go` — add `database.TraceDBQuery()` wrapper around the `GetUserPermissions` query (fixes ISSUE-15)
 
 ### Task 11: Update architecture documentation
@@ -354,7 +354,7 @@ These are object types that need their own concrete table alongside the base obj
 - [x] Task 7: Unified ownership — List filtering by created_by for objects and relationships ✅ committed d341ecb
 - [x] Task 8: Fix handleServiceError → errors.Is() ✅ committed d23be46
 - [x] Task 9: Fix bulk operations with per-method permission checks ✅ committed 6fdb6a2
-- [ ] Task 10: Auth-service fixes (action column + tracing)
+- [x] Task 10: Auth-service fixes — action column migration (000012 up/down for all envs) + TraceDBQuery on GetUserPermissions (pending commit)
 - [ ] Task 11: Update architecture documentation
 - [ ] Task 12: Create "How To Add A New Object Type" guide
 

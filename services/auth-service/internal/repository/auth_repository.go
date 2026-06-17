@@ -158,22 +158,29 @@ func (r *AuthRepository) GetUserPermissions(ctx context.Context, userID uuid.UUI
 		JOIN auth_service.user_roles ur ON rp.role_id = ur.role_id
 		WHERE ur.user_id = $1`
 
-	rows, err := r.db.Query(ctx, query, userID)
+	var permissions []models.Permission
+	err := database.TraceDBQuery(ctx, "permissions,user_roles", query, func(ctx context.Context) error {
+		rows, err := r.db.Query(ctx, query, userID)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var permission models.Permission
+			err := rows.Scan(&permission.ID, &permission.Name, &permission.Resource, &permission.Action, &permission.CreatedAt)
+			if err != nil {
+				return err
+			}
+			permissions = append(permissions, permission)
+		}
+		return rows.Err()
+	})
+
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var permissions []models.Permission
-	for rows.Next() {
-		var permission models.Permission
-		err := rows.Scan(&permission.ID, &permission.Name, &permission.Resource, &permission.Action, &permission.CreatedAt)
-		if err != nil {
-			return nil, err
-		}
-		permissions = append(permissions, permission)
-	}
-	return permissions, rows.Err()
+	return permissions, nil
 }
 
 func (r *AuthRepository) AssignRoleToUser(ctx context.Context, userID, roleID uuid.UUID) error {
