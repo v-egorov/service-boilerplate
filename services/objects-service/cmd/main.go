@@ -270,14 +270,20 @@ func main() {
 				objectsDelete.DELETE("/:id", objectHandler.Delete)
 			}
 
-			// Objects - Bulk operations (multi-permission check)
-			objectsBulk := v1.Group("/objects")
-			objectsBulk.Use(middleware.RequireAuth())
-			objectsBulk.Use(permiddleware.MultiPermissionMiddleware([]string{"objects:create", "objects:update:all", "objects:delete:all"}, authClient, logger.Logger))
+			// Objects - Bulk operations (per-method permission checks)
+			bulk := v1.Group("/objects")
+			bulk.POST("/bulk", perm(permiddleware.RouteConfig{TypeKey: "objects", HTTPMethod: "POST"}), objectHandler.BulkCreate)
+
+			bulkPut := bulk.Group("")
+			bulkPut.Use(perm(permiddleware.RouteConfig{TypeKey: "objects", HTTPMethod: "PUT"}))
 			{
-				objectsBulk.POST("/bulk", objectHandler.BulkCreate)
-				objectsBulk.PUT("/bulk", objectHandler.BulkUpdate)
-				objectsBulk.DELETE("/bulk", objectHandler.BulkDelete)
+				bulkPut.PUT("/bulk", objectHandler.BulkUpdate)
+			}
+
+			bulkDelete := bulk.Group("")
+			bulkDelete.Use(perm(permiddleware.RouteConfig{TypeKey: "objects", HTTPMethod: "DELETE"}))
+			{
+				bulkDelete.DELETE("/bulk", objectHandler.BulkDelete)
 			}
 
 			// Relationship Types endpoints

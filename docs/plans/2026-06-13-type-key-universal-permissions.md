@@ -189,16 +189,17 @@ v1.Group("/objects").Use(permiddleware.New(middleware.RouteConfig{TypeKey: "obje
 
 Note: Task 8 was completed as part of the same commit as Task 6 (d23be46).
 
-### Task 9: Fix bulk operations permission model
+### Task 9: Fix bulk operations permission model ✅ implemented (pending commit)
 **File:** `services/objects-service/cmd/main.go`
-- Split the single bulk route group into three separate groups:
-  - POST `/bulk` → only requires `{type_key}:create`
-  - PUT `/bulk` → requires `{type_key}:update:all` OR `{type_key}:update:own`
-  - DELETE `/bulk` → requires `{type_key}:delete:all` OR `{type_key}:delete:own`
+- Split the single bulk route group into three separate groups, each using its own middleware:
+  - POST `/bulk` → `RouteConfig{TypeKey: "objects", HTTPMethod: "POST"}` (requires `objects:create`)
+  - PUT `/bulk` → `RouteConfig{TypeKey: "objects", HTTPMethod: "PUT"}` (requires `objects:update:all`, `objects:update:own`)
+  - DELETE `/bulk` → `RouteConfig{TypeKey: "objects", HTTPMethod: "DELETE"}` (requires `objects:delete:all`, `objects:delete:own`)
+- Uses data-driven permission middleware — each HTTP method gets its own permission check, no user with only `create` can delete objects anymore
 
 ### Task 10: Auth-service — fix action column consistency + tracing
 **Files:**
-- `services/auth-service/migrations/{development,staging,production}/000012_fix_action_column.up.sql` (and `.down.sql`) — standardize the `action` column to store only base action (`read`, `create`, etc.) for all permissions; strip scope suffixes from objects scoped permissions that currently have it baked in
+- `services/auth-service/migrations/{development,staging,production}/000012_fix_action_column.up.sql` (and `.down.sql`) — standardize the `action` column to store only base action (`read`, `create`, `update`, `delete`) for all permissions; strip scope suffixes from ALL problematic records across all resources (objects, object-types, relationship-types, relationships), not just objects-scoped ones
 - `services/auth-service/internal/repository/auth_repository.go` — add `database.TraceDBQuery()` wrapper around the `GetUserPermissions` query (fixes ISSUE-15)
 
 ### Task 11: Update architecture documentation
