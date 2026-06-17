@@ -202,12 +202,12 @@ Note: Task 8 was completed as part of the same commit as Task 6 (d23be46).
 - `services/auth-service/migrations/{development,staging}/000010_fix_action_column.up.sql` (and `.down.sql`) / `services/auth-service/migrations/production/000008_fix_action_column.up.sql` (and `.down.sql`) — standardize the `action` column to store only base action (`read`, `create`, `update`, `delete`) for all permissions; strip scope suffixes from ALL problematic records across all resources (objects, object-types, relationship-types, relationships), not just objects-scoped ones. Note: dev/staging use 000010 (after dev-only migrations at 06/07); prod uses 000008 (existing 08/09 renumbered to 06/07 to close pre-existing gap)
 - `services/auth-service/internal/repository/auth_repository.go` — add `database.TraceDBQuery()` wrapper around the `GetUserPermissions` query (fixes ISSUE-15)
 
-### Task 11: Update architecture documentation
+### Task 11: Update architecture documentation ✅ committed f11141b
 **Files:**
 - `docs/object-type-permissions-architecture.md` — remove "three distinct ownership models for relationships" section (contradicts unified ownership model from Tasks 6/7); clarify that endpoint ownership validation is service-layer business logic, not permission middleware responsibility; add type_key → resource mapping table with actual registered types only (no super-admin wildcard `*:*`)
 - `docs/object-type-permissions-implementation-plan.md` — mark completed phases as done; note the shift from described scoped-aware parsing + scope priority resolution to universal data-driven approach using RouteConfig-based dynamic permission construction
 
-### Task 12: Create "How To Add A New Object Type" guide (in docs/)
+### Task 12: Create "How To Add A New Object Type" guide (in docs/) ✅ committed f11141b
 **File:** `docs/adding-new-object-types-guide.md` (new document)
 
 Step-by-step procedure for two scenarios, updated with current API patterns (`perm()` helper in main.go, RouteConfig middleware, shared checkOwnership utility):
@@ -337,8 +337,8 @@ These are object types that need their own concrete table alongside the base obj
 - [x] Task 8: Fix handleServiceError → errors.Is() ✅ committed d23be46
 - [x] Task 9: Fix bulk operations with per-method permission checks ✅ committed 6fdb6a2
 - [x] Task 10: Auth-service fixes — action column migration (dev/staging 000010, prod 000008 after renumbering) + TraceDBQuery on GetUserPermissions ✅ committed 566fadb
-- [x] Task 11: Update architecture documentation (removed three ownership models section, added type_key→resource mapping table, clarified service-layer endpoint validation) ✅ pending commit
-- [x] Task 12: Create "How To Add A New Object Type" guide (`docs/adding-new-object-types-guide.md`) with both scenarios (with and without CTI tables), updated for current API patterns ✅ pending commit
+- [x] Task 11: Update architecture documentation (removed three ownership models section, added type_key→resource mapping table, clarified service-layer endpoint validation) ✅ committed f11141b
+- [x] Task 12: Create "How To Add A New Object Type" guide (`docs/adding-new-object-types-guide.md`) with both scenarios (with and without CTI tables), updated for current API patterns ✅ committed f11141b
 
 ## Acceptance Criteria
 1. `type_key` column exists on `object_types` with RelationshipType (`"relationship-types"`) and Relationship (`"relationships"`, dev/staging only) seeded, unique constraint applied
