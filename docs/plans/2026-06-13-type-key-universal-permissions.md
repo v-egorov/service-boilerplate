@@ -108,7 +108,7 @@ Update existing object_types rows with their corresponding `type_key` values. Th
 - `services/objects-service/internal/models/object_type.go` — add `TypeKey string` field with JSON tag
 - `services/objects-service/internal/repository/object_type_repository.go` — update all SELECT/INSERT/UPDATE queries to include `type_key`; ensure creation handles it
 
-### Task 4: Create permission middleware (replaces existing permiddleware entirely, no backward compat needed)
+### Task 4: Create permission middleware (replaces existing permiddleware entirely, no backward compat needed) ✅ committed 4211e10
 **Files:**
 - `services/objects-service/internal/permiddleware/permission.go` — **delete old file**, create new one with same name. The new implementation replaces the current per-route hardcoded approach entirely.
 
@@ -139,7 +139,7 @@ func newPermissionMiddleware(cfg RouteConfig, authClient client.AuthClient, logg
 - Each route group specifies its `TypeKey`. For objects endpoints, it's `"objects"`. For relationship endpoints, it's `"relationships"`. This comes from the route config in main.go — not hardcoded permission strings.
 - The middleware queries auth-service with dynamically constructed permission string(s).
 
-### Task 5: Refactor main.go routes to use new permission middleware
+### Task 5: Refactor main.go routes to use new permission middleware ✅ committed 4211e10
 **File:** `services/objects-service/cmd/main.go`
 - Replace all `permissionMiddleware("<hardcoded-string>")` calls with the import alias pattern (same variable name, different function under the hood):
 
@@ -156,21 +156,35 @@ v1.Group("/objects").Use(permiddleware.New(middleware.RouteConfig{TypeKey: "obje
 - `/api/v1/object-types/*` routes currently use multi-permission calls like `permissionMiddleware("object-types:create", "object-types:update", "object-types:delete")`. These remain as manual permission checks per method since they operate on the registry table itself (not typed data instances). Each gets its own RouteConfig with TypeKey `"object-types"`.
 - Bulk operations stay as-is — separate groups for POST/PUT/DELETE with appropriate RouteConfig per method.
 
-### Task 6: Fix relationship handler created_by assignment
-**File:** `services/objects-service/internal/handlers/relationship_handler.go`
-- In `Create()`, set `req.CreatedBy = middleware.GetAuthenticatedUserID(c)` before calling service (currently missing — all relationships get `"system"`)
-- Add `checkOwnership()` method to RelationshipHandler (identical logic to ObjectHandler.checkOwnership) for Update/Delete endpoints
-
-### Task 7: Unified ownership model across handlers and repos
+### Task 6: Fix relationship handler created_by assignment + unified ownership model ✅ committed d23be46
 **Files:**
-- `services/objects-service/internal/handlers/object_handler.go` — extract `checkOwnership` into a shared function or embeddable struct; ensure it uses the same pattern as relationship handler's new checkOwnership
+- `services/objects-service/internal/handlers/base.go` (NEW) — shared package-level functions:
+  - `CheckOwnership(c, createdByID)` — checks admin role OR `*:all` permission scope OR `created_by == userID`. Uses `strings.HasSuffix(perm, ":all")` instead of exact string match to handle scoped permissions like `"relationships:update:all"` generically. Removed `object-type-admin` bypass (only `admin` gets full system access).
+  - `HandleOwnershipViolation(c, requestID)` — standardized 403 response for ownership failures.
+- `services/objects-service/internal/handlers/relationship_handler.go`:
+  - **Create**: Added `req.CreatedBy = userID` after JSON binding (was defaulting to `"system"`)
+  - **GetByID**: Added ownership check via shared `CheckOwnership()` — returns 403 if non-owner with `read:own` permission
+  - **Update**: Added ownership check + `req.UpdatedBy = userID` assignment (aligned with ObjectHandler pattern)
+  - **Delete**: Added ownership check via shared `CheckOwnership()` before deletion
+  - **handleError**: Added `errors.Is(err, repository.ErrInvalidInput)` case for proper validation error mapping
+- `services/objects-service/internal/handlers/object_handler.go`:
+  - Replaced exact switch comparison (`case repository.ErrOptimisticLock`) with `errors.Is()` in `handleServiceError` (fixes BUG-5)
+  - Removed `object-type-admin` bypass from `checkOwnership` — aligned with shared base function
+  - Changed permission matching to use `strings.HasSuffix(perm, ":all")` instead of exact `slices.Contains(perms, allPermission)`
+
+### Task 7: Unified ownership model across handlers and repos (deferred)
+**Files:**
 - `services/objects-service/internal/repository/object_repository.go` — in `List()`, accept optional `created_by` filter and apply when user matched `:own` scope (fixes BUG-2)
 - `services/objects-service/internal/handlers/object_handler.go` — pass ownership scope to repo based on which permission matched (`:own` vs `:all`)
 - `services/objects-service/internal/repository/relationship_repository.go` — add optional `created_by` filter parameter to `List()` and apply when `:own` scope is active
 
-### Task 8: Fix handleServiceError to use errors.Is()
+**Note:** List-level data scoping deferred per user request (low effort ~10 lines, orthogonal to Task 6). Can be revisited without touching handler/service code from Task 6.
+
+### Task 8: Fix handleServiceError to use errors.Is() ✅ committed d23be46
 **File:** `services/objects-service/internal/handlers/object_handler.go`
 - Change exact comparison (`err == repository.ErrOptimisticLock`) to `errors.Is(err, ...)` so wrapped service-layer errors match correctly (fixes BUG-5 / 404→500 mapping)
+
+Note: Task 8 was completed as part of the same commit as Task 6 (d23be46).
 
 ### Task 9: Fix bulk operations permission model
 **File:** `services/objects-service/cmd/main.go`
@@ -330,11 +344,11 @@ These are object types that need their own concrete table alongside the base obj
 - [x] Task 1: Schema migration — add type_key column (000010) ✅ committed d9ab677
 - [x] Task 2: Seed existing type_keys (000011) ✅ committed d9ab677
 - [x] Task 3: Update ObjectType model and repository queries ✅ committed d9ab677
-- [x] Task 4: Create permission middleware (replaces existing permiddleware entirely, no backward compat needed)
-- [x] Task 5: Refactor main.go routes to use new permission middleware
-- [ ] Task 6: Fix relationship handler created_by assignment + checkOwnership
-- [ ] Task 7: Unified ownership — List filtering by created_by for objects and relationships
-- [ ] Task 8: Fix handleServiceError → errors.Is()
+- [x] Task 4: Create permission middleware (replaces existing permiddleware entirely, no backward compat needed) ✅ committed 4211e10
+- [x] Task 5: Refactor main.go routes to use new permission middleware ✅ committed 4211e10
+- [x] Task 6: Fix relationship handler created_by assignment + unified ownership model ✅ committed d23be46
+- [ ] Task 7: Unified ownership — List filtering by created_by for objects and relationships (deferred)
+- [x] Task 8: Fix handleServiceError → errors.Is() ✅ committed d23be46
 - [ ] Task 9: Fix bulk operations permission model
 - [ ] Task 10: Auth-service fixes (action column + tracing)
 - [ ] Task 11: Update architecture documentation
