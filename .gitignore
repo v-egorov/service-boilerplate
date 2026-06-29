@@ -198,3 +198,4 @@ prompt*.md
 .ai-ignore
 ignore/
 .opencode
+.pi

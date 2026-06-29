@@ -1,0 +1,26 @@
+{
+  "name": "service-boilerplate",
+  "version": "1.0.0",
+  "description": "Microservice architecture with API Gateway, PostgreSQL, and distributed tracing.",
+  "homepage": "https://github.com/v-egorov/go-service-boilerplate#readme",
+  "bugs": {
+    "url": "https://github.com/v-egorov/go-service-boilerplate/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/v-egorov/go-service-boilerplate.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "@fission-ai/openspec": "^1.5.0"
+  }
+}
