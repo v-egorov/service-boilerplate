@@ -9,8 +9,8 @@ Defines the API gateway's contract for routing inbound HTTP requests to backend 
 The API gateway SHALL maintain an in-memory registry of backend services, mapping a logical service name to a base URL. Registration MUST be thread-safe and MUST overwrite an existing entry for the same name.
 
 #### Scenario: Register a new service
-- **WHEN** a service is registered with name "auth-service" and URL "http://auth-service:8083"
-- **THEN** subsequent lookups for "auth-service" return "http://auth-service:8083"
+- **WHEN** a service is registered with name "auth-service" and URL "http://auth-service:<port>" (where <port> comes from environment or infrastructure defaults)
+- **THEN** subsequent lookups for "auth-service" return the registered URL
 
 #### Scenario: Re-register an existing service
 - **WHEN** a service name is registered again with a different URL
