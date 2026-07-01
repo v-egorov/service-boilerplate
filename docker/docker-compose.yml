@@ -38,6 +38,7 @@ services:
       - LOGGING_FORMAT=${LOGGING_FORMAT:-json}
       - LOGGING_OUTPUT=file
       - DOCKER_ENV=true
+      - OBJECTS_SERVICE_URL=${OBJECTS_SERVICE_URL:-http://objects-service:8085}
     depends_on:
       auth-service:
         condition: service_healthy

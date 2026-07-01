@@ -82,10 +82,17 @@ func main() {
 		userServiceURL = "http://user-service:8081" // Docker service discovery default
 	}
 
+	// Get objects-service URL from environment variable with platform defaults
+	objectsServiceURL := os.Getenv("OBJECTS_SERVICE_URL")
+	if objectsServiceURL == "" {
+		objectsServiceURL = "http://objects-service:8085" // Docker service discovery default
+	}
+
 	// Apply development environment overrides for localhost development
 	if cfg.App.Environment == "development" && os.Getenv("DOCKER_ENV") != "true" {
 		authServiceURL = strings.Replace(authServiceURL, "auth-service", "localhost", 1)
 		userServiceURL = strings.Replace(userServiceURL, "user-service", "localhost", 1)
+		objectsServiceURL = strings.Replace(objectsServiceURL, "objects-service", "localhost", 1)
 	}
 
 	// Initialize service registry
@@ -93,9 +100,7 @@ func main() {
 
 	serviceRegistry.RegisterService("auth-service", authServiceURL)
 	serviceRegistry.RegisterService("user-service", userServiceURL)
-
-	// Register objects-service
-	serviceRegistry.RegisterService("objects-service", "http://objects-service:8085")
+	serviceRegistry.RegisterService("objects-service", objectsServiceURL)
 
 	// Initialize handlers
 	gatewayHandler := handlers.NewGatewayHandler(serviceRegistry, logger.Logger, cfg)
