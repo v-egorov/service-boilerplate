@@ -19,7 +19,8 @@ func newTestGatewayHandler(t *testing.T, registry *services.ServiceRegistry) (*G
 	logger.SetLevel(logrus.DebugLevel)
 	logger.SetOutput(&discardWriter{})
 	cfg := &config.Config{
-		App: config.AppConfig{Name: "test-gateway", Version: "0.1.0"},
+		App:           config.AppConfig{Name: "test-gateway", Version: "0.1.0"},
+		SystemAccount: config.SystemAccountConfig{McpAgentUserID: "00000000-0000-4000-8000-000000000001"},
 	}
 	handler := NewGatewayHandler(registry, logger, cfg)
 	return handler, logger

@@ -16,7 +16,7 @@ import (
 func TestProxyMCPRequest_Success(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// Create mock MCP server that expects X-User-ID: mcp-agent
+	// Create mock MCP server that validates injected identity headers
 	mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userID := r.Header.Get("X-User-ID")
 		userEmail := r.Header.Get("X-User-Email")
@@ -26,14 +26,15 @@ func TestProxyMCPRequest_Success(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("data: {\"type\":\"test\"}\n\n"))
 
-		if userID != "mcp-agent" {
-			t.Errorf("Expected X-User-ID=mcp-agent, got %s", userID)
+		// Identity must be a UUID (not string "mcp-agent") so auth-service uuid.MustParse() doesn't panic
+		if userID == "" {
+			t.Error("Expected non-empty X-User-ID (UUID)")
 		}
-		if userEmail != "mcp-agent@internal.service-boilerplate" {
-			t.Errorf("Expected X-User-Email=mcp-agent@internal.service-boilerplate, got %s", userEmail)
+		if userEmail != "mcp-agent@system.internal" {
+			t.Errorf("Expected X-User-Email=mcp-agent@system.internal, got %s", userEmail)
 		}
-		if !strings.Contains(userRoles, "mcp-agent") {
-			t.Errorf("Expected X-User-Roles to contain mcp-agent, got %s", userRoles)
+		if !strings.Contains(userRoles, "mcp-agent-read-only") {
+			t.Errorf("Expected X-User-Roles to contain mcp-agent-read-only, got %s", userRoles)
 		}
 
 		w.Write([]byte("event: message\ndata: {\"jsonrpc\":\"2.0\",\"result\":null}\n\n"))

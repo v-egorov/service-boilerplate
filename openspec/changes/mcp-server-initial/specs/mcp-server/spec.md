@@ -79,3 +79,14 @@ The mcp-server MUST expose an SSE endpoint at `/mcp/sse` that MCP clients connec
 #### Scenario: Tool call reaches objects-service via gateway-mcp pipeline
 - **WHEN** a client POSTs a tool_call request through api-gateway to the MCP message endpoint
 - **THEN** the request is forwarded to mcp-server which executes the tool and returns the result via SSE stream, with each hop (gateway → mcp-server) preserving headers and body
+
+### Requirement: MCP agent identity has valid auth-service permissions
+The api-gateway MUST inject a system-level user UUID (not string "mcp-agent") into `X-User-ID` header for all `/mcp/*` requests. A corresponding user must exist in auth-service with the `mcp-agent-read-only` role, which grants read permissions (`objects:read:all`, `objects:read:own`) to ensure objects-service permiddleware permission checks succeed without requiring per-user JWT validation.
+
+#### Scenario: Gateway injects UUID-based identity for MCP requests
+- **WHEN** an MCP client sends a request through api-gateway's `/mcp/*` endpoint
+- **THEN** the gateway sets `X-User-ID` to a valid UUID, `X-User-Roles` includes `mcp-agent-read-only`, and objects-service permiddleware successfully calls auth-service CheckPermission without panic
+
+#### Scenario: Auth-service permission check succeeds for MCP agent
+- **WHEN** objects-service permiddleware calls auth-service `/api/v1/auth/permissions/check` with the MCP agent's UUID
+- **THEN** auth-service resolves permissions via `user_roles → role_permissions → permissions`, finds `objects:read:all` and `objects:read:own`, and returns `allowed=true`

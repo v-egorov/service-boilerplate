@@ -49,7 +49,7 @@
 
 - [x] 7.1 Add `/mcp/*` route group in `api-gateway/cmd/main.go` — registered as separate mcpRouter without JWT middleware
 - [x] 7.2 Register SSE endpoint: `GET /mcp/sse → gatewayHandler.ProxyMCPRequest()`
-- [x] 7.3 Inject `X-User-ID: mcp-agent`, `X-User-Email: mcp-agent@internal.service-boilerplate`, `X-User-Roles: ,mcp-agent,` headers for `/mcp/*` requests (via ProxyMCPRequest handler)
+- [x] 7.3 Inject `X-User-ID: <UUID>`, `X-User-Email: mcp-agent@system.internal`, `X-User-Roles: ,mcp-agent-read-only,` headers for `/mcp/*` requests (via ProxyMCPRequest handler with config.SystemAccount.McpAgentUserID)
 - [x] 7.4 SSE streaming works through httputil.ReverseProxy — chunked transfer encoding passthrough verified in code review
 - [x] 7.5 Gateway doesn't apply JWT validation to `/mcp/*` routes — uses separate gin.Engine (mcpRouter) without JWTMiddleware, routed via MultiHandler path-prefix router
 
@@ -59,3 +59,12 @@
 - [x] Air hot-reload config (.air.toml) added for development
 - [x] Health check endpoints implemented: `/health`, `/live`, `/ready`, `/ping`, `/status` with objects-service connectivity check in readiness/status
 - [x] Docker healthcheck configured in docker-compose.yml + override (curl -f http://localhost:8095/health)
+
+## 9. Auth-Service Integration ✅ COMPLETE
+
+- [x] 9.1 Added `SystemAccountConfig` to common/config.go with `McpAgentUserID` field and env binding (`MCP_AGENT_USER_ID`)
+- [x] 9.2 Created user-service migration 000007: deterministic UUID user in `user_service.users` (email: mcp-agent@system.internal, password: devadmin123 bcrypt)
+- [x] 9.3 Created auth-service migration 000011: `mcp-agent-read-only` role with description
+- [x] 9.4 Created auth-service migration 000012: read permissions (`objects:read:all`, `objects:read:own`) + assignment to role + user-role linkage
+- [x] 9.5 Updated gateway ProxyMCPRequest() to use config-driven UUID instead of hardcoded "mcp-agent" string (fixes auth-service uuid.MustParse panic)
+- [x] 9.6 Updated gateway MCP test expectations for new header values

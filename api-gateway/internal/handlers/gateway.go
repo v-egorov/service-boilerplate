@@ -177,9 +177,11 @@ func (h *GatewayHandler) ProxyMCPRequest() gin.HandlerFunc {
 		// Inject MCP agent identity headers for backend services.
 		// This allows objects-service's permiddleware to have valid context
 		// without requiring per-user JWT validation (delta 1: read-only, unprotected).
-		c.Request.Header.Set("X-User-ID", "mcp-agent")
-		c.Request.Header.Set("X-User-Email", "mcp-agent@internal.service-boilerplate")
-		c.Request.Header.Set("X-User-Roles", ",mcp-agent,")
+		// Uses a real UUID from auth-service so uuid.MustParse() doesn't panic,
+		// and the user has mcp-agent-read-only role with objects:read:all/own permissions.
+		c.Request.Header.Set("X-User-ID", h.config.SystemAccount.McpAgentUserID)
+		c.Request.Header.Set("X-User-Email", "mcp-agent@system.internal")
+		c.Request.Header.Set("X-User-Roles", ",mcp-agent-read-only,")
 
 		// Extract trace information from context
 		span := trace.SpanFromContext(ctx)

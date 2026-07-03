@@ -16,8 +16,9 @@ type Config struct {
 	Tracing         TracingConfig         `mapstructure:"tracing"`
 	JWT             JWTConfig             `mapstructure:"jwt"`
 	PermissionCache PermissionCacheConfig `mapstructure:"permission_cache"`
-	AuthService     AuthServiceConfig     `mapstructure:"auth_service"`
-	ObjectsService  ObjectsServiceConfig  `mapstructure:"objects_service"`
+	AuthService        AuthServiceConfig       `mapstructure:"auth_service"`
+	ObjectsService     ObjectsServiceConfig    `mapstructure:"objects_service"`
+	SystemAccount      SystemAccountConfig     `mapstructure:"system_account"`
 }
 
 type AppConfig struct {
@@ -91,6 +92,10 @@ type ObjectsServiceConfig struct {
 	Timeout int    `mapstructure:"timeout_seconds"`
 }
 
+type SystemAccountConfig struct {
+	McpAgentUserID string `mapstructure:"mcp_agent_user_id"`
+}
+
 func Load(configPath string) (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -129,6 +134,9 @@ func Load(configPath string) (*Config, error) {
 	// Objects service env bindings
 	_ = viper.BindEnv("objects_service.url", "OBJECTS_SERVICE_URL")
 	_ = viper.BindEnv("objects_service.timeout_seconds", "OBJECTS_SERVICE_TIMEOUT")
+
+	// System account env bindings
+	_ = viper.BindEnv("system_account.mcp_agent_user_id", "MCP_AGENT_USER_ID")
 
 	// Set environment variable defaults for Docker
 	if os.Getenv("DOCKER_ENV") == "true" {
@@ -210,4 +218,7 @@ func setDefaults() {
 	// Objects service defaults (for MCP server and other services that need direct access)
 	viper.SetDefault("objects_service.url", "http://objects-service:8085")
 	viper.SetDefault("objects_service.timeout_seconds", 10)
+
+	// System account defaults (internal service-to-service identity)
+	viper.SetDefault("system_account.mcp_agent_user_id", "00000000-0000-4000-8000-000000000001")
 }
