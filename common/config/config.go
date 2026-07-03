@@ -17,6 +17,7 @@ type Config struct {
 	JWT             JWTConfig             `mapstructure:"jwt"`
 	PermissionCache PermissionCacheConfig `mapstructure:"permission_cache"`
 	AuthService     AuthServiceConfig     `mapstructure:"auth_service"`
+	ObjectsService  ObjectsServiceConfig  `mapstructure:"objects_service"`
 }
 
 type AppConfig struct {
@@ -85,6 +86,11 @@ type AuthServiceConfig struct {
 	Timeout int    `mapstructure:"timeout_seconds"`
 }
 
+type ObjectsServiceConfig struct {
+	URL     string `mapstructure:"url"`
+	Timeout int    `mapstructure:"timeout_seconds"`
+}
+
 func Load(configPath string) (*Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
@@ -119,6 +125,10 @@ func Load(configPath string) (*Config, error) {
 	_ = viper.BindEnv("jwt.public_key", "JWT_PUBLIC_KEY")
 	_ = viper.BindEnv("auth_service.url", "AUTH_SERVICE_URL")
 	_ = viper.BindEnv("auth_service.timeout_seconds", "AUTH_SERVICE_TIMEOUT")
+
+	// Objects service env bindings
+	_ = viper.BindEnv("objects_service.url", "OBJECTS_SERVICE_URL")
+	_ = viper.BindEnv("objects_service.timeout_seconds", "OBJECTS_SERVICE_TIMEOUT")
 
 	// Set environment variable defaults for Docker
 	if os.Getenv("DOCKER_ENV") == "true" {
@@ -196,4 +206,8 @@ func setDefaults() {
 	// Auth service defaults
 	viper.SetDefault("auth_service.url", "http://auth-service:8083")
 	viper.SetDefault("auth_service.timeout_seconds", 10)
+
+	// Objects service defaults (for MCP server and other services that need direct access)
+	viper.SetDefault("objects_service.url", "http://objects-service:8085")
+	viper.SetDefault("objects_service.timeout_seconds", 10)
 }

@@ -1,0 +1,29 @@
+app:
+  name: "mcp-server"
+  version: "1.0.0"
+  environment: "development"
+
+logging:
+  level: "debug"
+  format: "json"
+  output: "stdout"
+  strip_ansi_from_files: true
+
+server:
+  host: "0.0.0.0"
+  port: 8095
+
+monitoring:
+  health_check_timeout: 5
+  status_cache_duration: 30
+  enable_detailed_metrics: false
+
+tracing:
+  enabled: true
+  service_name: "mcp-server"
+  collector_url: "http://jaeger:4318/v1/traces"
+  sampling_rate: 1.0
+
+objects_service:
+  url: "http://objects-service:8085"
+  timeout_seconds: 10

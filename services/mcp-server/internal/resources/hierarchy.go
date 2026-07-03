@@ -1,0 +1,41 @@
+package resources
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/server"
+	"github.com/sirupsen/logrus"
+	mcpclient "github.com/v-egorov/service-boilerplate/services/mcp-server/internal/client"
+)
+
+// RegisterTypeHierarchyResource registers the objects-types resource that provides browseable access to the type hierarchy.
+func RegisterTypeHierarchyResource(mcpServer *server.MCPServer, objClient *mcpclient.ObjectsClient, logger *logrus.Logger) {
+	resource := mcp.Resource{
+		URI:        "objects-types://hierarchy",
+		Name:       "Object Type Hierarchy",
+		Title:      "Full object type hierarchy tree",
+		Description: "Browseable resource containing the complete object type taxonomy tree. Use list_object_types tool for flat listing, or get_object_type for individual details.",
+		MIMEType:   "application/json",
+	}
+
+	mcpServer.AddResource(resource, func(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+		// Fetch the root type tree from objects-service
+		tree, err := objClient.GetRootTree()
+		if err != nil {
+			logger.WithError(err).Error("Failed to fetch type hierarchy")
+			return nil, fmt.Errorf("failed to fetch type hierarchy: %w", err)
+		}
+
+		data, _ := json.Marshal(tree)
+		return []mcp.ResourceContents{
+			mcp.TextResourceContents{
+				URI:      resource.URI,
+				MIMEType: resource.MIMEType,
+				Text:     string(data),
+			},
+		}, nil
+	})
+}

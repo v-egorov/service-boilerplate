@@ -266,6 +266,33 @@ services:
       retries: 3
       start_period: 10s
     restart: unless-stopped
+
+  mcp-server:
+    build:
+      context: ..
+      dockerfile: services/mcp-server/Dockerfile
+    image: ${MCP_SERVER_IMAGE}
+    container_name: ${MCP_SERVER_CONTAINER}
+    ports:
+      - "${MCP_SERVER_PORT:-8095}:${MCP_SERVER_PORT:-8095}"
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - SERVER_PORT=${MCP_SERVER_PORT:-8095}
+      - LOGGING_LEVEL=${LOGGING_LEVEL:-info}
+      - LOGGING_FORMAT=${LOGGING_FORMAT:-json}
+      - LOGGING_OUTPUT=file
+      - OBJECTS_SERVICE_URL=${OBJECTS_SERVICE_URL:-http://objects-service:8085}
+    depends_on:
+      objects-service:
+        condition: service_healthy
+    volumes:
+      - mcp_server_logs:/app/logs
+    networks:
+      service-network:
+        aliases:
+          - mcp-server
+          - mcp-server-svc
+    restart: unless-stopped
 volumes:
   postgres_data:
     name: ${POSTGRES_VOLUME}
@@ -378,6 +405,14 @@ volumes:
       type: none
       o: bind
       device: ${PWD}/docker/volumes/objects-service/logs
+
+  mcp_server_logs:
+    name: ${MCP_SERVER_LOGS_VOLUME}
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/docker/volumes/mcp-server/logs
 
 networks:
   service-network:

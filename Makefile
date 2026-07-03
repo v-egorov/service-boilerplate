@@ -163,7 +163,7 @@ setup: ## Initialize project (download deps, setup tools)
 	@$(GOMOD) tidy
 
 .PHONY: build
-build: build-gateway build-user-service build-auth-service build-objects-service ## Build all services
+build: build-gateway build-user-service build-auth-service build-objects-service build-mcp-server ## Build all services
 
 .PHONY: build-gateway
 build-gateway: ## Build API Gateway
@@ -302,7 +302,7 @@ test-cli: ## Run CLI tests
 	@cd $(CLI_DIR) && $(GOTEST) ./...
 
 .PHONY: test-all
-test-all: test-gateway test-auth-service test-user-service test-user-service test-cli test-objects-service ## Run all tests (services + CLI)
+test-all: test-gateway test-auth-service test-user-service test-user-service test-cli test-objects-service test-mcp-server ## Run all tests (services + CLI)
 	@echo "✅ All tests completed"
 
 .PHONY: clean
@@ -336,7 +336,7 @@ lint: ## Run golangci-lint on all Go modules
 	@echo "Running linter on all Go modules..."
 	@echo "Linting: api-gateway"
 	@cd api-gateway && golangci-lint run ./... 2>&1 | grep -v "typechecking error" || true
-	@echo "Linting: services (auth-service, user-service, objects-service)"
+	@echo "Linting: services (auth-service, user-service, objects-service, mcp-server)"
 	@cd services && golangci-lint run ./... 2>&1 | grep -v "typechecking error" || true
 	@echo "Linting: cli"
 	@cd cli && golangci-lint run ./... 2>&1 | grep -v "typechecking error" || true
@@ -1594,7 +1594,28 @@ test-objects-service: ## Run objects-service tests
 	@echo "Running objects-service tests..."
 	@cd services/objects-service && $(GOTEST) ./...
 
+.PHONY: test-mcp-server
+test-mcp-server: ## Run mcp-server tests
+	@echo "Running mcp-server tests..."
+	@cd services/mcp-server && $(GOTEST) ./...
+
+.PHONY: build-mcp-server
+build-mcp-server: ## Build mcp-server
+	@echo "Building mcp-server..."
+	@mkdir -p $(BUILD_DIR)
+	@cd services/mcp-server && $(GOBUILD) -o ../$(BUILD_DIR)/mcp-server ./cmd
+
+.PHONY: run-mcp-server
+run-mcp-server: ## Run mcp-server
+	@echo "Running mcp-server..."
+	@cd services/mcp-server && $(GO) run ./cmd
+
 .PHONY: air-objects-service
 air-objects-service: ## Run objects-service with Air locally
 	@echo "Starting objects-service with Air..."
 	@cd services/objects-service && air
+
+.PHONY: air-mcp-server
+air-mcp-server: ## Run mcp-server with Air in Docker
+	@echo "Starting mcp-server with Air..."
+	@cd services/mcp-server && air

@@ -120,3 +120,29 @@ services:
           - objects-service
           - objects-service-service
           - objects-service-svc
+
+  mcp-server:
+    build:
+      context: ..
+      dockerfile: services/mcp-server/Dockerfile.dev
+    environment:
+      - APP_ENV=development
+      - LOGGING_LEVEL=debug
+      - LOGGING_FORMAT=json
+      - LOGGING_OUTPUT=file
+      - OBJECTS_SERVICE_URL=http://objects-service:8085
+    volumes:
+      - ../services/mcp-server:/app/services/mcp-server
+      - ../common:/app/common
+      - mcp_server_logs:/app/logs
+    ports:
+      - "${MCP_SERVER_PORT:-8095}:${MCP_SERVER_PORT:-8095}"
+    working_dir: /app/services/mcp-server
+    depends_on:
+      objects-service:
+        condition: service_healthy
+    networks:
+      service-network:
+        aliases:
+          - mcp-server
+          - mcp-server-svc
