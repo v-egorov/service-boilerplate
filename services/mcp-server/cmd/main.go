@@ -14,7 +14,8 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/config"
 	"github.com/v-egorov/service-boilerplate/common/logging"
 	mcpclient "github.com/v-egorov/service-boilerplate/services/mcp-server/internal/client"
-	"github.com/v-egorov/service-boilerplate/services/mcp-server/internal/prompts"
+	"github.com/v-egorov/service-boilerplate/services/mcp-server/internal/handlers"
+	promptsPkg "github.com/v-egorov/service-boilerplate/services/mcp-server/internal/prompts"
 	mcpresources "github.com/v-egorov/service-boilerplate/services/mcp-server/internal/resources"
 	mcptools "github.com/v-egorov/service-boilerplate/services/mcp-server/internal/tools"
 )
@@ -40,16 +41,35 @@ func main() {
 	// Create HTTP client for objects-service
 	objClient := mcpclient.NewObjectsClient(cfg.ObjectsService.URL, time.Duration(cfg.ObjectsService.Timeout)*time.Second)
 
+	// Initialize health handler
+	healthHandler := handlers.NewHealthHandler(objClient, logger.Logger, cfg.App.Name, cfg.App.Version)
+
 	// Initialize MCP server with SSE transport
 	mcpServer := initMCPServer(objClient, logger.Logger, cfg.App.Name, cfg.App.Version)
 
 	// Create SSE server for HTTP handler
 	sseServer := server.NewSSEServer(mcpServer)
 
-	// Start HTTP server serving the SSE endpoint
+	// Build multi-route mux: health endpoints + MCP SSE endpoint
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", healthHandler.LivenessHandler)
+	mux.HandleFunc("/live", healthHandler.LivenessHandler)
+	mux.HandleFunc("/ready", healthHandler.ReadinessHandler)
+	mux.HandleFunc("/ping", healthHandler.PingHandler)
+	mux.HandleFunc("/status", healthHandler.StatusHandler)
+
+	// MCP SSE endpoint — the SSE handler expects requests at "/" path,
+	// so we register it under "/mcp" using a custom mux pattern.
+	sseHandler := sseServer.SSEHandler()
+	mux.Handle("/mcp/sse", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.URL.Path = "/" // SSE handler expects root path
+		sseHandler.ServeHTTP(w, r)
+	}))
+
+	// Start HTTP server serving the mux
 	srv := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
-		Handler: sseServer.SSEHandler(),
+		Handler: mux,
 	}
 
 	go func() {
@@ -91,8 +111,8 @@ func initMCPServer(objClient *mcpclient.ObjectsClient, logger *logrus.Logger, na
 	mcpresources.RegisterTypeHierarchyResource(mcpServer, objClient, logger)
 
 	// Register prompt templates
-	prompts.RegisterBrowseSchemaPrompt(mcpServer, objClient, logger)
-	prompts.RegisterGetObjectInfoPrompt(mcpServer, objClient)
+	promptsPkg.RegisterBrowseSchemaPrompt(mcpServer, objClient, logger)
+	promptsPkg.RegisterGetObjectInfoPrompt(mcpServer, objClient)
 
 	return mcpServer
 }

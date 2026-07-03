@@ -154,6 +154,12 @@ func (c *ObjectsClient) GetObjectByPublicID(publicID string) (map[string]interfa
 }
 
 // httpGet performs a GET request and returns the response body for JSON decoding.
+// HealthCheckURL returns the objects-service base URL for health check purposes.
+// This is used by the MCP server's own health handler to verify backend connectivity.
+func (c *ObjectsClient) HealthCheckURL() string {
+	return c.baseURL
+}
+
 func (c *ObjectsClient) httpGet(url string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
