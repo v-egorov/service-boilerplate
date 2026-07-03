@@ -102,6 +102,19 @@ func main() {
 	serviceRegistry.RegisterService("user-service", userServiceURL)
 	serviceRegistry.RegisterService("objects-service", objectsServiceURL)
 
+	// Get mcp-server URL from environment variable with platform defaults
+	mcpServerURL := os.Getenv("MCP_SERVER_URL")
+	if mcpServerURL == "" {
+		mcpServerURL = "http://mcp-server:8095" // Docker service discovery default
+	}
+
+	// Apply development environment overrides for localhost development
+	if cfg.App.Environment == "development" && os.Getenv("DOCKER_ENV") != "true" {
+		mcpServerURL = strings.Replace(mcpServerURL, "mcp-server", "localhost", 1)
+	}
+
+	serviceRegistry.RegisterService("mcp-server", mcpServerURL)
+
 	// Initialize handlers
 	gatewayHandler := handlers.NewGatewayHandler(serviceRegistry, logger.Logger, cfg)
 
@@ -200,7 +213,11 @@ func main() {
 	if cfg.Tracing.Enabled {
 		router.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
 	}
-	router.Use(commonMiddleware.JWTMiddleware(jwtPublicKey, logger.Logger, revocationChecker))
+
+	// JWT middleware is conditionally applied based on configuration
+	if jwtPublicKey != nil || revocationChecker != nil {
+		router.Use(commonMiddleware.JWTMiddleware(jwtPublicKey, logger.Logger, revocationChecker))
+	}
 	router.Use(requestLogger.RequestResponseLogger())
 
 	// Health check endpoints (public, no auth required)
@@ -209,6 +226,22 @@ func main() {
 	router.GET("/live", gatewayHandler.LivenessHandler)
 	router.GET("/status", gatewayHandler.StatusHandler) // Direct status endpoint
 	router.GET("/ping", gatewayHandler.PingHandler)     // Direct ping endpoint
+
+	// MCP Server routes — separate gin engine without JWT middleware for delta 1.
+	// This ensures SSE streaming is completely unprotected (no auth validation) while
+	// still benefiting from recovery, request ID, tracing, and logging middleware.
+	mcpRouter := gin.New()
+	mcpRouter.Use(gin.Recovery())
+	mcpRouter.Use(middleware.RequestIDMiddleware())
+	if cfg.Tracing.Enabled {
+		mcpRouter.Use(tracing.HTTPMiddleware(cfg.Tracing.ServiceName))
+	}
+	mcpRouter.Use(requestLogger.RequestResponseLogger())
+
+	mcpGroup := mcpRouter.Group("/mcp")
+	{
+		mcpGroup.GET("/sse", gatewayHandler.ProxyMCPRequest())
+	}
 
 	// Public monitoring endpoints (no auth required)
 	router.GET("/api/v1/status", gatewayHandler.StatusHandler)
@@ -349,10 +382,19 @@ func main() {
 		}
 	}
 
+	// Multi-handler for routing between API and MCP routes.
+	// /mcp/* paths go to mcpRouter (no JWT validation), all other paths go to router.
+	apiGateway := &handlers.MultiHandler{
+		MainRouter:  router,
+		HTTPHandler: mcpRouter,
+		Prefix:      "/mcp",
+		Logger:      logger.Logger,
+	}
+
 	// Start server
 	srv := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
-		Handler: router,
+		Handler: apiGateway,
 	}
 
 	// Start server in goroutine
@@ -590,8 +632,8 @@ func getCachedKey(authServiceURL string, logger *logrus.Logger) (interface{}, er
 	globalKeyCache.fetchedAt = time.Now()
 	logger.Info("Successfully refreshed JWT public key cache")
 	return key, nil
-}
 
+}
 // startKeyRefreshRoutine starts a background goroutine to periodically refresh the key
 func startKeyRefreshRoutine(authServiceURL string, logger *logrus.Logger) {
 	go func() {

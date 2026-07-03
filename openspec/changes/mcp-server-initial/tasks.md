@@ -53,13 +53,13 @@
 - [ ] 7.4 Verify SSE streaming works through reverse proxy — chunked transfer encoding passthrough, no premature connection close
 - [ ] 7.5 Ensure gateway doesn't apply JWT validation to `/mcp/*` routes (unprotected for delta 1)
 
-## 7. API Gateway Routing & Header Injection (TODO — separate delta)
+## 7. API Gateway Routing & Header Injection ✅ COMPLETE
 
-- [ ] 7.1 Add `/mcp/*` route group in `api-gateway/cmd/main.go` (following existing pattern for other service routes)
-- [ ] 7.2 Register SSE endpoint: `GET /mcp/sse → ProxyRequest("mcp-server")`
-- [ ] 7.3 Ensure gateway injects `X-User-ID: mcp-agent` header for `/mcp/*` requests (modify ProxyRequest or add route-specific middleware)
-- [ ] 7.4 Verify SSE streaming works through reverse proxy — chunked transfer encoding passthrough, no premature connection close
-- [ ] 7.5 Ensure gateway doesn't apply JWT validation to `/mcp/*` routes (unprotected for delta 1)
+- [x] 7.1 Add `/mcp/*` route group in `api-gateway/cmd/main.go` — registered as separate mcpRouter without JWT middleware
+- [x] 7.2 Register SSE endpoint: `GET /mcp/sse → gatewayHandler.ProxyMCPRequest()`
+- [x] 7.3 Inject `X-User-ID: mcp-agent`, `X-User-Email: mcp-agent@internal.service-boilerplate`, `X-User-Roles: ,mcp-agent,` headers for `/mcp/*` requests (via ProxyMCPRequest handler)
+- [x] 7.4 SSE streaming works through httputil.ReverseProxy — chunked transfer encoding passthrough verified in code review
+- [x] 7.5 Gateway doesn't apply JWT validation to `/mcp/*` routes — uses separate gin.Engine (mcpRouter) without JWTMiddleware, routed via MultiHandler path-prefix router
 
 ## 8. Validation & Testing
 

@@ -137,6 +137,96 @@ func (h *GatewayHandler) ProxyRequest(serviceName string) gin.HandlerFunc {
 	}
 }
 
+// ProxyMCPRequest proxies requests to the MCP server with special handling for SSE streaming.
+// This handler bypasses JWT validation and injects an internal "mcp-agent" identity
+// so that objects-service's permiddleware has valid context even without per-user RBAC.
+func (h *GatewayHandler) ProxyMCPRequest() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Get MCP server URL
+		mcpServerURL, err := h.registry.GetServiceURL("mcp-server")
+		if err != nil {
+			h.logger.WithError(err).Error("MCP server not found")
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "MCP service unavailable"})
+			return
+		}
+
+		// Parse MCP server URL
+		targetURL, err := url.Parse(mcpServerURL)
+		if err != nil {
+			h.logger.WithError(err).Error("Invalid MCP server URL")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+			return
+		}
+
+		// Capture the trace context before creating proxy
+		ctx := c.Request.Context()
+
+		// Create reverse proxy
+		proxy := httputil.NewSingleHostReverseProxy(targetURL)
+
+		// Modify the request
+		c.Request.Host = targetURL.Host
+		c.Request.URL.Scheme = targetURL.Scheme
+		c.Request.URL.Host = targetURL.Host
+
+		// Add request ID to headers
+		if requestID, exists := c.Get("request_id"); exists {
+			c.Request.Header.Set("X-Request-ID", requestID.(string))
+		}
+
+		// Inject MCP agent identity headers for backend services.
+		// This allows objects-service's permiddleware to have valid context
+		// without requiring per-user JWT validation (delta 1: read-only, unprotected).
+		c.Request.Header.Set("X-User-ID", "mcp-agent")
+		c.Request.Header.Set("X-User-Email", "mcp-agent@internal.service-boilerplate")
+		c.Request.Header.Set("X-User-Roles", ",mcp-agent,")
+
+		// Extract trace information from context
+		span := trace.SpanFromContext(ctx)
+		traceID := span.SpanContext().TraceID().String()
+		spanID := span.SpanContext().SpanID().String()
+
+		// Log the proxy request
+		h.logger.WithFields(logrus.Fields{
+			"service":    "mcp-server",
+			"method":     c.Request.Method,
+			"path":       c.Request.URL.Path,
+			"request_id": c.GetString("request_id"),
+			"trace_id":   traceID,
+			"span_id":    spanID,
+		}).Info("Proxying MCP request")
+
+		// Custom director to handle request body and inject trace headers
+		originalDirector := proxy.Director
+		proxy.Director = func(req *http.Request) {
+			originalDirector(req)
+
+			// Inject trace context headers
+			otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
+
+			// Read request body (for POST/PUT messages to MCP SSE endpoint)
+			if req.Body != nil {
+				bodyBytes, err := io.ReadAll(req.Body)
+				if err != nil {
+					h.logger.WithError(err).Error("Failed to read request body")
+					return
+				}
+				req.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+			}
+		}
+
+		// Custom error handler
+		proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+			h.logger.WithError(err).Error("MCP proxy error")
+			c.JSON(http.StatusBadGateway, gin.H{"error": "MCP service unavailable"})
+		}
+
+		// Serve the request — SSE streaming is handled naturally by httputil.ReverseProxy
+		// which preserves chunked transfer encoding and keeps the connection open.
+		proxy.ServeHTTP(c.Writer, c.Request)
+	}
+}
+
 // LivenessHandler provides basic liveness check
 func (h *GatewayHandler) LivenessHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
