@@ -44,13 +44,15 @@ func main() {
 	// Initialize health handler
 	healthHandler := handlers.NewHealthHandler(objClient, logger.Logger, cfg.App.Name, cfg.App.Version)
 
-	// Initialize MCP server with SSE transport
+	// Initialize MCP server with StreamableHTTP transport + stateful sessions
 	mcpServer := initMCPServer(objClient, logger.Logger, cfg.App.Name, cfg.App.Version)
 
-	// Create SSE server for HTTP handler
-	sseServer := server.NewSSEServer(mcpServer)
+	// Create StreamableHTTP server for HTTP handler (single endpoint at /mcp)
+	streamableHTTPServer := server.NewStreamableHTTPServer(mcpServer,
+		server.WithEndpointPath("/mcp"),
+	)
 
-	// Build multi-route mux: health endpoints + MCP SSE endpoint
+	// Build multi-route mux: health endpoints + MCP StreamableHTTP endpoint
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler.LivenessHandler)
 	mux.HandleFunc("/live", healthHandler.LivenessHandler)
@@ -58,18 +60,9 @@ func main() {
 	mux.HandleFunc("/ping", healthHandler.PingHandler)
 	mux.HandleFunc("/status", healthHandler.StatusHandler)
 
-	// MCP SSE endpoint — the SSE handler expects requests at "/" path,
-	// so we register it under "/mcp" using a custom mux pattern.
-	sseHandler := sseServer.SSEHandler()
-	mux.Handle("/mcp/sse", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.URL.Path = "/" // SSE handler expects root path
-		sseHandler.ServeHTTP(w, r)
-	}))
-
-	// MCP message endpoint — handles POST requests from clients after SSE connection.
-	// The session ID is passed as a query parameter and the mcp-go server manages it.
-	messageHandler := sseServer.MessageHandler()
-	mux.Handle("/message", messageHandler)
+	// MCP StreamableHTTP endpoint — single /mcp path handles all JSON-RPC communication.
+	// Session management is stateful: first POST establishes session, subsequent calls echo back MCP-Session-ID header.
+	mux.Handle("/mcp", streamableHTTPServer)
 
 	// Start HTTP server serving the mux
 	srv := &http.Server{
@@ -93,8 +86,8 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := sseServer.Shutdown(ctx); err != nil {
-		logger.Error("MCP server forced to shutdown", err)
+	if err := streamableHTTPServer.Shutdown(ctx); err != nil {
+		logger.Error("StreamableHTTP server forced to shutdown", err)
 	}
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Error("HTTP server forced to shutdown", err)

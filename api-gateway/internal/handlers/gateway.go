@@ -198,12 +198,7 @@ func (h *GatewayHandler) ProxyMCPRequest() gin.HandlerFunc {
 			"span_id":    spanID,
 		}).Info("Proxying MCP request")
 
-		// Rewrite path for mcp-server forwarding.
-		// Gin does NOT strip /mcp from c.Request.URL.Path — the full path is preserved.
-		// MCP server expects: SSE at "/mcp/sse" (already correct), message POST at "/message".
-		if strings.HasPrefix(c.Request.URL.Path, "/mcp/message") {
-			c.Request.URL.Path = "/message"
-		}
+		// No path rewriting needed — incoming /mcp maps directly to outgoing /mcp on mcp-server.
 
 		// Custom director to handle request body and inject trace headers
 		originalDirector := proxy.Director
@@ -230,18 +225,7 @@ func (h *GatewayHandler) ProxyMCPRequest() gin.HandlerFunc {
 			c.JSON(http.StatusBadGateway, gin.H{"error": "MCP service unavailable"})
 		}
 
-		// Serve the request — SSE streaming is handled naturally by httputil.ReverseProxy
-		// which preserves chunked transfer encoding and keeps the connection open.
-		// Recover from http.ErrAbortHandler panics raised by ReverseProxy when clients
-		// disconnect during streaming (control flow, not a real error).
-		defer func() {
-			if r := recover(); r != nil {
-				if err, ok := r.(error); ok && err == http.ErrAbortHandler {
-					return // ReverseProxy abort is expected — do nothing
-				}
-				panic(r) // Re-panic if not from ReverseProxy abort
-			}
-		}()
+		// Serve the request — StreamableHTTP uses discrete synchronous POST requests (no long-lived streams).
 		proxy.ServeHTTP(c.Writer, c.Request)
 	}
 }

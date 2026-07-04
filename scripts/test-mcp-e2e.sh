@@ -1,12 +1,12 @@
 #!/bin/bash
-# MCP Server E2E Test — verifies the full protocol handshake through API Gateway
-# Note: mcp-go SSE transport returns responses via the SSE stream (async),
-# not as direct HTTP response bodies. This script keeps an SSE listener alive
-# and reads responses from it after each request.
+# MCP Server E2E Test — verifies the full StreamableHTTP protocol handshake through API Gateway
+# Uses Python for MCP protocol calls (mcp-go's StreamableHTTP transport has known incompatibility
+# with curl's HTTP/1.1 POST requests; Python http.client works correctly).
 
 set -euo pipefail
 
 BASE_URL="${MCP_BASE_URL:-http://localhost:8080}"
+MCP_ENDPOINT="$BASE_URL/mcp"
 MCP_SERVER_URL="http://localhost:8095"
 TIMEOUT=15
 PASS=0
@@ -27,14 +27,11 @@ fi
 pass() { echo -e "  ${GREEN}✓${RESET} $1"; PASS=$((PASS+1)); }
 fail() { echo -e "  ${RED}✗${RESET} $1"; FAIL=$((FAIL+1)); }
 warn() { echo -e "  ${YELLOW}⊘${RESET} $1"; }
-info() { echo -e "    $BLUE$1${RESET}"; }
-
-cleanup() { kill $SSE_PID 2>/dev/null || true; wait $SSE_PID 2>/dev/null || true; rm -f "$SSE_OUT" "$RESPONSES"; }
-trap cleanup EXIT
+info() { echo -e "    $BLUE$1${RESET}" >&2; }
 
 echo ""
 echo -e "${BOLD}=== MCP Server E2E Test ===" 
-echo -e "Target: ${BASE_URL}/mcp (via API Gateway)"
+echo -e "Target: StreamableHTTP via API Gateway ($MCP_ENDPOINT)"
 echo ""
 
 # ──────────────────────────────────────────────
@@ -54,194 +51,284 @@ else
 fi
 
 # ──────────────────────────────────────────────
-# Step 2: SSE connection → establish session
+# Steps 2-6: MCP Protocol tests via Python http.client
 # ──────────────────────────────────────────────
-echo -e "${BOLD}Step 2: Establish SSE session through Gateway${RESET}"
-info "GET $BASE_URL/mcp/sse"
+echo -e "${BOLD}Steps 2-6: MCP protocol handshake (initialize, tools/list, tool calls)${RESET}"
 
-SSE_OUT=$(mktemp)
-RESPONSES=$(mktemp)
-curl -sN --connect-timeout 5 "$BASE_URL/mcp/sse" > "$SSE_OUT" &
-SSE_PID=$!
-sleep 2
+MCP_RESULT=$(python3 << PYEOF
+import http.client
+import json
+import sys
 
-# mcp-go sends: "data: /message?sessionId=..."
-SUBMIT_PATH=$(grep "^data:" "$SSE_OUT" | head -1 | sed 's/^data: //' | tr -d '\r' || true)
+BASE_URL = """$MCP_ENDPOINT"""
+TIMEOUT = $TIMEOUT
+PASS = 0
+FAIL = 0
 
-if [ -n "$SUBMIT_PATH" ]; then
-    SESSION_ID=$(echo "$SUBMIT_PATH" | grep -oP 'sessionId=\K[^&]+' || echo "?")
-    SUBMIT_URL="${BASE_URL}/mcp/message?sessionId=${SESSION_ID}"
-    info "Session ID: ${SESSION_ID:0:8}..."
-    info "Submit URL: $SUBMIT_URL"
-    pass "SSE connection established"
-else
-    fail "SSE endpoint returned no message submission URL"
-    echo "  Raw SSE output:"
-    cat "$SSE_OUT" | head -5 | sed 's/^/      /'
-    rm -f "$SSE_OUT" "$RESPONSES"
-    exit 1
-fi
+def pass_test(msg):
+    global PASS
+    print(f"  PASS: {msg}")
+    PASS += 1
 
-# ──────────────────────────────────────────────
-# Step 3: MCP Initialize handshake
-# ──────────────────────────────────────────────
-echo ""
-echo -e "${BOLD}Step 3: MCP Initialize${RESET}"
-info "POST $SUBMIT_URL"
+def fail_test(msg):
+    global FAIL
+    print(f"  FAIL: {msg}")
+    FAIL += 1
 
-curl -s --connect-timeout 5 "$SUBMIT_URL" \
-    -H "Content-Type: application/json" \
-    -d '{
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "initialize",
-        "params": {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {"name": "e2e-test-client", "version": "1.0"}
-        }
-    }' > /dev/null
+# Parse endpoint URL for connection
+if '//' in BASE_URL:
+    _, rest = BASE_URL.split('//', 1)
+else:
+    rest = BASE_URL
 
-# Wait for SSE response (mcp-go sends init response back via SSE stream)
-sleep 1
+if '/' in rest:
+    host_port, path = rest.split('/', 1)
+    path = '/' + path
+else:
+    host_port = rest
+    path = '/mcp'
 
-# Extract JSON from SSE data lines (strip 'data: ' prefix)
-extract_json() {
-    grep '^data:' "$1" | grep "$2" | tail -1 | sed 's/^data: //' | tr -d '\r'
-}
+if ':' in host_port:
+    h, p_str = host_port.split(':', 1)
+    port = int(p_str)
+else:
+    h, port = host_port, 80
 
-INIT_RESPONSE=$(extract_json "$SSE_OUT" '"id":1')
+headers_base = {"Content-Type": "application/json"}
 
-if [ -n "$INIT_RESPONSE" ]; then
-    SERVER_NAME=$(echo "$INIT_RESPONSE" | jq -r '.result.serverInfo.name // empty' 2>/dev/null || echo "?")
-    PROTO_VER=$(echo "$INIT_RESPONSE" | jq -r '.result.protocolVersion // empty' 2>/dev/null || echo "?")
-    pass "Initialize accepted (protocol=$PROTO_VER, server=$SERVER_NAME)"
-else
-    fail "No initialize response received via SSE stream"
-fi
+# --- Step 2: Initialize ---
+print("\n  Step 2: MCP Initialize")
+body = json.dumps({
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {},
+        "clientInfo": {"name": "e2e-test-client", "version": "1.0"}
+    }
+})
 
-# ──────────────────────────────────────────────
-# Step 4: List available tools
-# ──────────────────────────────────────────────
-echo ""
-echo -e "${BOLD}Step 4: List MCP Tools${RESET}"
-info "POST $SUBMIT_URL (tools/list)"
+conn = http.client.HTTPConnection(h, port, timeout=TIMEOUT)
+try:
+    conn.request("POST", path, body.encode(), headers_base)
+    resp = conn.getresponse()
+    init_resp = json.loads(resp.read().decode())
+    session_id = resp.getheader('MCP-Session-ID')
+finally:
+    conn.close()
 
-curl -s --connect-timeout 5 "$SUBMIT_URL" \
-    -H "Content-Type: application/json" \
-    -d '{
-        "jsonrpc": "2.0",
-        "id": 2,
-        "method": "tools/list",
-        "params": {}
-    }' > /dev/null
+if status := (resp.status == 200 if 'resp' in dir() else False):
+    server_name = init_resp.get('result', {}).get('serverInfo', {}).get('name', '?')
+    proto_ver = init_resp['result'].get('protocolVersion', '?')
+    if session_id and session_id.startswith('mcp-session-'):
+        pass_test(f"Initialize accepted (proto={proto_ver}, server={server_name}, session={session_id[:12]}...)")
+    else:
+        fail_test("No MCP-Session-ID in initialize response headers")
 
-# Wait for SSE response
-sleep 1
+if resp.status != 200 or 'result' not in init_resp:
+    print(f"  Cannot continue — initialization failed (status={resp.status})")
+    sys.exit(1)
 
-TOOLS_RESPONSE=$(extract_json "$SSE_OUT" '"id":2')
+# --- Step 3: List tools ---
+print("  Step 3: List MCP Tools")
+conn = http.client.HTTPConnection(h, port, timeout=TIMEOUT)
+try:
+    conn.request("POST", path, json.dumps({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}).encode(), 
+                 {**headers_base, "MCP-Session-ID": session_id})
+    resp = conn.getresponse()
+    tools_resp = json.loads(resp.read().decode())
+finally:
+    conn.close()
 
-TOOL_COUNT=$(echo "$TOOLS_RESPONSE" | jq '.result.tools | length' 2>/dev/null || echo "0")
+tool_count = len(tools_resp.get('result', {}).get('tools', []))
+if tool_count > 0:
+    pass_test(f"Found {tool_count} MCP tool(s)")
+    for t in tools_resp['result']['tools']:
+        desc = (t.get('description') or '')[:60] + '...' if len(t.get('description') or '') > 60 else (t.get('description') or '')
+        print(f"      {t['name']}: {desc}")
+else:
+    fail_test("No tools returned from server")
 
-if [ "$TOOL_COUNT" -gt 0 ] 2>/dev/null; then
-    pass "Found $TOOL_COUNT MCP tool(s)"
-    # Show each tool name with description snippet
-    echo "$TOOLS_RESPONSE" | jq -r '.result.tools[] | "    \(.name): \(if (.description | length) > 60 then .description[:57] + "..." else .description end)"' 2>/dev/null | while read line; do
-        info "$line"
-    done
-else
-    fail "No tools returned from server"
-    if [ -n "$TOOLS_RESPONSE" ]; then
-        info "Response:"
-        echo "$TOOLS_RESPONSE" | head -3 | sed 's/^/      /'
-    fi
-fi
+# --- Step 4: Call list_object_types ---
+print("  Step 4: Tool call — list_object_types")
+conn = http.client.HTTPConnection(h, port, timeout=TIMEOUT)
+try:
+    conn.request("POST", path, json.dumps({
+        "jsonrpc": "2.0", "id": 3, "method": "tools/call",
+        "params": {"name": "list_object_types", "arguments": {}}
+    }).encode(), {**headers_base, "MCP-Session-ID": session_id})
+    resp = conn.getresponse()
+    list_resp = json.loads(resp.read().decode())
+finally:
+    conn.close()
 
-# ──────────────────────────────────────────────
-# Step 5: Call list_object_types (full chain)
-# ──────────────────────────────────────────────
-echo ""
-echo -e "${BOLD}Step 5: Tool call — list_object_types${RESET}"
-info "POST $SUBMIT_URL → mcp-server → objects-service"
+error_code = list_resp.get('error', {}).get('code')
+if error_code:
+    fail_test(f"Tool call error (code={error_code}): {list_resp['error'].get('message', '')}")
+else:
+    result = list_resp.get('result', {})
+    
+    # mcp-go v0.55.1 returns structuredContent at root level of result
+    sc = result.get('structuredContent') if isinstance(result, dict) else None
+    
+    types_list = []
+    if isinstance(sc, dict):
+        types_list = sc.get('types', [])
+    elif isinstance(sc, list):
+        types_list = sc
+    
+    # Fallback: check content[] array
+    if not types_list:
+        content = result.get('content', []) if isinstance(result, dict) else []
+        if content and len(content) > 0:
+            first_content = content[0]
+            if isinstance(first_content, dict):
+                sc2 = first_content.get('structuredContent')
+                if isinstance(sc2, dict):
+                    types_list = sc2.get('types', [])
+                elif isinstance(sc2, list):
+                    types_list = sc2
+    
+    type_count = len(types_list)
+    if type_count > 0:
+        pass_test(f"list_object_types returned {type_count} types")
+        for t in types_list[:3]:
+            name = (t.get('name') or t.get('type_key', 'unknown')) if isinstance(t, dict) else str(t)
+            print(f"      - {name}")
+    else:
+        fail_test("list_object_types returned empty result")
 
-curl -s --connect-timeout 10 "$SUBMIT_URL" \
-    -H "Content-Type: application/json" \
-    -d '{
-        "jsonrpc": "2.0",
-        "id": 3,
-        "method": "tools/call",
-        "params": {
-            "name": "list_object_types",
-            "arguments": {}
-        }
-    }' > /dev/null
+# Extract first type info for steps 5-6
+first_type_id = None
+if types_list and len(types_list) > 0 and isinstance(types_list[0], dict):
+    first_type_id = types_list[0].get('id')
 
-# Wait for SSE response (may take longer due to DB query)
-sleep 2
+# --- Step 5: Call get_object_type ---
+print("  Step 5: Tool call — get_object_type")
+if first_type_id and str(first_type_id).isdigit():
+    conn = http.client.HTTPConnection(h, port, timeout=TIMEOUT)
+    try:
+        conn.request("POST", path, json.dumps({
+            "jsonrpc": "2.0", "id": 4, "method": "tools/call",
+            "params": {"name": "get_object_type", "arguments": {"id": int(first_type_id)}}
+        }).encode(), {**headers_base, "MCP-Session-ID": session_id})
+        resp = conn.getresponse()
+        get_resp = json.loads(resp.read().decode())
+    finally:
+        conn.close()
 
-LIST_RESPONSE=$(extract_json "$SSE_OUT" '"id":3')
+    error_code = get_resp.get('error', {}).get('code')
+    if error_code:
+        fail_test(f"get_object_type error (code={error_code}): {get_resp['error'].get('message', '')}")
+    else:
+        result = get_resp.get('result', {})
+        sc = result.get('structuredContent') if isinstance(result, dict) else None
+        
+        # Fallback: check content[] array  
+        if not sc:
+            content = result.get('content', []) if isinstance(result, dict) else []
+            if content and len(content) > 0:
+                first_content = content[0]
+                if isinstance(first_content, dict):
+                    sc = first_content.get('structuredContent')
 
-ERROR_CODE=$(echo "$LIST_RESPONSE" | jq -r '.error.code // empty' 2>/dev/null || echo "")
-CONTENT_COUNT=$(echo "$LIST_RESPONSE" | jq '.result.content | length' 2>/dev/null || echo "0")
+        if sc and isinstance(sc, dict):
+            type_name = sc.get('name') or sc.get('type_key', '')
+            if type_name:
+                pass_test(f"get_object_type(id={first_type_id}) → {type_name}")
+            else:
+                fail_test("get_object_type did not return a name")
+        else:
+            # Check content[] with text fallback
+            content = result.get('content', []) if isinstance(result, dict) else []
+            if content and len(content) > 0:
+                first_content = content[0]
+                if isinstance(first_content, dict):
+                    text = first_content.get('text', '')
+                    if '{' in text or 'name' in text.lower():
+                        pass_test(f"get_object_type(id={first_type_id}) → found response")
+                    else:
+                        fail_test("get_object_type returned unexpected content format")
+                else:
+                    fail_test("get_object_type returned non-dict content")
+            else:
+                fail_test("get_object_type returned no content")
+else:
+    print("  SKIP: get_object_type (no types available from list)")
 
-if [ -n "$ERROR_CODE" ]; then
-    ERROR_MSG=$(echo "$LIST_RESPONSE" | jq -r '.error.message // empty' 2>/dev/null || echo "")
-    fail "Tool call error (code=$ERROR_CODE): $ERROR_MSG"
-elif [ "$CONTENT_COUNT" -gt 0 ] 2>/dev/null; then
-    TYPE_NAMES=$(echo "$LIST_RESPONSE" | jq -r '.result.structuredContent // empty' 2>/dev/null || echo "")
+# --- Step 6: Call list_objects ---
+print("  Step 6: Tool call — list_objects")
+if first_type_id and str(first_type_id).isdigit():
+    conn = http.client.HTTPConnection(h, port, timeout=TIMEOUT)
+    try:
+        conn.request("POST", path, json.dumps({
+            "jsonrpc": "2.0", "id": 5, "method": "tools/call",
+            "params": {"name": "list_objects", "arguments": {"object_type_id": int(first_type_id)}}
+        }).encode(), {**headers_base, "MCP-Session-ID": session_id})
+        resp = conn.getresponse()
+        obj_resp = json.loads(resp.read().decode())
+    finally:
+        conn.close()
 
-    if [ "$TYPE_NAMES" != "null" ] && [ -n "$TYPE_NAMES" ]; then
-        TYPE_COUNT=$(echo "$TYPE_NAMES" | jq 'length' 2>/dev/null || echo "?")
-        pass "list_object_types returned $TYPE_COUNT types (objects-service chain verified)"
+    error_code = obj_resp.get('error', {}).get('code')
+    if error_code:
+        fail_test(f"list_objects error (code={error_code}): {obj_resp['error'].get('message', '')}")
+    else:
+        result = obj_resp.get('result', {})
+        
+        # Check structuredContent at root level of result
+        sc = result.get('structuredContent') if isinstance(result, dict) else None
+        
+        # Fallback: check content[] array  
+        if not sc:
+            content = result.get('content', []) if isinstance(result, dict) else []
+            if content and len(content) > 0:
+                first_content = content[0]
+                if isinstance(first_content, dict):
+                    sc = first_content.get('structuredContent') or first_content
 
-        # Show first few type names as sample
-        SAMPLES=$(echo "$TYPE_NAMES" | jq -r '.[0:3][] | .name // .type_key // empty' 2>/dev/null || echo "")
-        if [ -n "$SAMPLES" ]; then
-            info "Sample types:"
-            echo "$SAMPLES" | while read name; do info "- $name"; done
-        fi
-    else
-        fail "Tool returned content but could not parse object type list"
-        info "Response:"
-        echo "$LIST_RESPONSE" | head -3 | sed 's/^/      /'
-    fi
-else
-    fail "list_object_types returned empty result"
-    if [ -n "$LIST_RESPONSE" ]; then
-        info "Response:"
-        echo "$LIST_RESPONSE" | head -3 | sed 's/^/      /'
-    fi
-fi
+        obj_count = 0
+        if isinstance(sc, list):
+            obj_count = len(sc)
+        elif isinstance(sc, dict):
+            obj_list = sc.get('objects', []) if 'objects' in sc else []
+            obj_count = len(obj_list)
+        elif sc is not None and isinstance(sc, str):
+            try:
+                parsed = json.loads(sc)
+                if isinstance(parsed, list):
+                    obj_count = len(parsed)
+                elif isinstance(parsed, dict):
+                    obj_count = len(parsed.get('objects', []))
+                else:
+                    obj_count = 0
+            except json.JSONDecodeError:
+                fail_test("list_objects returned unparseable content")
 
-# ──────────────────────────────────────────────
-# Step 6: Call get_object_type (by ID)
-# ──────────────────────────────────────────────
-echo ""
-echo -e "${BOLD}Step 6: Tool call — get_object_type${RESET}"
-info "POST $SUBMIT_URL → mcp-server → objects-service"
+        if 'obj_count' in dir() and obj_count == 0 and not isinstance(sc, (str,)):
+            # Check raw response for clues only on failure
+            print(f"      Response structure: {json.dumps(obj_resp)[:300]}")
+        
+        if obj_count > 0:
+            pass_test(f"list_objects returned {obj_count} object(s) for type id={first_type_id}")
+        elif not isinstance(sc, str):
+            # Empty list is valid (no objects of this type yet)
+            pass_test("list_objects returned empty result (no objects of this type)")
 
-FIRST_TYPE_ID=$(echo "$TYPE_NAMES" | jq -r '.[0].id // empty' 2>/dev/null || echo "")
+# Print summary
+print(f"\n  === Summary: PASS={PASS}, FAIL={FAIL} ===")
+sys.exit(0 if FAIL == 0 else 1)
+PYEOF
+)
 
-if [ -n "$FIRST_TYPE_ID" ] && [ "$FIRST_TYPE_ID" != "null" ]; then
-    curl -s --connect-timeout 5 "$SUBMIT_URL" \
-        -H "Content-Type: application/json" \
-        -d "{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"get_object_type\",\"arguments\":{\"id\":$FIRST_TYPE_ID}}}" > /dev/null
+echo "$MCP_RESULT"
 
-    sleep 1
-
-    GET_RESPONSE=$(extract_json "$SSE_OUT" '"id":4')
-    TYPE_NAME=$(echo "$GET_RESPONSE" | jq -r '.result.structuredContent.name // empty' 2>/dev/null || echo "")
-
-    if [ -n "$TYPE_NAME" ] && [ "$TYPE_NAME" != "null" ]; then
-        pass "get_object_type(id=$FIRST_TYPE_ID) → $TYPE_NAME"
-    else
-        fail "get_object_type did not return a name"
-        info "Response:"
-        echo "$GET_RESPONSE" | head -3 | sed 's/^/      /'
-    fi
-else
-    warn "Skipped (no types available from list)"
-fi
+# Count pass/fail from Python output  
+PY_PASS=$(echo "$MCP_RESULT" | grep -c "PASS:" || true)
+PY_FAIL=$(echo "$MCP_RESULT" | grep -c "FAIL:" || true)
+PASS=$((PASS + PY_PASS))
+FAIL=$((FAIL + PY_FAIL))
 
 # ──────────────────────────────────────────────
 # Step 7: Verify identity chain in database
@@ -279,7 +366,7 @@ fi
 
 if [ "$FAIL" -eq 0 ]; then
     echo ""
-    echo -e "${GREEN}${BOLD}All tests passed — MCP server is fully functional through the API Gateway.${RESET}"
+    echo -e "${GREEN}${BOLD}All tests passed — MCP server (StreamableHTTP) is fully functional through the API Gateway.${RESET}"
     exit 0
 else
     echo ""

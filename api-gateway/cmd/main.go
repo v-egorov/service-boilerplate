@@ -228,8 +228,7 @@ func main() {
 	router.GET("/ping", gatewayHandler.PingHandler)     // Direct ping endpoint
 
 	// MCP Server routes — separate gin engine without JWT middleware for delta 1.
-	// This ensures SSE streaming is completely unprotected (no auth validation) while
-	// still benefiting from recovery, request ID, tracing, and logging middleware.
+	// StreamableHTTP transport: single POST /mcp endpoint, no SSE streams, no path rewriting needed.
 	mcpRouter := gin.New()
 	mcpRouter.Use(gin.Recovery())
 	mcpRouter.Use(middleware.RequestIDMiddleware())
@@ -238,11 +237,8 @@ func main() {
 	}
 	mcpRouter.Use(requestLogger.RequestResponseLogger())
 
-	mcpGroup := mcpRouter.Group("/mcp")
-	{
-		mcpGroup.GET("/sse", gatewayHandler.ProxyMCPRequest())
-		mcpGroup.POST("/message", gatewayHandler.ProxyMCPRequest())
-	}
+	// Register POST /mcp as the StreamableHTTP endpoint (no SSE streams)
+	mcpRouter.POST("/mcp", gatewayHandler.ProxyMCPRequest())
 
 	// Public monitoring endpoints (no auth required)
 	router.GET("/api/v1/status", gatewayHandler.StatusHandler)
