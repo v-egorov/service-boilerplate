@@ -216,4 +216,34 @@ After permiddleware passes through, objects-service returns **500 Internal Serve
 
 ---
 
-*Last updated: 2026-07-04*
+## Object Types — Hardcoded Route Configuration Gap
+
+**Discovered:** 2026-07-04  
+**Related delta:** `enforce-type-key-mandatory` (non-goal)
+
+### Problem
+Adding a new object type that fits the base schema (`objects_service.objects` table) requires manual code changes in `main.go`. Every route group is hardcoded with literal `TypeKey` values:
+
+```go
+objectTypesRead.Use(perm(permiddleware.RouteConfig{TypeKey: "object-types", HTTPMethod: "GET"}))
+// ...
+objectsCreate.Use(perm(permiddleware.RouteConfig{TypeKey: "objects", HTTPMethod: "POST"}))
+```
+
+This means every new type requires:
+1. Running a migration to insert the `object_type` row (with its `type_key`)
+2. Manually editing `main.go` route configuration — but there's no per-type routing needed since all types share the same CRUD endpoints (`/api/v1/object-types/*`, `/api/v1/objects/*`)
+
+The real friction is not type-specific routes — it's that **adding a new object type should require zero code changes** beyond the migration. The current system works for existing types but requires manual maintenance of `main.go` when adding new ones.
+
+### Current State
+- Relationships already use CTI (separate table) and work correctly ✅
+- All other object types share one flat `objects_service.objects` table with JSONB metadata
+- Route groups are hardcoded in `cmd/main.go` — but they're shared across all types, so adding a new type doesn't actually require route changes (the existing `/api/v1/objects/*` endpoints already serve every type)
+- The actual pain point is less about code changes and more about the **missing declarative link** between a new `object_type` row and permission entries in `auth_service.permissions`
+
+### Deferred Action
+Not part of this delta. Future work could explore:
+- Auto-registering permissions for new object types based on their `type_key`
+- A plugin or hook system that triggers permission/role assignments when an `object_type` is created
+- Dynamic route generation from the database (overkill for current scope)
