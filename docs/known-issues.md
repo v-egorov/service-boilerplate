@@ -71,19 +71,46 @@ Likely failure modes:
 
 ## MCP Spec Gaps — Deferred to Future Delta
 
-**Discovered:** 2026-07-04  
+**Discovered:** 2026-07-04 (initially), **re-audited:** 2026-07-04
 **Delta:** `mcp-server-initial` (archived)
 
 ### Problem
-The delta spec defines requirements that aren't fully implemented:
+During a full spec-vs-reality audit, two requirements from the mcp-server baseline spec are defined but not implemented. The MCP server has 11 registered capabilities in total — 9 work correctly, 2 have no implementation.
 
-1. **`list_object_types` filter parameters**: Spec mentions optional `type_key_prefix` and `parent_type_id` filters, but current implementation doesn't pass these through to objects-service (or accepts them as arguments at all).
+#### Gap 1: `list_object_types` with `parent_type_id` filter (spec line ~20)
+**Spec says:**
+> The tool SHALL accept optional filter parameters (`type_key_prefix`, **`parent_type_id`**) to narrow results.
+> Scenario: listing by parent_type_id — "querying Product's children returns Electronics, Clothing, Books"
 
-2. **Full hierarchy resource**: Delta 1 registers a root-level types resource only. Full recursive tree traversal is deferred.
+**Reality:** `ListObjectTypesParams` struct in `type_tools.go` has only `TypeKeyPrefix`. No `ParentTypeID` field. Objects-service repository supports filtering by `ObjectTypeID`, but there's no MCP tool param or client method to request "children of type X".
 
-### Current State
-- `list_object_types()` calls work but return everything — no filtering support
-- Resource `objects-types://hierarchy` returns root types with children (one level) only
+**Impact:** Agents cannot ask "what are the children of Product?" through the MCP protocol. They must already know child IDs/names and call `get_object_type` individually.
+
+#### Gap 2: `list_objects` with `type_key_prefix` cross-type filtering (spec line ~195)
+**Spec says:**
+> The mcp-server MUST support filtering objects by **`type_key_prefix`** in addition to `object_type_id`. When a user wants all objects across a type namespace, the tool SHALL resolve child type_keys matching the prefix and query them.
+> Scenario: "list_objects with type_key_prefix=product" → resolves product, product-electronics, product-clothing
+
+**Reality:** `ListObjectsParams` struct has `object_type_id`, `page`, `page_size`. No `type_key_prefix` field. The objects-service `List()` repository method does NOT support filtering by `type_key` at all (it only filters by `ObjectTypeID`). No client method exists to resolve a prefix into multiple type IDs.
+
+**Impact:** Agents cannot query "show me all products and their variants" in one call. They must know each variant's object_type_id separately and issue multiple list_objects calls, then merge results client-side.
+
+#### What IS working (verified against spec)
+| Spec Requirement | Status |
+|-----------------|--------|
+| `list_object_types` with `type_key_prefix` filter | ✅ Implemented (`TypeKeyPrefix` param → objects-service) |
+| `get_object_type` by ID or name/type_key | ✅ Both paths: `GetObjectTypeByID`, `GetObjectTypeByName` |
+| Resource `objects-types://hierarchy` | ✅ Registered, returns full type tree with children |
+| Prompt `browse_schema` (with optional prefix filter) | ✅ Registered, works via SSE |
+| Prompt `get_object_info` (requires object_type_id) | ✅ Registered, works via SSE |
+| SSE transport via Gateway reverse proxy | ✅ Verified in e2e test |
+| Identity forwarding (3 headers only) | ✅ Via `identity.go` context threading |
+| Gateway-trust skip for MCP reads | ✅ permiddleware skip path active |
+| NOT NULL type_key guarantee on responses | ✅ DB constraint enforced |
+
+#### Deferred Actions
+- **Gap 1:** Add `ParentTypeID *int64` to `ListObjectTypesParams`, implement `ObjectTypeRepository.GetChildren(ctx, parentID)` method (or use existing `GetDescendants` with depth=1), wire through MCP tool.
+- **Gap 2:** Add `TypeKeyPrefix string` to `ListObjectsParams`, create client method that calls objects-service `/api/v1/object-types?type_key_prefix=X` → resolves matching type_keys → batches `list_objects` calls per ID → merges results. Or better: add a new endpoint on objects-service for prefix-based multi-type queries.
 
 ---
 
