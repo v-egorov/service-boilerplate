@@ -188,7 +188,7 @@ if [ -n "$ERROR_CODE" ]; then
     ERROR_MSG=$(echo "$LIST_RESPONSE" | jq -r '.error.message // empty' 2>/dev/null || echo "")
     fail "Tool call error (code=$ERROR_CODE): $ERROR_MSG"
 elif [ "$CONTENT_COUNT" -gt 0 ] 2>/dev/null; then
-    TYPE_NAMES=$(echo "$LIST_RESPONSE" | jq -r '.result.content[0].structuredContent // empty' 2>/dev/null || echo "")
+    TYPE_NAMES=$(echo "$LIST_RESPONSE" | jq -r '.result.structuredContent // empty' 2>/dev/null || echo "")
 
     if [ "$TYPE_NAMES" != "null" ] && [ -n "$TYPE_NAMES" ]; then
         TYPE_COUNT=$(echo "$TYPE_NAMES" | jq 'length' 2>/dev/null || echo "?")
@@ -229,8 +229,8 @@ if [ -n "$FIRST_TYPE_ID" ] && [ "$FIRST_TYPE_ID" != "null" ]; then
 
     sleep 1
 
-    GET_RESPONSE=$(grep "^data:" "$SSE_OUT" | grep '"id":4' | tail -1 || true)
-    TYPE_NAME=$(echo "$GET_RESPONSE" | jq -r '.result.content[0].structuredContent.name // empty' 2>/dev/null || echo "")
+    GET_RESPONSE=$(extract_json "$SSE_OUT" '"id":4')
+    TYPE_NAME=$(echo "$GET_RESPONSE" | jq -r '.result.structuredContent.name // empty' 2>/dev/null || echo "")
 
     if [ -n "$TYPE_NAME" ] && [ "$TYPE_NAME" != "null" ]; then
         pass "get_object_type(id=$FIRST_TYPE_ID) → $TYPE_NAME"
