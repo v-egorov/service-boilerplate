@@ -241,6 +241,7 @@ func main() {
 	mcpGroup := mcpRouter.Group("/mcp")
 	{
 		mcpGroup.GET("/sse", gatewayHandler.ProxyMCPRequest())
+		mcpGroup.POST("/message", gatewayHandler.ProxyMCPRequest())
 	}
 
 	// Public monitoring endpoints (no auth required)

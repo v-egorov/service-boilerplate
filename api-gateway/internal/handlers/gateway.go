@@ -198,6 +198,13 @@ func (h *GatewayHandler) ProxyMCPRequest() gin.HandlerFunc {
 			"span_id":    spanID,
 		}).Info("Proxying MCP request")
 
+		// Rewrite path for mcp-server forwarding.
+		// Gin does NOT strip /mcp from c.Request.URL.Path — the full path is preserved.
+		// MCP server expects: SSE at "/mcp/sse" (already correct), message POST at "/message".
+		if strings.HasPrefix(c.Request.URL.Path, "/mcp/message") {
+			c.Request.URL.Path = "/message"
+		}
+
 		// Custom director to handle request body and inject trace headers
 		originalDirector := proxy.Director
 		proxy.Director = func(req *http.Request) {

@@ -66,6 +66,11 @@ func main() {
 		sseHandler.ServeHTTP(w, r)
 	}))
 
+	// MCP message endpoint — handles POST requests from clients after SSE connection.
+	// The session ID is passed as a query parameter and the mcp-go server manages it.
+	messageHandler := sseServer.MessageHandler()
+	mux.Handle("/message", messageHandler)
+
 	// Start HTTP server serving the mux
 	srv := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port),
