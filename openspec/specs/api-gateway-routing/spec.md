@@ -2,9 +2,7 @@
 
 ## Purpose
 Defines the API gateway's contract for routing inbound HTTP requests to backend services: how backend service URLs are resolved and registered, how route prefixes map to logical service names, how reverse proxying is executed with error handling, and how request ID and distributed trace context are propagated to backends.
-
 ## Requirements
-
 ### Requirement: Service Registration
 The API gateway SHALL maintain an in-memory registry of backend services, mapping a logical service name to a base URL. Registration MUST be thread-safe and MUST overwrite an existing entry for the same name.
 
@@ -86,3 +84,19 @@ When tracing is enabled, the gateway SHALL inject the current OpenTelemetry trac
 #### Scenario: Trace context forwarded to backend
 - **WHEN** tracing is enabled and a request is proxied
 - **THEN** the proxied request headers carry the traceparent/tracestate propagated from the inbound request context
+
+### Requirement: MCP SSE reverse proxy recovers from ErrAbortHandler panics
+The api-gateway's MCP SSE reverse proxy handler SHALL recover from `http.ErrAbortHandler` panics raised by `httputil.ReverseProxy` without triggering gin's recovery middleware. When a client disconnects or the SSE stream ends naturally, the reverse proxy SHALL terminate cleanly without logging a panic or returning an HTTP error response.
+
+#### Scenario: SSE stream disconnects without gateway panic
+- **WHEN** an MCP client disconnects from the SSE stream (`GET /mcp/sse`) through the api-gateway
+- **THEN** the reverse proxy terminates normally, no panic is logged, and no HTTP 500 response is written
+
+#### Scenario: Non-ErrAbortHandler panics still trigger gin recovery
+- **WHEN** the SSE reverse proxy encounters a real panic (not `http.ErrAbortHandler`)
+- **THEN** the panic propagates to gin's recovery middleware and is handled as a server error
+
+#### Scenario: SSE streaming continues for active connections
+- **WHEN** an MCP client maintains an active SSE connection through the gateway and sends tool call messages via POST `/mcp/message`
+- **THEN** the SSE stream remains open, responses flow back through the reverse proxy, and the connection persists until either the client disconnects or the session expires
+
