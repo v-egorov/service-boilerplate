@@ -74,15 +74,19 @@ The mcp-server MUST provide a prompt template named `get_object_info` that combi
 - **THEN** the server returns a message summarizing available objects of that type and offering next-step tool calls (get_object for specific instances)
 
 ### Requirement: MCP server uses SSE transport via api-gateway
-The mcp-server MUST expose an SSE endpoint at `/mcp/sse` that MCP clients connect to. The api-gateway MUST route incoming requests from the path prefix `/mcp/*` to the mcp-server service using standard HTTP reverse proxying with chunked transfer encoding support for SSE streams.
+The mcp-server MUST expose a StreamableHTTP endpoint at `/mcp` that MCP clients connect to. The api-gateway MUST route incoming POST requests from the path prefix `/mcp/*` to the mcp-server service using standard HTTP reverse proxying without path rewriting or body manipulation. Sessions are stateful — the first POST establishes session context, and subsequent requests echo back `MCP-Session-ID` in the header for session reuse.
 
-#### Scenario: Client establishes SSE connection through gateway
-- **WHEN** an MCP client sends GET /mcp/sse through api-gateway
-- **THEN** api-gateway forwards the request to mcp-server, which responds with HTTP 200 and Content-Type: text/event-stream, providing an endpoint event with the message submission URL
+#### Scenario: Client connects via StreamableHTTP through gateway
+- **WHEN** an MCP client sends POST /mcp with Content-Type: application/json through api-gateway
+- **THEN** api-gateway forwards the request to mcp-server without path rewriting, and mcp-server responds with HTTP 200 and a JSON-RPC result containing the server-assigned session ID in the `MCP-Session-ID` response header
+
+#### Scenario: Subsequent tool calls reuse the same session
+- **WHEN** an MCP client sends POST /mcp with header `MCP-Session-ID: <session-id>` (echoed from initialize)
+- **THEN** mcp-server recognizes the session, reuses existing context, and returns the tool result in a single synchronous response
 
 #### Scenario: Tool call reaches objects-service via gateway-mcp pipeline
-- **WHEN** a client POSTs a tool_call request through api-gateway to the MCP message endpoint
-- **THEN** the request is forwarded to mcp-server which executes the tool and returns the result via SSE stream, with each hop (gateway → mcp-server) preserving headers and body
+- **WHEN** a client POSTs a tool_call request through api-gateway to `/mcp` with `MCP-Session-ID` header
+- **THEN** the request is forwarded to mcp-server which executes the tool and returns the result synchronously, with each hop (gateway → mcp-server) preserving headers and body
 
 ### Requirement: MCP agent identity has valid auth-service permissions
 The api-gateway MUST inject a system-level user UUID (not string "mcp-agent") into `X-User-ID` header for all `/mcp/*` requests. A corresponding user must exist in auth-service with the `mcp-agent-read-only` role, which grants read permissions (`objects:read:all`, `objects:read:own`, and `object-types:read:all`) to ensure objects-service permiddleware permission checks succeed without requiring per-user JWT validation.

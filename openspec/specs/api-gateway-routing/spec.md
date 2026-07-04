@@ -49,23 +49,11 @@ The API gateway SHALL map inbound route prefixes to a backend service in the reg
 - **THEN** the gateway proxies the request to the objects-service backend
 
 ### Requirement: Reverse Proxy Execution
-For each routed request, the gateway SHALL execute a reverse proxy to the resolved backend service URL. The proxy MUST preserve the HTTP method, path, query string, and request body, and MUST set the request Host, scheme, and host to the target service.
+For MCP requests routed to `/mcp`, the gateway SHALL execute a reverse proxy to the mcp-server service URL without modifying the request path. The incoming path (`/mcp`) matches the outgoing path exactly — no prefix stripping or rewriting is performed. Request body is read and rewound for tracing purposes (same as existing behavior), and `X-User-*` identity headers are injected via context before forwarding.
 
-#### Scenario: Successful proxy
-- **WHEN** a request is routed to a registered service
-- **THEN** the gateway forwards it to the backend and returns the backend's response to the client
-
-#### Scenario: Unknown service requested
-- **WHEN** a routed request references a service name not in the registry
-- **THEN** the gateway responds with HTTP 503 "Service unavailable"
-
-#### Scenario: Invalid service URL
-- **WHEN** the registered service URL cannot be parsed
-- **THEN** the gateway responds with HTTP 500 "Internal server error"
-
-#### Scenario: Backend unreachable
-- **WHEN** the reverse proxy fails to reach the backend service
-- **THEN** the gateway responds with HTTP 502 "Service unavailable"
+#### Scenario: Successful MCP proxy with no path rewrite
+- **WHEN** a request hits `/mcp` POST through api-gateway
+- **THEN** the gateway forwards it to mcp-server at the resolved URL with the original path preserved as `/mcp`, and returns the backend's response to the client
 
 ### Requirement: Request ID Propagation
 The gateway SHALL set an `X-Request-ID` header on proxied requests. If the inbound request carries an `X-Request-ID`, the gateway MUST reuse it; otherwise it MUST generate a new UUID.
@@ -84,19 +72,4 @@ When tracing is enabled, the gateway SHALL inject the current OpenTelemetry trac
 #### Scenario: Trace context forwarded to backend
 - **WHEN** tracing is enabled and a request is proxied
 - **THEN** the proxied request headers carry the traceparent/tracestate propagated from the inbound request context
-
-### Requirement: MCP SSE reverse proxy recovers from ErrAbortHandler panics
-The api-gateway's MCP SSE reverse proxy handler SHALL recover from `http.ErrAbortHandler` panics raised by `httputil.ReverseProxy` without triggering gin's recovery middleware. When a client disconnects or the SSE stream ends naturally, the reverse proxy SHALL terminate cleanly without logging a panic or returning an HTTP error response.
-
-#### Scenario: SSE stream disconnects without gateway panic
-- **WHEN** an MCP client disconnects from the SSE stream (`GET /mcp/sse`) through the api-gateway
-- **THEN** the reverse proxy terminates normally, no panic is logged, and no HTTP 500 response is written
-
-#### Scenario: Non-ErrAbortHandler panics still trigger gin recovery
-- **WHEN** the SSE reverse proxy encounters a real panic (not `http.ErrAbortHandler`)
-- **THEN** the panic propagates to gin's recovery middleware and is handled as a server error
-
-#### Scenario: SSE streaming continues for active connections
-- **WHEN** an MCP client maintains an active SSE connection through the gateway and sends tool call messages via POST `/mcp/message`
-- **THEN** the SSE stream remains open, responses flow back through the reverse proxy, and the connection persists until either the client disconnects or the session expires
 
