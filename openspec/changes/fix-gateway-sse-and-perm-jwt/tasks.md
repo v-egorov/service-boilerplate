@@ -10,6 +10,10 @@
 
 ## 3. End-to-end validation
 
+**PAUSED: Pre-existing permission model mismatch blocks E2E.**
+
+After permiddleware skip fires and request reaches service layer, objects-service returns 500 for ALL users (including admin with real JWT). Root cause: DB has `object-types | read` but permiddleware checks `{type_key}:read:all/{type_key}:read:own`. This is a pre-existing design bug in objects-service.
+
 - [ ] 3.1 Rebuild and restart services: `make down && make dev-detached`
-- [ ] 3.2 Run `bash scripts/test-mcp-e2e.sh` — confirm all steps pass (no panic logs, no 401 errors)
+- [ ] 3.2 Run `bash scripts/test-mcp-e2e.sh` — SSE panic fix confirmed (Step 2 passes, no `[Recovery]` logs). Tool calls blocked by pre-existing permission mismatch.
 - [ ] 3.3 Check gateway logs for absence of `[Recovery] panic recovered` entries during SSE connections

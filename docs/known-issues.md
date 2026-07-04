@@ -123,4 +123,97 @@ Run `bash scripts/test-mcp-e2e.sh` on a fresh environment (or at least after res
 
 ---
 
+## Gateway SSE Panic — httputil.ReverseProxy + gin Recovery Conflict
+
+**Discovered:** 2026-07-04
+**Planned for:** `fix-gateway-sse-and-perm-jwt` delta
+
+### Problem
+`ProxyMCPRequest()` uses `httputil.ReverseProxy` to stream SSE to clients. When the client disconnects or the SSE stream ends, Go's reverse proxy calls `panic(http.ErrAbortHandler)` as **control flow** (not a real error). Gin's `gin.Recovery()` middleware catches this panic and treats it as a server error, returning HTTP 500 and logging:
+
+```
+[Recovery] 2026/07/04 - 10:18:17 panic recovered:
+net/http: abort Handler
+```
+
+This breaks all SSE connections — the gateway can't maintain persistent event streams.
+
+### Fix (planned)
+Wrap `proxy.ServeHTTP(c.Writer, c.Request)` with a deferred recover that catches `http.ErrAbortHandler` specifically and silently returns, re-panicking everything else. ~5 lines in `gateway.go`.
+
+---
+
+## MCP Auth Chain — Permission Check Gap (Objects → Auth Hop)
+
+**Discovered:** 2026-07-04
+**Planned for:** `fix-gateway-sse-and-perm-jwt` delta
+
+### Problem
+With the identity forwarding fix (`fix-mcp-auth-chain`), gateway-injected `X-User-*` headers now flow correctly:
+
+```
+Gateway → mcp-server → objects-service
+   ✅         ✅            ✅ identity headers arrive
+```
+
+Authentication works — objects-service's JWTMiddleware reads `X-User-ID` from headers and sets `user_id` in gin context (dev mode: `jwtSecret == nil`).
+
+But authorization breaks at the next hop:
+
+```
+objects-service ──CheckPermission──────────▶ auth-service
+  (no JWT token)           RequireAuth() → user_id empty → 401
+```
+
+`permiddleware.NewPermissionMiddleware()` calls `authClient.CheckPermission(userID, permission, jwtToken)` where `jwtToken` is empty (no Authorization header on the original MCP request). The auth client doesn't forward `X-User-*` headers. Auth-service's `RequireAuth()` middleware rejects because `GetAuthenticatedUserID()` returns empty.
+
+In production this path is unreachable — all services are isolated behind the gateway, everything has a JWT. But in dev mode with MCP (no JWT validation by design), the round-trip to auth-service is the gap.
+
+### Chosen Approach: Option B — Skip auth-service for gateway-trusted GET requests
+
+Architectural options evaluated:
+
+| Option | Approach | Verdict |
+|--------|----------|---------|
+| A | Forward `X-User-ID` to auth-service so its JWT middleware reads it | Papering over the gap, implicit trust |
+| **B** | **Skip `CheckPermission()` when `jwtToken == "" && userID != ""` for GET requests** | **Chosen — clean, dev-mode only** |
+| C | Inject a shared internal token header across all services | Overengineered for dev mode |
+
+**Rationale for Option B:**
+- In production, all requests have a JWT (gateway validates), so the `Authorization`-absent branch never triggers
+- In dev mode, the gateway IS the authenticator — skipping the auth-service round-trip is consistent with the existing gateway-trust model
+- Change is scoped to one file (`permiddleware.go`), ~3 lines
+
+**Known compromise:** This skips RBAC for MCP read operations in dev mode — the `mcp-agent` system user effectively has unrestricted read access. This is intentional: per-user MCP identity would require API keys (not login/password), which is a separate architectural scope. The current goal is "make the damn thing work" for a single developer interacting with their own system.
+
+### Future Consideration
+When API-key-based MCP client identity is implemented, the proper fix is to give mcp-server a valid JWT (gateway logs in as the MCP client, injects the token). Then the entire RBAC chain — `user_roles → role_permissions → permissions` — works natively without any shortcuts.
+
+### Delta Implementation Status: Paused
+
+**Date:** 2026-07-04  
+**Delta:** `fix-gateway-sse-and-perm-jwt`
+
+#### What worked (confirmed)
+1. **SSE panic recovery**: Gateway no longer crashes on SSE disconnect — E2E Step 2 passes, no `[Recovery]` panic logs
+2. **Permiddleware skip fires correctly**: When `jwtToken == "" && userID != "" && GET`, the auth-service round-trip is skipped and permiddleware sets `matched_permissions` → request reaches service layer
+
+#### What blocked E2E (pre-existing bug)
+After permiddleware passes through, objects-service returns **500 Internal Server Error** with an empty error (`{}`). This happens for ALL users — not just MCP:
+
+| User | Auth method | Result |
+|------|------------|--------|
+| MCP agent (no JWT) | Skip path → service layer | 500 `{}` |
+| Dev admin (real JWT) | Normal RBAC → auth-service returns false | 403 "Insufficient permissions" |
+
+**Root cause: permission model mismatch between permiddleware and DB.**
+
+- Permiddleware builds permission strings for GET as `{type_key}:read:all` and `{type_key}:read:own`
+- Auth-service migrations store permissions with `action = "read"` (not `":read:all"` or `":read:own"`)
+- Result: `CheckPermission()` returns false for both → empty matchedPermissions → 500 from handler
+
+**This is a pre-existing design bug in objects-service — not introduced by this delta.** It affects the entire service, not just MCP. Requires a separate fix.
+
+---
+
 *Last updated: 2026-07-04*
