@@ -46,6 +46,7 @@ type ObjectTypeFilter struct {
 	ParentID    *int64 `json:"parent_id,omitempty" form:"parent_id"`
 	IsSealed    *bool  `json:"is_sealed,omitempty" form:"is_sealed"`
 	HasConcrete *bool  `json:"has_concrete,omitempty" form:"has_concrete"`
+	TypeKeyPrefix string `json:"type_key_prefix,omitempty" form:"type_key_prefix"`
 	Limit       int    `json:"limit,omitempty" form:"limit"`
 	Offset      int    `json:"offset,omitempty" form:"offset"`
 	SortBy      string `json:"sort_by,omitempty" form:"sort_by"`

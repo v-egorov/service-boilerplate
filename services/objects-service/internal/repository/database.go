@@ -150,7 +150,9 @@ func (qb *QueryBuilder) Build() (string, []interface{}) {
 }
 
 func (qb *QueryBuilder) BuildCount() (string, []interface{}) {
-	return "SELECT COUNT(*) FROM " + extractTable(qb.query), qb.args
+	// COUNT query has no $N placeholders, so we return empty args.
+	// If filtered counts are needed later, a separate BuildFilteredCount method can be added.
+	return "SELECT COUNT(*) FROM " + extractTable(qb.query), nil
 }
 
 // Helper functions

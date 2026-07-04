@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -29,8 +30,12 @@ type ObjectTypeListResponse struct {
 	Data []map[string]interface{} `json:"data"`
 }
 
-func (c *ObjectsClient) ListObjectTypes(ctx context.Context) ([]map[string]interface{}, error) {
-	resp, err := c.httpGet(ctx, fmt.Sprintf("%s/api/v1/object-types", c.baseURL))
+func (c *ObjectsClient) ListObjectTypes(ctx context.Context, typeKeyPrefix string) ([]map[string]interface{}, error) {
+	targetURL := fmt.Sprintf("%s/api/v1/object-types", c.baseURL)
+	if typeKeyPrefix != "" {
+		targetURL = targetURL + "?type_key_prefix=" + url.QueryEscape(typeKeyPrefix)
+	}
+	resp, err := c.httpGet(ctx, targetURL)
 	if err != nil {
 		return nil, fmt.Errorf("list object types: %w", err)
 	}

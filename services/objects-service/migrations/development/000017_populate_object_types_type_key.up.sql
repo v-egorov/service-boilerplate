@@ -1,12 +1,16 @@
--- Populate NULL type_key values in object_types table
--- 8 rows have name but no type_key — these cause pgx ScanArgError when scanning into Go string fields.
--- Using lowercase, hyphenated values consistent with existing type_keys (e.g., "blog-post", "news-article").
+-- Environment: development
+-- Populate NULL type_key values for child object types using name-based lookups.
+-- Naming convention: <parent_type_key>-<child_name_slugified>
+-- After population, enforce NOT NULL to prevent future NULLs.
 
-UPDATE objects_service.object_types SET type_key = 'electronics' WHERE id = 5;
-UPDATE objects_service.object_types SET type_key = 'clothing'    WHERE id = 6;
-UPDATE objects_service.object_types SET type_key = 'books'       WHERE id = 7;
-UPDATE objects_service.object_types SET type_key = 'news-article' WHERE id = 8;
-UPDATE objects_service.object_types SET type_key = 'blog-post'   WHERE id = 9;
-UPDATE objects_service.object_types SET type_key = 'tutorial'    WHERE id = 10;
-UPDATE objects_service.object_types SET type_key = 'country'     WHERE id = 11;
-UPDATE objects_service.object_types SET type_key = 'city'        WHERE id = 12;
+UPDATE objects_service.object_types SET type_key = 'product-electronics'  WHERE name = 'Electronics';
+UPDATE objects_service.object_types SET type_key = 'product-clothing'     WHERE name = 'Clothing';
+UPDATE objects_service.object_types SET type_key = 'product-books'        WHERE name = 'Books';
+UPDATE objects_service.object_types SET type_key = 'article-news-article' WHERE name = 'News Article';
+UPDATE objects_service.object_types SET type_key = 'article-blog-post'    WHERE name = 'Blog Post';
+UPDATE objects_service.object_types SET type_key = 'article-tutorial'     WHERE name = 'Tutorial';
+UPDATE objects_service.object_types SET type_key = 'location-country'     WHERE name = 'Country';
+UPDATE objects_service.object_types SET type_key = 'location-city'        WHERE name = 'City';
+
+-- Enforce NOT NULL — will fail if any row still has a NULL (transaction-safe)
+ALTER TABLE objects_service.object_types ALTER COLUMN type_key SET NOT NULL;

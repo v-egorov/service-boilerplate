@@ -491,7 +491,7 @@ func TestListObjectTypesForwardsIdentity(t *testing.T) {
 	hdr := http.Header{}
 	hdr.Set("X-User-ID", "list-types-user")
 	ctx := WithIdentity(context.Background(), hdr)
-	_, err := client.ListObjectTypes(ctx)
+	_, err := client.ListObjectTypes(ctx, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -533,7 +533,7 @@ func TestListObjectTypesWithNilContext(t *testing.T) {
 
 	client := NewObjectsClient(server.URL, 0)
 	ctx := context.Background()
-	_, err := client.ListObjectTypes(ctx)
+	_, err := client.ListObjectTypes(ctx, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -798,7 +798,7 @@ func TestListObjectTypesForwardsAllIdentityHeaders(t *testing.T) {
 	hdr.Set("X-User-Email", "full@example.com")
 	hdr.Set("X-User-Roles", "admin,user")
 	ctx := WithIdentity(context.Background(), hdr)
-	_, err := client.ListObjectTypes(ctx)
+	_, err := client.ListObjectTypes(ctx, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

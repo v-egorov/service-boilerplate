@@ -418,7 +418,7 @@ func (r *objectTypeRepository) GetTree(ctx context.Context, rootID *int64) ([]*m
 		var parentID sql.NullInt64
 
 		err := rows.Scan(
-			&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
+			&objectType.ID, &objectType.Name, &objectType.TypeKey, &parentID, &objectType.ConcreteTableName,
 			&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
 			&objectType.CreatedAt, &objectType.UpdatedAt,
 		)
@@ -635,17 +635,17 @@ func (r *objectTypeRepository) GetAncestors(ctx context.Context, id int64) ([]*m
 	query := `
 		WITH RECURSIVE ancestors AS (
 			-- Base case: the node itself
-			SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at, 1 as level
+			SELECT id, name, type_key, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at, 1 as level
 			FROM objects_service.object_types WHERE id = $1
 
 			UNION ALL
 
 			-- Recursive case: parent of current node
-			SELECT ot.id, ot.name, ot.parent_type_id, ot.concrete_table_name, ot.description, ot.is_sealed, ot.metadata, ot.created_at, ot.updated_at, a.level + 1
+			SELECT ot.id, ot.name, ot.type_key, ot.parent_type_id, ot.concrete_table_name, ot.description, ot.is_sealed, ot.metadata, ot.created_at, ot.updated_at, a.level + 1
 			FROM objects_service.object_types ot
 			INNER JOIN ancestors a ON ot.id = a.parent_type_id
 		)
-		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
+		SELECT id, name, type_key, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
 		FROM ancestors
 		WHERE id != $1
 		ORDER BY level DESC`
@@ -663,7 +663,7 @@ func (r *objectTypeRepository) GetAncestors(ctx context.Context, id int64) ([]*m
 		var parentID sql.NullInt64
 
 		err := rows.Scan(
-			&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
+			&objectType.ID, &objectType.Name, &objectType.TypeKey, &parentID, &objectType.ConcreteTableName,
 			&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
 			&objectType.CreatedAt, &objectType.UpdatedAt,
 		)
@@ -690,17 +690,17 @@ func (r *objectTypeRepository) GetPath(ctx context.Context, id int64) ([]*models
 	query := `
 		WITH RECURSIVE path AS (
 			-- Base case: the target node
-			SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at, 1 as level
+			SELECT id, name, type_key, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at, 1 as level
 			FROM objects_service.object_types WHERE id = $1
 
 			UNION ALL
 
 			-- Recursive case: parent of current node
-			SELECT ot.id, ot.name, ot.parent_type_id, ot.concrete_table_name, ot.description, ot.is_sealed, ot.metadata, ot.created_at, ot.updated_at, p.level + 1
+			SELECT ot.id, ot.name, ot.type_key, ot.parent_type_id, ot.concrete_table_name, ot.description, ot.is_sealed, ot.metadata, ot.created_at, ot.updated_at, p.level + 1
 			FROM objects_service.object_types ot
 			INNER JOIN path p ON ot.id = p.parent_type_id
 		)
-		SELECT id, name, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
+		SELECT id, name, type_key, parent_type_id, concrete_table_name, description, is_sealed, metadata, created_at, updated_at
 		FROM path
 		ORDER BY level DESC`
 
@@ -717,7 +717,7 @@ func (r *objectTypeRepository) GetPath(ctx context.Context, id int64) ([]*models
 		var parentID sql.NullInt64
 
 		err := rows.Scan(
-			&objectType.ID, &objectType.Name, &parentID, &objectType.ConcreteTableName,
+			&objectType.ID, &objectType.Name, &objectType.TypeKey, &parentID, &objectType.ConcreteTableName,
 			&objectType.Description, &objectType.IsSealed, &objectType.Metadata,
 			&objectType.CreatedAt, &objectType.UpdatedAt,
 		)
@@ -767,6 +767,12 @@ func (r *objectTypeRepository) List(ctx context.Context, filter *models.ObjectTy
 	if filter.IsSealed != nil {
 		whereClauses = append(whereClauses, fmt.Sprintf("is_sealed = $%d", argIndex))
 		args = append(args, *filter.IsSealed)
+		argIndex++
+	}
+
+	if filter.TypeKeyPrefix != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("type_key LIKE $%d || '%%'", argIndex))
+		args = append(args, filter.TypeKeyPrefix)
 		argIndex++
 	}
 

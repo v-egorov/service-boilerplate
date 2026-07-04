@@ -2,6 +2,8 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,6 +28,47 @@ var ValidStatuses = map[string]bool{
 }
 
 // Object represents an instance of an object type in the taxonomy system
+// StringArray is a custom type for scanning PostgreSQL text arrays into []string
+type StringArray []string
+
+func (s *StringArray) Scan(value interface{}) error {
+	if value == nil {
+		*s = []string{}
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return fmt.Errorf("failed to scan tags: type %T", value)
+	}
+	special := false
+	var result []string
+	var current strings.Builder
+	for _, b := range bytes {
+		switch b {
+		case '{':
+			special = true
+		case '}':
+			if cur := strings.TrimSpace(current.String()); cur != "" {
+				result = append(result, cur)
+			}
+			current.Reset()
+		case ',':
+			if cur := strings.TrimSpace(current.String()); cur != "" {
+				result = append(result, cur)
+			}
+			current.Reset()
+		default:
+			current.WriteByte(b)
+		}
+	}
+	if special {
+		*s = result
+		return nil
+	}
+	*s = []string{}
+	return nil
+}
+
 type Object struct {
 	ID             int64           `json:"id" db:"id"`
 	PublicID       uuid.UUID       `json:"public_id" db:"public_id"`

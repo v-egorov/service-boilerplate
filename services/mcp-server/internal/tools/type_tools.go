@@ -13,7 +13,7 @@ import (
 
 // ListObjectTypesParams defines parameters for the list_object_types tool.
 type ListObjectTypesParams struct {
-	Limit int `json:"limit,omitempty"` // optional, default 100
+	TypeKeyPrefix string `json:"type_key_prefix,omitempty"` // optional prefix filter on type_key
 }
 
 // GetObjectTypeParams defines parameters for the get_object_type tool.
@@ -42,7 +42,7 @@ func RegisterTypeTools(mcpServer *server.MCPServer, objClient *mcpclient.Objects
 
 		ctx = mcpclient.WithIdentity(ctx, request.Header)
 
-		types, err := objClient.ListObjectTypes(ctx)
+		types, err := objClient.ListObjectTypes(ctx, args.TypeKeyPrefix)
 		if err != nil {
 			logger.WithError(err).Error("Failed to list object types")
 			return &mcp.CallToolResult{

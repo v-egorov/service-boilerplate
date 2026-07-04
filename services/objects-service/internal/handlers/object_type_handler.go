@@ -422,9 +422,10 @@ func (h *ObjectTypeHandler) List(c *gin.Context) {
 	requestID := c.GetHeader("X-Request-ID")
 
 	filter := &models.ObjectTypeFilter{
-		Name:   c.Query("name"),
-		Limit:  50,
-		Offset: 0,
+		Name:          c.Query("name"),
+		TypeKeyPrefix: c.Query("type_key_prefix"),
+		Limit:         50,
+		Offset:        0,
 	}
 
 	if limitStr := c.Query("limit"); limitStr != "" {
