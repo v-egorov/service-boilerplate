@@ -2653,6 +2653,19 @@ func TestHasPermission_ScopedVariants(t *testing.T) {
 			required:    "relationships:read:own",
 			expectTrue:  false,
 		},
+		// Rule 3: empty-scope (unrestricted) satisfies any required scope
+		{
+			name:        "empty-scope DB entry satisfies :all requirement",
+			permissions: []string{"object-types:read"},
+			required:    "object-types:read:all",
+			expectTrue:  true,
+		},
+		{
+			name:        "empty-scope DB entry satisfies :own requirement",
+			permissions: []string{"object-types:read"},
+			required:    "object-types:read:own",
+			expectTrue:  true,
+		},
 	}
 
 	for _, tt := range tests {

@@ -1001,10 +1001,16 @@ func hasPermission(permissions []string, required string) bool {
 		}
 
 		if parsed.Resource == requiredSpec.Resource && parsed.Action == requiredSpec.Action {
+			// Rule 1: exact scope match
 			if parsed.Scope == requiredSpec.Scope {
 				return true
 			}
+			// Rule 2: broad wins over narrow — :all satisfies :own requirement
 			if requiredSpec.Scope == "own" && parsed.Scope == "all" {
+				return true
+			}
+			// Rule 3: unscoped (empty scope) = unrestricted — satisfies any requirement
+			if parsed.Scope == "" {
 				return true
 			}
 		}

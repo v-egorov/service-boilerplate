@@ -7,7 +7,7 @@ This is a pre-existing gap from the June 2026 type_key implementation plan — t
 ## What Changes
 
 - **Add 6 scoped permission entries** to auth-service DB for `object-types`: `read:all`, `read:own`, `update:all`, `update:own`, `delete:all`, `delete:own` (create stays flat per architecture spec)
-- **Add 4 scoped permission entries** for `relationship-types`: same scoped variants (create stays flat — you always own what you create)
+- **Add 6 scoped permission entries** for `relationship-types`: read:all/own, update:all/own, delete:all/own (create stays flat per architecture spec)
 - **Assign new scoped permissions to roles**: admin and object-type-admin get `:all` on all actions; user gets `read:own` only
 - **Fix `hasPermission()` in auth-service** to treat empty-scope DB entries as unrestricted (match any required scope level) — one-line defensive rule
 
