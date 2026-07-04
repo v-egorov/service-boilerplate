@@ -232,6 +232,16 @@ func (h *GatewayHandler) ProxyMCPRequest() gin.HandlerFunc {
 
 		// Serve the request — SSE streaming is handled naturally by httputil.ReverseProxy
 		// which preserves chunked transfer encoding and keeps the connection open.
+		// Recover from http.ErrAbortHandler panics raised by ReverseProxy when clients
+		// disconnect during streaming (control flow, not a real error).
+		defer func() {
+			if r := recover(); r != nil {
+				if err, ok := r.(error); ok && err == http.ErrAbortHandler {
+					return // ReverseProxy abort is expected — do nothing
+				}
+				panic(r) // Re-panic if not from ReverseProxy abort
+			}
+		}()
 		proxy.ServeHTTP(c.Writer, c.Request)
 	}
 }

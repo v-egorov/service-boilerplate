@@ -128,8 +128,8 @@ func TestRequirePermission_AnyOfMultiplePermissions(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	mockClient := new(MockAuthClient)
-	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:all", "").Return(false, nil)
-	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:own", "").Return(true, nil)
+	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:all", "fake-jwt").Return(false, nil)
+	mockClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:own", "fake-jwt").Return(true, nil)
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -143,6 +143,7 @@ func TestRequirePermission_AnyOfMultiplePermissions(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/test", nil)
+	req.Header.Set("Authorization", "Bearer fake-jwt")
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)

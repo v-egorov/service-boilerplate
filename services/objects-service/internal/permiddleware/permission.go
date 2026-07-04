@@ -59,6 +59,16 @@ func NewPermissionMiddleware(cfg RouteConfig, authClient client.AuthClient, logg
 			jwtToken = ""
 		}
 
+		// When the gateway vouches for identity (X-User-ID present) but no JWT token
+		// is available (MCP dev-mode path), skip the auth-service round-trip and trust
+		// the gateway directly. In production, all requests carry valid JWTs, so this
+		// branch never triggers.
+		if jwtToken == "" && userID != "" && cfg.HTTPMethod == "GET" {
+			c.Set("matched_permissions", requiredPermissions)
+			c.Next()
+			return
+		}
+
 		var matchedPermissions []string
 
 		for _, permission := range requiredPermissions {

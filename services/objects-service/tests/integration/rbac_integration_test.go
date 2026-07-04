@@ -333,8 +333,8 @@ func TestOwnershipCheck_DeleteAdminBypass(t *testing.T) {
 
 func TestMatchedPermissions_AllAndOwn(t *testing.T) {
 	mockAuthClient := new(MockAuthClientForRBAC)
-	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:all", "").Return(false, nil)
-	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:own", "").Return(true, nil)
+	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:all", "fake-jwt").Return(false, nil)
+	mockAuthClient.On("CheckPermission", mock.Anything, "user-123", "objects:read:own", "fake-jwt").Return(true, nil)
 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -347,6 +347,7 @@ func TestMatchedPermissions_AllAndOwn(t *testing.T) {
 	})
 
 	req, _ := http.NewRequest("GET", "/objects", nil)
+	req.Header.Set("Authorization", "Bearer fake-jwt")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
