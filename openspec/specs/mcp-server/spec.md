@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define the MCP server service that provides AI agent access to objects-service through a standardized MCP protocol interface. The server exposes read-only tools, resources, and prompt templates for exploring object types, objects, and their relationships — all routed through the API Gateway's SSE transport without JWT validation (delta 1).
+Define the MCP server service that provides AI agent access to objects-service through a standardized MCP protocol interface. The server exposes read-only tools, resources, and prompt templates for exploring object types, objects, and their relationships — all routed through the API Gateway's StreamableHTTP transport without JWT validation.
 ## Requirements
 ### Requirement: MCP server exposes list_object_types tool
 The mcp-server MUST expose a tool named `list_object_types` that retrieves all object types from objects-service, returning the full type hierarchy. The tool SHALL accept optional filter parameters (`type_key_prefix`, `parent_type_id`) to narrow results. Objects-service MUST support these filter parameters and return results where child types (those with `type_key` values containing a parent namespace prefix) are included without errors.
@@ -73,7 +73,7 @@ The mcp-server MUST provide a prompt template named `get_object_info` that combi
 - **WHEN** an agent invokes the get_object_info prompt with a valid object_type_id
 - **THEN** the server returns a message summarizing available objects of that type and offering next-step tool calls (get_object for specific instances)
 
-### Requirement: MCP server uses SSE transport via api-gateway
+### Requirement: MCP server uses StreamableHTTP transport via api-gateway
 The mcp-server MUST expose a StreamableHTTP endpoint at `/mcp` that MCP clients connect to. The api-gateway MUST route incoming POST requests from the path prefix `/mcp/*` to the mcp-server service using standard HTTP reverse proxying without path rewriting or body manipulation. Sessions are stateful — the first POST establishes session context, and subsequent requests echo back `MCP-Session-ID` in the header for session reuse.
 
 #### Scenario: Client connects via StreamableHTTP through gateway
