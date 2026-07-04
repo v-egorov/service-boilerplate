@@ -22,8 +22,10 @@ func RegisterTypeHierarchyResource(mcpServer *server.MCPServer, objClient *mcpcl
 	}
 
 	mcpServer.AddResource(resource, func(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+		ctx = mcpclient.WithIdentity(ctx, req.Header)
+
 		// Fetch the root type tree from objects-service
-		tree, err := objClient.GetRootTree()
+		tree, err := objClient.GetRootTree(ctx)
 		if err != nil {
 			logger.WithError(err).Error("Failed to fetch type hierarchy")
 			return nil, fmt.Errorf("failed to fetch type hierarchy: %w", err)

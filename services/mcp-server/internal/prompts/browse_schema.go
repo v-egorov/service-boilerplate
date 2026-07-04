@@ -36,7 +36,9 @@ func RegisterBrowseSchemaPrompt(mcpServer *server.MCPServer, objClient *mcpclien
 			}
 		}
 
-		types, err := objClient.ListObjectTypes()
+		ctx = mcpclient.WithIdentity(ctx, req.Header)
+
+		types, err := objClient.ListObjectTypes(ctx)
 		if err != nil {
 			logger.WithError(err).Error("Failed to list types for prompt")
 			return mcp.NewGetPromptResult("", []mcp.PromptMessage{

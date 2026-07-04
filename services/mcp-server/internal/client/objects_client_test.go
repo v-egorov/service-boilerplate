@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,7 +16,7 @@ func TestListObjectTypes(t *testing.T) {
 	defer server.Close()
 
 	client := NewObjectsClient(server.URL, 0)
-	types, err := client.ListObjectTypes()
+	types, err := client.ListObjectTypes(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -36,7 +37,7 @@ func TestGetObjectTypeByID(t *testing.T) {
 	defer server.Close()
 
 	client := NewObjectsClient(server.URL, 0)
-	typ, err := client.GetObjectTypeByID(1)
+	typ, err := client.GetObjectTypeByID(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -54,7 +55,7 @@ func TestGetObjectTypeByName(t *testing.T) {
 	defer server.Close()
 
 	client := NewObjectsClient(server.URL, 0)
-	typ, err := client.GetObjectTypeByName("document")
+	typ, err := client.GetObjectTypeByName(context.Background(), "document")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -72,7 +73,7 @@ func TestListObjects(t *testing.T) {
 	defer server.Close()
 
 	client := NewObjectsClient(server.URL, 0)
-	objs, err := client.ListObjects(42, 1, 10)
+	objs, err := client.ListObjects(context.Background(), 42, 1, 10)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -93,7 +94,7 @@ func TestGetObjectByPublicID(t *testing.T) {
 	defer server.Close()
 
 	client := NewObjectsClient(server.URL, 0)
-	obj, err := client.GetObjectByPublicID("abc-123")
+	obj, err := client.GetObjectByPublicID(context.Background(), "abc-123")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -114,7 +115,7 @@ func TestGetRootTree(t *testing.T) {
 	defer server.Close()
 
 	client := NewObjectsClient(server.URL, 0)
-	tree, err := client.GetRootTree()
+	tree, err := client.GetRootTree(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -133,7 +134,7 @@ func TestHTTPError(t *testing.T) {
 	defer server.Close()
 
 	client := NewObjectsClient(server.URL, 0)
-	_, err := client.ListObjectTypes()
+	_, err := client.ListObjectTypes(context.Background())
 	if err == nil {
 		t.Fatal("expected error for non-200 response")
 	}

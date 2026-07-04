@@ -40,7 +40,9 @@ func RegisterTypeTools(mcpServer *server.MCPServer, objClient *mcpclient.Objects
 			}, nil
 		}
 
-		types, err := objClient.ListObjectTypes()
+		ctx = mcpclient.WithIdentity(ctx, request.Header)
+
+		types, err := objClient.ListObjectTypes(ctx)
 		if err != nil {
 			logger.WithError(err).Error("Failed to list object types")
 			return &mcp.CallToolResult{
@@ -79,12 +81,14 @@ func RegisterTypeTools(mcpServer *server.MCPServer, objClient *mcpclient.Objects
 			}, nil
 		}
 
+		ctx = mcpclient.WithIdentity(ctx, request.Header)
+
 		var typ map[string]interface{}
 		var err error
 		if args.ID != nil {
-			typ, err = objClient.GetObjectTypeByID(*args.ID)
+			typ, err = objClient.GetObjectTypeByID(ctx, *args.ID)
 		} else {
-			typ, err = objClient.GetObjectTypeByName(*args.Name)
+			typ, err = objClient.GetObjectTypeByName(ctx, *args.Name)
 		}
 
 		if err != nil {

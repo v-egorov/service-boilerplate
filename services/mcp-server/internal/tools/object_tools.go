@@ -56,7 +56,9 @@ func RegisterObjectTools(mcpServer *server.MCPServer, objClient *mcpclient.Objec
 			pageSize = *args.PageSize
 		}
 
-		objects, err := objClient.ListObjects(args.ObjectTypeID, page, pageSize)
+		ctx = mcpclient.WithIdentity(ctx, request.Header)
+
+		objects, err := objClient.ListObjects(ctx, args.ObjectTypeID, page, pageSize)
 		if err != nil {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{mcp.NewTextContent(fmt.Sprintf("Failed to list objects: %v", err))},
@@ -94,7 +96,9 @@ func RegisterObjectTools(mcpServer *server.MCPServer, objClient *mcpclient.Objec
 			}, nil
 		}
 
-		obj, err := objClient.GetObjectByPublicID(args.PublicID)
+		ctx = mcpclient.WithIdentity(ctx, request.Header)
+
+		obj, err := objClient.GetObjectByPublicID(ctx, args.PublicID)
 		if err != nil {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{mcp.NewTextContent(fmt.Sprintf("Failed to get object: %v", err))},

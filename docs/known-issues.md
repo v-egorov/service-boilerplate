@@ -7,23 +7,30 @@ Items tracked for future investigation or deferred to a later delta. Each entry 
 ## MCP Server Identity Forwarding
 
 **Discovered:** 2026-07-04  
-**Delta:** `mcp-server-initial` (archived)
+**Resolved by:** `fix-mcp-auth-chain` delta
 
-### Problem
-Gateway injects identity headers (`X-User-ID`, `X-User-Email`, `X-User-Roles`) for all `/mcp/*` requests. mcp-server receives them on the POST /message request, but when tool handlers call objects-service via `ObjectsClient.httpGet()`, they create a **brand new HTTP request with zero headers**. Identity is lost at hop 2 — every object-tool call returns 401 from objects-service's permiddleware.
+### Problem (resolved)
+Gateway injects identity headers (`X-User-ID`, `X-User-Email`, `X-User-Roles`) for all `/mcp/*` requests. mcp-server receives them on the POST /message request, but when tool handlers call objects-service via `ObjectsClient.httpGet()`, they created a **brand new HTTP request with zero headers**. Identity was lost at hop 2 — every object-tool call returns 401 from objects-service's permiddleware.
 
-### Current State
+### Current State (post-fix)
 - Gateway → mcp-server: ✅ headers present and correct (verified in logs)
-- mcp-server → objects-service: ❌ no identity headers forwarded
-- Objects-service permiddleware: sees empty user context → rejects with 401
+- mcp-server → objects-service: ✅ identity headers forwarded via context threading
+- Objects-service permiddleware: sees valid user context → authorizes read operations
 
-### Root Cause Location
-`services/mcp-server/internal/client/objects_client.go` — `httpGet()` creates a new request without copying any headers from the original request. mcp-go's session context does not carry HTTP headers.
+### Root Cause (resolved)
+`services/mcp-server/internal/client/objects_client.go` — `httpGet()` created a new request without copying any headers. **mcp-go DOES carry HTTP headers** on each handler's `request.Header` (via SSE transport in v0.55.1). The gap was that:
+1. Tool/resource/prompt handlers never extracted identity from `request.Header`
+2. `ObjectsClient.httpGet()` had no mechanism to receive or forward identity
+3. No context-based threading existed between handler entry point and outbound HTTP call
 
-### Possible Approaches (for next delta)
-1. **Context threading**: Extract identity from gateway request, store in mcp-go session/context during message handling, retrieve inside tool handlers before calling objects-service
-2. **Explicit header forwarding**: Pass X-User-* as MCP tool call arguments and have the client layer attach them
-3. **Service account config**: Have mcp-server read its own config for identity (simpler, but loses per-client context)
+### Fix Applied
+- Added `identity.go` with `WithIdentity(ctx, hdr)` / `IdentityFromContext(ctx)` helpers
+- Modified 7 data methods on `ObjectsClient` to accept `context.Context`
+- `httpGet()` reads identity from context and forwards only the allow-listed headers (`X-User-ID`, `X-User-Email`, `X-User-Roles`)
+- Each handler injects identity at entry: `ctx = client.WithIdentity(ctx, request.Header)`
+- Regression test in `objects_client_identity_test.go` covers all scenarios
+
+See [`design.md`](../openspec/changes/fix-mcp-auth-chain/design.md) for full architectural rationale.
 
 ---
 
@@ -116,4 +123,4 @@ Run `bash scripts/test-mcp-e2e.sh` on a fresh environment (or at least after res
 
 ---
 
-*Last updated: 2026-07-04*
+*Last updated: 2026-07-30*
