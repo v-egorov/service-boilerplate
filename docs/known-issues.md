@@ -95,4 +95,25 @@ The `gin.ResponseWriter` interface requires 9 methods to implement. Creating a m
 
 ---
 
+## E2E Test Script — Unverified Response Parsing
+
+**Discovered:** 2026-07-04 (same commit as script creation)
+
+### Problem
+`scripts/test-mcp-e2e.sh` was written during debugging but never run end-to-end with a clean pass. The SSE response parsing logic may still have issues — earlier attempts failed with jq errors on malformed input, and the script's own output showed empty results for steps 4–6 despite raw data being present in the SSE stream.
+
+### Current State
+- Script exists and is executable
+- Initial SSE connection (Step 1–2) likely works
+- Subsequent tool call responses (Steps 3–6): **unconfirmed** — may fail silently due to JSON parsing errors, missing SSE response lines, or timing issues with the `sleep` delays between POST requests and SSE stream arrivals
+- No clean validation run has been performed
+
+### Action Needed
+Run `bash scripts/test-mcp-e2e.sh` on a fresh environment (or at least after restarting all containers) to verify:
+1. All 7 steps pass cleanly with colored output
+2. Tool call results are correctly extracted from SSE stream and parsed by jq
+3. Auth-chain check in Step 7 reflects actual DB state
+
+---
+
 *Last updated: 2026-07-04*
