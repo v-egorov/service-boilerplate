@@ -6,7 +6,7 @@ This is a pre-existing gap from the June 2026 type_key implementation plan — t
 
 ## What Changes
 
-- **Add 8 scoped permission entries** to auth-service DB for `object-types`: `read:all`, `read:own`, `update:all`, `update:own`, `delete:all`, `delete:own`
+- **Add 6 scoped permission entries** to auth-service DB for `object-types`: `read:all`, `read:own`, `update:all`, `update:own`, `delete:all`, `delete:own` (create stays flat per architecture spec)
 - **Add 4 scoped permission entries** for `relationship-types`: same scoped variants (create stays flat — you always own what you create)
 - **Assign new scoped permissions to roles**: admin and object-type-admin get `:all` on all actions; user gets `read:own` only
 - **Fix `hasPermission()` in auth-service** to treat empty-scope DB entries as unrestricted (match any required scope level) — one-line defensive rule
@@ -21,7 +21,7 @@ This is a pre-existing gap from the June 2026 type_key implementation plan — t
 
 ## Impact
 
-- **Auth service**: DB migrations (+2 new migration pairs per env × 3 environments), `hasPermission()` logic change
+- **Auth service**: DB migrations (4 new migration pairs in dev: scoped entries for object-types, scoped entries for relationship-types, role assignments, MCP agent permissions), `hasPermission()` logic change
 - **Objects service**: No code changes — permiddleware already generates correct scoped strings; fixes are entirely in auth-service layer
 - **MCP server**: Indirectly fixed — `list_object_types` tool now works through normal RBAC path when MCP agent has object-types read permissions assigned to its role
 - **Existing tests**: `TestHasPermission_ScopedVariants` gains new test cases for empty-scope matching; existing behavior preserved
