@@ -129,27 +129,40 @@ func (c *ObjectsClient) GetRootTree(ctx context.Context) ([]map[string]interface
 
 // --- Object endpoints ---
 
-type ObjectListResponse struct {
-	Data []map[string]interface{} `json:"data"`
-}
-
-func (c *ObjectsClient) ListObjects(ctx context.Context, objectTypeID int64, page int, pageSize int, typeKeyPrefix string) ([]map[string]interface{}, error) {
-	params := fmt.Sprintf("?object_type_id=%d&page=%d&page_size=%d", objectTypeID, page, pageSize)
+func (c *ObjectsClient) ListObjects(ctx context.Context, objectTypeID int64, limit int, offset int, typeKeyPrefix string) ([]map[string]interface{}, map[string]any, error) {
+	params := fmt.Sprintf("?object_type_id=%d&limit=%d&offset=%d", objectTypeID, limit, offset)
 	if typeKeyPrefix != "" {
 		params = params + "&type_key_prefix=" + url.QueryEscape(typeKeyPrefix)
 	}
 	fullURL := c.baseURL + "/api/v1/objects" + params
 	resp, err := c.httpGet(ctx, fullURL)
 	if err != nil {
-		return nil, fmt.Errorf("list objects: %w", err)
+		return nil, nil, fmt.Errorf("list objects: %w", err)
 	}
 	defer resp.Body.Close()
 
-	var result ObjectListResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode list response: %w", err)
+	// Decode both data and pagination metadata from objects-service response
+	var result struct {
+		Data       []map[string]interface{} `json:"data"`
+		Pagination map[string]any           `json:"pagination"`
 	}
-	return result.Data, nil
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, nil, fmt.Errorf("decode list response: %w", err)
+	}
+
+	// Normalize pagination values to float64 for consistency with JSON number handling
+	pagination := result.Pagination
+	if pagination != nil {
+		for k, v := range pagination {
+			switch val := v.(type) {
+			case float64:
+				// Already correct type from JSON decoding
+			default:
+				pagination[k] = val
+			}
+		}
+	}
+	return result.Data, pagination, nil
 }
 
 type ObjectDetailResponse struct {

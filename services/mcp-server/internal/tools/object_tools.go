@@ -9,11 +9,19 @@ import (
 	mcpclient "github.com/v-egorov/service-boilerplate/services/mcp-server/internal/client"
 )
 
+// PaginationMeta contains pagination metadata relayed from objects-service.
+type PaginationMeta struct {
+	Total  int64 `json:"total"`  // total number of matching results
+	Limit  int   `json:"limit"`  // max results per page (actual limit used)
+	Offset int   `json:"offset"` // number of results skipped
+}
+
 // ListObjectsResult is the output schema wrapper for list_objects.
 // Wrapped in an object with domain-specific key "objects" so structuredContent
 // is always a JSON object (not a bare array), satisfying MCP spec and Python SDK 1.26+.
 type ListObjectsResult struct {
-	Items []map[string]interface{} `json:"objects"`
+	Items      []map[string]interface{} `json:"objects"`
+	Pagination *PaginationMeta           `json:"pagination,omitempty"`
 }
 
 // GetObjectResult is the output schema wrapper for get_object.
@@ -27,8 +35,8 @@ type GetObjectResult struct {
 // ListObjectsParams defines parameters for the list_objects tool.
 type ListObjectsParams struct {
 	ObjectTypeID  int64   `json:"object_type_id"` // required: filter by type ID
-	Page          *int    `json:"page,omitempty"`       // optional, default 1
-	PageSize      *int    `json:"page_size,omitempty"`  // optional, default 20
+	Limit         *int    `json:"limit,omitempty"`        // optional, default 50 (objects-service max)
+	Offset        *int    `json:"offset,omitempty"`       // optional, default 0
 	TypeKeyPrefix *string `json:"type_key_prefix,omitempty"` // optional: filter objects whose type_key starts with this prefix (cross-type query)
 }
 
@@ -63,13 +71,13 @@ func RegisterObjectTools(mcpServer *server.MCPServer, objClient *mcpclient.Objec
 			}, nil
 		}
 
-		page := 1
-		if args.Page != nil && *args.Page > 0 {
-			page = *args.Page
+		limit := 50 // default matches objects-service default
+		if args.Limit != nil && *args.Limit > 0 {
+			limit = *args.Limit
 		}
-		pageSize := 20
-		if args.PageSize != nil && *args.PageSize > 0 {
-			pageSize = *args.PageSize
+		offset := 0
+		if args.Offset != nil && *args.Offset >= 0 {
+			offset = *args.Offset
 		}
 
 		var typeKeyPrefix string
@@ -79,7 +87,7 @@ func RegisterObjectTools(mcpServer *server.MCPServer, objClient *mcpclient.Objec
 
 		ctx = mcpclient.WithIdentity(ctx, request.Header)
 
-		objects, err := objClient.ListObjects(ctx, args.ObjectTypeID, page, pageSize, typeKeyPrefix)
+		objects, paginationMeta, err := objClient.ListObjects(ctx, args.ObjectTypeID, limit, offset, typeKeyPrefix)
 		if err != nil {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{mcp.NewTextContent(fmt.Sprintf("Failed to list objects: %v", err))},
@@ -94,9 +102,19 @@ func RegisterObjectTools(mcpServer *server.MCPServer, objClient *mcpclient.Objec
 			}
 		}
 
+		// Build pagination metadata from objects-service response
+		var pagination *PaginationMeta
+		if paginationMeta != nil {
+			pagination = &PaginationMeta{
+				Total:  func() int64 { v, _ := paginationMeta["total"].(float64); return int64(v) }(),
+				Limit:  func() int   { v, _ := paginationMeta["limit"].(float64); return int(v) }(),
+				Offset: func() int   { v, _ := paginationMeta["offset"].(float64); return int(v) }(),
+			}
+		}
+
 		return &mcp.CallToolResult{
 			Content:         []mcp.Content{mcp.NewTextContent(fmt.Sprintf("list_objects returned %d objects for type %s", len(objects), typeName))},
-			StructuredContent: ListObjectsResult{Items: objects},
+			StructuredContent: ListObjectsResult{Items: objects, Pagination: pagination},
 		}, nil
 	})
 

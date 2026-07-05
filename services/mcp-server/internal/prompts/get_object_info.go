@@ -14,8 +14,8 @@ import (
 // GetObjectInfoArgs defines arguments for the get_object_info prompt.
 type GetObjectInfoArgs struct {
 	ObjectTypeID int64 `json:"object_type_id"` // required: type to list objects from
-	Page         *int  `json:"page,omitempty"` // optional, default 1
-	PageSize     *int  `json:"page_size,omitempty"` // optional, default 10
+	Limit        *int  `json:"limit,omitempty"`       // optional, default 50 (max results)
+	Offset       *int  `json:"offset,omitempty"`      // optional, default 0
 }
 
 // RegisterGetObjectInfoPrompt registers the get_object_info prompt template.
@@ -37,18 +37,18 @@ func RegisterGetObjectInfoPrompt(mcpServer *server.MCPServer, objClient *mcpclie
 			args.ObjectTypeID, _ = strconv.ParseInt(idStr, 10, 64)
 		}
 
-		page := 1
-		if args.Page != nil && *args.Page > 0 {
-			page = *args.Page
+		limit := 50 // default matches objects-service default
+		if args.Limit != nil && *args.Limit > 0 {
+			limit = *args.Limit
 		}
-		pageSize := 10
-		if args.PageSize != nil && *args.PageSize > 0 {
-			pageSize = *args.PageSize
+		offset := 0
+		if args.Offset != nil && *args.Offset >= 0 {
+			offset = *args.Offset
 		}
 
 		ctx = mcpclient.WithIdentity(ctx, req.Header)
 
-		objects, err := objClient.ListObjects(ctx, args.ObjectTypeID, page, pageSize, "")
+		objects, _, err := objClient.ListObjects(ctx, args.ObjectTypeID, limit, offset, "")
 		if err != nil {
 			return mcp.NewGetPromptResult("", []mcp.PromptMessage{
 				{Role: mcp.RoleAssistant, Content: mcp.NewTextContent(fmt.Sprintf("Failed to list objects: %v", err))},
@@ -70,7 +70,7 @@ func RegisterGetObjectInfoPrompt(mcpServer *server.MCPServer, objClient *mcpclie
 
 		sb.WriteString("\n## Next Steps\n\n")
 		sb.WriteString("- Use `get_object` with a `public_id` to get full details of a specific object\n")
-		sb.WriteString(fmt.Sprintf("- Try page %d for more results", page+1))
+		sb.WriteString(fmt.Sprintf("- Use offset=%d to see the next batch of objects", offset+limit))
 
 		return mcp.NewGetPromptResult("", []mcp.PromptMessage{
 			{Role: mcp.RoleAssistant, Content: mcp.NewTextContent(sb.String())},

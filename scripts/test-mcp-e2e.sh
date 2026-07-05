@@ -318,6 +318,16 @@ if first_type_id and str(first_type_id).isdigit():
             # Empty list is valid (no objects of this type yet)
             pass_test("list_objects returned empty result (no objects of this type)")
 
+        # Verify pagination metadata in structuredContent
+        if isinstance(sc, dict) and "pagination" in sc:
+            pag = sc["pagination"]
+            if isinstance(pag, dict) and all(k in pag for k in ("total", "limit", "offset")):
+                pass_test("list_objects includes pagination metadata (total, limit, offset)")
+            else:
+                fail_test(f"pagination key present but missing fields: {pag}")
+        elif isinstance(sc, dict):
+            warn("list_objects structuredContent has no 'pagination' key")
+
 # Print summary
 print(f"\n  === Summary: PASS={PASS}, FAIL={FAIL} ===")
 sys.exit(0 if FAIL == 0 else 1)
