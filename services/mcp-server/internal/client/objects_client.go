@@ -30,10 +30,17 @@ type ObjectTypeListResponse struct {
 	Data []map[string]interface{} `json:"data"`
 }
 
-func (c *ObjectsClient) ListObjectTypes(ctx context.Context, typeKeyPrefix string) ([]map[string]interface{}, error) {
+func (c *ObjectsClient) ListObjectTypes(ctx context.Context, typeKeyPrefix string, parentTypeID *int64) ([]map[string]interface{}, error) {
 	targetURL := fmt.Sprintf("%s/api/v1/object-types", c.baseURL)
-	if typeKeyPrefix != "" {
-		targetURL = targetURL + "?type_key_prefix=" + url.QueryEscape(typeKeyPrefix)
+	if typeKeyPrefix != "" || parentTypeID != nil {
+		params := url.Values{}
+		if typeKeyPrefix != "" {
+			params.Set("type_key_prefix", typeKeyPrefix)
+		}
+		if parentTypeID != nil {
+			params.Set("parent_type_id", fmt.Sprintf("%d", *parentTypeID))
+		}
+		targetURL = targetURL + "?" + params.Encode()
 	}
 	resp, err := c.httpGet(ctx, targetURL)
 	if err != nil {
@@ -126,9 +133,13 @@ type ObjectListResponse struct {
 	Data []map[string]interface{} `json:"data"`
 }
 
-func (c *ObjectsClient) ListObjects(ctx context.Context, objectTypeID int64, page int, pageSize int) ([]map[string]interface{}, error) {
-	url := fmt.Sprintf("%s/api/v1/objects?object_type_id=%d&page=%d&page_size=%d", c.baseURL, objectTypeID, page, pageSize)
-	resp, err := c.httpGet(ctx, url)
+func (c *ObjectsClient) ListObjects(ctx context.Context, objectTypeID int64, page int, pageSize int, typeKeyPrefix string) ([]map[string]interface{}, error) {
+	params := fmt.Sprintf("?object_type_id=%d&page=%d&page_size=%d", objectTypeID, page, pageSize)
+	if typeKeyPrefix != "" {
+		params = params + "&type_key_prefix=" + url.QueryEscape(typeKeyPrefix)
+	}
+	fullURL := c.baseURL + "/api/v1/objects" + params
+	resp, err := c.httpGet(ctx, fullURL)
 	if err != nil {
 		return nil, fmt.Errorf("list objects: %w", err)
 	}

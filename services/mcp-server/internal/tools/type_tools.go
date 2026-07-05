@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -11,9 +10,24 @@ import (
 	mcpclient "github.com/v-egorov/service-boilerplate/services/mcp-server/internal/client"
 )
 
+// ListObjectTypesResult is the output schema wrapper for list_object_types.
+// Wrapped in an object with domain-specific key "types" so structuredContent
+// is always a JSON object (not a bare array), satisfying MCP spec and Python SDK 1.26+.
+type ListObjectTypesResult struct {
+	Items []map[string]interface{} `json:"types"`
+}
+
+// GetObjectTypeResult is the output schema wrapper for get_object_type.
+// Single-object tools return maps natively — this type exists only to declare
+// an outputSchema so clients can validate results against it.
+type GetObjectTypeResult struct {
+	Item map[string]interface{} `json:"item"`
+}
+
 // ListObjectTypesParams defines parameters for the list_object_types tool.
 type ListObjectTypesParams struct {
-	TypeKeyPrefix string `json:"type_key_prefix,omitempty"` // optional prefix filter on type_key
+	TypeKeyPrefix  string `json:"type_key_prefix,omitempty"` // optional prefix filter on type_key
+	ParentTypeID   *int64 `json:"parent_type_id,omitempty"`  // optional: only return direct children of this type
 }
 
 // GetObjectTypeParams defines parameters for the get_object_type tool.
@@ -29,6 +43,7 @@ func RegisterTypeTools(mcpServer *server.MCPServer, objClient *mcpclient.Objects
 		"list_object_types",
 		mcp.WithDescription("List all object types in the system (schema layer). Returns type names, keys, and descriptions."),
 		mcp.WithInputSchema[ListObjectTypesParams](),
+		mcp.WithOutputSchema[ListObjectTypesResult](),
 	)
 
 	mcpServer.AddTool(listTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -42,7 +57,7 @@ func RegisterTypeTools(mcpServer *server.MCPServer, objClient *mcpclient.Objects
 
 		ctx = mcpclient.WithIdentity(ctx, request.Header)
 
-		types, err := objClient.ListObjectTypes(ctx, args.TypeKeyPrefix)
+		types, err := objClient.ListObjectTypes(ctx, args.TypeKeyPrefix, args.ParentTypeID)
 		if err != nil {
 			logger.WithError(err).Error("Failed to list object types")
 			return &mcp.CallToolResult{
@@ -51,10 +66,9 @@ func RegisterTypeTools(mcpServer *server.MCPServer, objClient *mcpclient.Objects
 			}, nil
 		}
 
-		data, _ := json.Marshal(types)
 		return &mcp.CallToolResult{
-			Content:         []mcp.Content{mcp.NewTextContent(string(data))},
-			StructuredContent: types,
+			Content:         []mcp.Content{mcp.NewTextContent(fmt.Sprintf("list_object_types returned %d types", len(types)))},
+			StructuredContent: ListObjectTypesResult{Items: types},
 		}, nil
 	})
 
@@ -63,6 +77,7 @@ func RegisterTypeTools(mcpServer *server.MCPServer, objClient *mcpclient.Objects
 		"get_object_type",
 		mcp.WithDescription("Get a single object type by ID or name. Returns full type details including hierarchy info."),
 		mcp.WithInputSchema[GetObjectTypeParams](),
+		mcp.WithOutputSchema[GetObjectTypeResult](),
 	)
 
 	mcpServer.AddTool(getTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -98,10 +113,24 @@ func RegisterTypeTools(mcpServer *server.MCPServer, objClient *mcpclient.Objects
 			}, nil
 		}
 
-		data, _ := json.Marshal(typ)
+		// Extract name and id for summary (safe defaults if missing)
+		name := "unknown"
+		if n, ok := typ["name"]; ok {
+			if s, ok := n.(string); ok && s != "" { name = s }
+		}
+		idVal := "0"
+		if i, ok := typ["id"]; ok {
+			switch v := i.(type) {
+			case float64:
+				idVal = fmt.Sprintf("%d", int(v))
+			case string:
+				idVal = v
+			}
+		}
+
 		return &mcp.CallToolResult{
-			Content:         []mcp.Content{mcp.NewTextContent(string(data))},
-			StructuredContent: typ,
+			Content:         []mcp.Content{mcp.NewTextContent(fmt.Sprintf("get_object_type: %s (id=%s)", name, idVal))},
+			StructuredContent: GetObjectTypeResult{Item: typ},
 		}, nil
 	})
 }

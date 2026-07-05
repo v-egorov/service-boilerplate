@@ -16,7 +16,7 @@ func TestListObjectTypes(t *testing.T) {
 	defer server.Close()
 
 	client := NewObjectsClient(server.URL, 0)
-	types, err := client.ListObjectTypes(context.Background(), "")
+	types, err := client.ListObjectTypes(context.Background(), "", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -73,7 +73,7 @@ func TestListObjects(t *testing.T) {
 	defer server.Close()
 
 	client := NewObjectsClient(server.URL, 0)
-	objs, err := client.ListObjects(context.Background(), 42, 1, 10)
+	objs, err := client.ListObjects(context.Background(), 42, 1, 10, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestHTTPError(t *testing.T) {
 	defer server.Close()
 
 	client := NewObjectsClient(server.URL, 0)
-	_, err := client.ListObjectTypes(context.Background(), "")
+	_, err := client.ListObjectTypes(context.Background(), "", nil)
 	if err == nil {
 		t.Fatal("expected error for non-200 response")
 	}

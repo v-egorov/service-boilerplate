@@ -25,7 +25,7 @@ func TestListObjectsForwardsIdentityHeaders(t *testing.T) {
 	hdr.Set("X-User-Roles", "admin,user")
 
 	ctx := WithIdentity(context.Background(), hdr)
-	_, err := client.ListObjects(ctx, 42, 1, 10)
+	_, err := client.ListObjects(ctx, 42, 1, 10, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestListObjectsDoesNotForwardNonIdentityHeaders(t *testing.T) {
 	hdr.Set("X-Custom-Header", "secret-value")
 
 	ctx := WithIdentity(context.Background(), hdr)
-	_, err := client.ListObjects(ctx, 42, 1, 10)
+	_, err := client.ListObjects(ctx, 42, 1, 10, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestListObjectsProceedsWithoutIdentityHeaders(t *testing.T) {
 	client := NewObjectsClient(server.URL, 0)
 	// No WithIdentity call — context has no identity
 	ctx := context.Background()
-	_, err := client.ListObjects(ctx, 42, 1, 10)
+	_, err := client.ListObjects(ctx, 42, 1, 10, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestWithIdentityNilSafe(t *testing.T) {
 
 	client := NewObjectsClient(server.URL, 0)
 	ctx := WithIdentity(context.Background(), nil)
-	_, err := client.ListObjects(ctx, 42, 1, 10)
+	_, err := client.ListObjects(ctx, 42, 1, 10, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -290,7 +290,7 @@ func TestIdentityHeadersNotWholesaleCopied(t *testing.T) {
 	hdr.Set("Authorization", "Bearer secret-token")
 	hdr.Set("Cookie", "session=abc123")
 	ctx := WithIdentity(context.Background(), hdr)
-	_, err := client.ListObjects(ctx, 42, 1, 10)
+	_, err := client.ListObjects(ctx, 42, 1, 10, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -317,7 +317,7 @@ func TestListObjectsMultipleIdentityHeaders(t *testing.T) {
 	hdr.Set("X-User-Email", "multi@example.com")
 	hdr.Set("X-User-Roles", "admin,user,viewer")
 	ctx := WithIdentity(context.Background(), hdr)
-	_, err := client.ListObjects(ctx, 42, 1, 10)
+	_, err := client.ListObjects(ctx, 42, 1, 10, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -426,7 +426,7 @@ func TestListObjectsWithNilContext(t *testing.T) {
 
 	client := NewObjectsClient(server.URL, 0)
 	ctx := context.Background()
-	_, err := client.ListObjects(ctx, 42, 1, 10)
+	_, err := client.ListObjects(ctx, 42, 1, 10, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -491,7 +491,7 @@ func TestListObjectTypesForwardsIdentity(t *testing.T) {
 	hdr := http.Header{}
 	hdr.Set("X-User-ID", "list-types-user")
 	ctx := WithIdentity(context.Background(), hdr)
-	_, err := client.ListObjectTypes(ctx, "")
+	_, err := client.ListObjectTypes(ctx, "", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -512,7 +512,7 @@ func TestListObjectsWithNilIdentityValue(t *testing.T) {
 
 	client := NewObjectsClient(server.URL, 0)
 	ctx := WithIdentity(context.Background(), nil)
-	_, err := client.ListObjects(ctx, 42, 1, 10)
+	_, err := client.ListObjects(ctx, 42, 1, 10, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -533,7 +533,7 @@ func TestListObjectTypesWithNilContext(t *testing.T) {
 
 	client := NewObjectsClient(server.URL, 0)
 	ctx := context.Background()
-	_, err := client.ListObjectTypes(ctx, "")
+	_, err := client.ListObjectTypes(ctx, "", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -798,7 +798,7 @@ func TestListObjectTypesForwardsAllIdentityHeaders(t *testing.T) {
 	hdr.Set("X-User-Email", "full@example.com")
 	hdr.Set("X-User-Roles", "admin,user")
 	ctx := WithIdentity(context.Background(), hdr)
-	_, err := client.ListObjectTypes(ctx, "")
+	_, err := client.ListObjectTypes(ctx, "", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

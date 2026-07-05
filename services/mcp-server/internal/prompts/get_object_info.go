@@ -48,7 +48,7 @@ func RegisterGetObjectInfoPrompt(mcpServer *server.MCPServer, objClient *mcpclie
 
 		ctx = mcpclient.WithIdentity(ctx, req.Header)
 
-		objects, err := objClient.ListObjects(ctx, args.ObjectTypeID, page, pageSize)
+		objects, err := objClient.ListObjects(ctx, args.ObjectTypeID, page, pageSize, "")
 		if err != nil {
 			return mcp.NewGetPromptResult("", []mcp.PromptMessage{
 				{Role: mcp.RoleAssistant, Content: mcp.NewTextContent(fmt.Sprintf("Failed to list objects: %v", err))},
