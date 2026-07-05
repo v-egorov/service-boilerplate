@@ -274,3 +274,25 @@ Not part of this delta. Future work could explore:
 - Auto-registering permissions for new object types based on their `type_key`
 - A plugin or hook system that triggers permission/role assignments when an `object_type` is created
 - Dynamic route generation from the database (overkill for current scope)
+
+---
+
+## MCP Resources and Prompts — Output Schema Declarations Out of Scope
+
+**Discovered:** 2026-07-04 (during `fix-mcp-compliance` exploration)  
+**Delta:** `fix-mcp-compliance` (deferred assessment)
+
+### Problem
+The current fix adds output schemas only to the 4 MCP tools. Resources (`ReadResourceResult`) and prompts (`GetPromptResult`) use different result types that mcp-go also supports schema declarations on, but they were not included in scope.
+
+**Resources:** The hierarchy resource returns `[]mcp.ResourceContents` (currently `TextResourceContents`). Could declare an output schema for the resource's data structure.
+
+**Prompts:** Prompt handlers return `*GetPromptResult` containing `[]PromptMessage`. Each prompt message has structured content that could be validated against a schema.
+
+### Assessment Needed
+Before adding schemas to resources/prompts, verify:
+1. Do Python SDK clients actually validate resource/prompt results? (Likely only tool call results are validated)
+2. Is there a practical benefit beyond consistency with tools?
+3. Would it add value for agent debugging/tracing?
+
+**Decision:** Defer until a concrete client or use case demonstrates the need. Track here as a best-practice consideration.
