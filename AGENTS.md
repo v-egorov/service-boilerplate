@@ -314,6 +314,18 @@ Rules:
 - Write the compaction message verbatim — do not summarize or truncate it
 - This preserves session state for later recall and audit
 
+## OpenSpec
+
+OpenSpec manages change proposals via delta specs. All operations MUST use the CLI — **never manually move, rename, or edit files under `openspec/changes/`**.
+
+Rules:
+- Use `npx openspec new change "<name>"` to create changes (not `mkdir`)
+- Use `npx openspec status --change <name>` and `--json` to inspect state (not `cat` files)
+- Use `npx openspec archive <name>` to archive changes — never `mv openspec/changes/...`
+- Use `npx openspec validate <name>` to check correctness
+- After archive, if the baseline spec has wrong title/purpose, fix it directly with `write` (archive tool sometimes substitutes placeholders)
+- Always use `npx openspec` prefix — never bare `openspec` or direct file manipulation under `openspec/`
+
 ## graphify
 
 This project has a graphify knowledge graph at graphify-out/.
