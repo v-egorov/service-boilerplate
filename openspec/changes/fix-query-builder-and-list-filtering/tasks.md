@@ -25,8 +25,9 @@
   - Verify generated SQL has distinct `$1`, `$2`, `$3` placeholders
   - Verify args array matches placeholder count and order
 
-- [ ] **Task 6: Build, deploy, and verify fix**
-  - `go build ./services/objects-service/cmd && docker cp binary to container`
-  - Test: `curl -H "X-User-ID: ..." "http://localhost:8085/api/v1/objects?object_type_id=3&limit=2"` → should return 200 OK with data
-  - Test: same request without object_type_id → should still work (regression check)
-  - Verify MCP server tool call `list_objects` returns results
+- [x] **Task 6: Build, deploy, and verify fix**
+  - ✅ Built from source inside container via `go build`
+  - ✅ Test 1: `object_type_id=3 + X-User-ID` → 200 OK with 2 results (was 500 crash)
+  - ✅ Test 2: no filters → 200 OK with data (self-filtering removed)
+  - ✅ Test 5: `object_type_id=3 + status=active` → 200 OK (cross-type filter combo works)
+  - ⚠️ MCP E2E via gateway needs gateway restart — objects-service fix is verified directly

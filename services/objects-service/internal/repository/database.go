@@ -70,13 +70,33 @@ func (qb *QueryBuilder) From(table string) *QueryBuilder {
 }
 
 func (qb *QueryBuilder) Where(condition string, args ...interface{}) *QueryBuilder {
+	// Replace all $N placeholders in the condition with correct sequential indices.
+	// This ensures each call gets distinct placeholder values even when chained.
+	runArgIdx := qb.argIndex
+	result := []byte{}
+	for i := 0; i < len(condition); {
+		if condition[i] == '$' && i+1 < len(condition) && condition[i+1] >= '0' && condition[i+1] <= '9' {
+			numStart := i + 1
+			for numStart < len(condition) && condition[numStart] >= '0' && condition[numStart] <= '9' {
+				numStart++
+			}
+			result = append(result, []byte("$"+itoa(runArgIdx))...)
+			runArgIdx++
+			i = numStart
+		} else {
+			result = append(result, condition[i])
+			i++
+		}
+	}
+	condition = string(result)
+
 	if qb.query == "" || !contains(qb.query, "WHERE") {
 		qb.query += "WHERE " + condition + " "
 	} else {
 		qb.query += "AND " + condition + " "
 	}
 	qb.args = append(qb.args, args...)
-	qb.argIndex += len(args)
+	qb.argIndex = runArgIdx
 	return qb
 }
 
@@ -92,14 +112,16 @@ func (qb *QueryBuilder) WhereIn(condition string, args []interface{}) *QueryBuil
 }
 
 func (qb *QueryBuilder) WhereTagsContain(tags []string) *QueryBuilder {
-	for i, tag := range tags {
-		if i == 0 {
-			qb.query += "AND ($" + itoa(qb.argIndex+i) + " = ANY(tags)) "
+	firstTag := true
+	for _, tag := range tags {
+		if firstTag {
+			qb.query += "AND ($" + itoa(qb.argIndex) + " = ANY(tags)) "
 		} else {
-			qb.query += "AND ($" + itoa(qb.argIndex+i) + " = ANY(tags)) "
+			qb.query += "OR ($" + itoa(qb.argIndex) + " = ANY(tags)) "
 		}
+		firstTag = false
 		qb.args = append(qb.args, tag)
-		qb.argIndex += len(tags)
+		qb.argIndex++
 	}
 	return qb
 }

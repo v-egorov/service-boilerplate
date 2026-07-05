@@ -280,6 +280,89 @@ func TestQueryBuilder(t *testing.T) {
 	assert.Len(t, args, 1)
 }
 
+// TestQueryBuilder_MultipleWhereDistinctPlaceholders tests that chained Where() calls use distinct $N indices.
+func TestQueryBuilder_MultipleWhereDistinctPlaceholders(t *testing.T) {
+	qb := NewQueryBuilder()
+	query, args := qb.Select("id", "name").From("users").
+		Where("object_type_id = $1", 3).
+		Where("created_by = $1", "00000000-0000-4000-8000-000000000001").
+		Build()
+
+	// Both placeholders must be distinct ($1 and $2), not both $1.
+	assert.Contains(t, query, "object_type_id = $1")
+	assert.Contains(t, query, "created_by = $2")
+	assert.Len(t, args, 2)
+	assert.Equal(t, 3, args[0])
+	assert.Equal(t, "00000000-0000-4000-8000-000000000001", args[1])
+}
+
+// TestQueryBuilder_ThreeWhereDistinctPlaceholders tests three chained Where() calls.
+func TestQueryBuilder_ThreeWhereDistinctPlaceholders(t *testing.T) {
+	qb := NewQueryBuilder()
+	query, args := qb.Select("id").From("users").
+		Where("status = $1", "active").
+		Where("object_type_id = $1", 5).
+		Where("created_by = $1", "some-uuid").
+		Build()
+
+	assert.Contains(t, query, "status = $1")
+	assert.Contains(t, query, "object_type_id = $2")
+	assert.Contains(t, query, "created_by = $3")
+	assert.Len(t, args, 3)
+}
+
+// TestQueryBuilder_WhereWithMixedMethods tests Where() alongside WhereJsonContains.
+func TestQueryBuilder_WhereWithMixedMethods(t *testing.T) {
+	qb := NewQueryBuilder()
+	query, args := qb.Select("id").From("users").
+		Where("status = $1", "active").
+		WhereJsonContains("metadata", map[string]interface{}{"key": "val"}).
+		Build()
+
+	assert.Contains(t, query, "status = $1")
+	assert.Contains(t, query, "@> $2::jsonb")
+	assert.Len(t, args, 2)
+}
+
+// TestQueryBuilder_WhereTagsContain_ORLogic tests that multiple tags use AND ... OR chain.
+func TestQueryBuilder_WhereTagsContain_ORLogic(t *testing.T) {
+	qb := NewQueryBuilder()
+	query, args := qb.Select("id").From("users").Where("status = $1", "active").WhereTagsContain([]string{"tag1", "tag2"}).Build()
+
+	assert.Contains(t, query, "AND ($")
+	assert.Contains(t, query, "= ANY(tags)) OR (")
+	// Verify distinct indices: status=$1, tag1=$2, tag2=$3.
+	assert.Len(t, args, 3)
+	assert.Equal(t, "active", args[0])
+	assert.Equal(t, "tag1", args[1])
+	assert.Equal(t, "tag2", args[2])
+}
+
+// TestQueryBuilder_WhereTagsContain_SingleTag tests single tag produces AND only.
+func TestQueryBuilder_WhereTagsContain_SingleTag(t *testing.T) {
+	qb := NewQueryBuilder()
+	query, args := qb.Select("id").From("users").WhereTagsContain([]string{"tag1"}).Build()
+
+	assert.Contains(t, query, "AND ($")
+	assert.NotContains(t, query, "OR (")
+	assert.Len(t, args, 1)
+}
+
+// TestQueryBuilder_WhereTagsContain_TwoTagsDistinctIndices tests that two tags get consecutive indices.
+func TestQueryBuilder_WhereTagsContain_TwoTagsDistinctIndices(t *testing.T) {
+	qb := NewQueryBuilder()
+	query, args := qb.Select("id").From("users").
+		Where("object_type_id = $1", int64(3)).
+		WhereTagsContain([]string{"tag1", "tag2"}).Build()
+
+	// object_type_id gets $1, first tag gets $2, second tag gets $3.
+	assert.Contains(t, query, "object_type_id = $1")
+	assert.Len(t, args, 3)
+	assert.Equal(t, int64(3), args[0])
+	assert.Equal(t, "tag1", args[1])
+	assert.Equal(t, "tag2", args[2])
+}
+
 // TestObjectTypeRepository_ValidateMove tests move validation
 func TestObjectTypeRepository_ValidateMove(t *testing.T) {
 	mockDB := &MockDBPool{

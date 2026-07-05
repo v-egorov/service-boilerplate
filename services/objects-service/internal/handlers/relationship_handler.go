@@ -227,10 +227,9 @@ func (h *RelationshipHandler) List(c *gin.Context) {
 		filter.PageSize = 20
 	}
 
-	userID := middleware.GetAuthenticatedUserID(c)
-	if userID != "" && (filter.UserID == nil || *filter.UserID == "") {
-		filter.UserID = &userID
-	}
+	// NOTE: No self-filtering by user ID for List(). Permission checks are handled
+	// at the gateway level (via permiddleware). If a client needs ownership filtering,
+	// it can pass an explicit query parameter (future enhancement).
 
 	rels, err := h.service.List(c.Request.Context(), &filter)
 	if err != nil {

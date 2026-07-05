@@ -410,10 +410,9 @@ func (h *ObjectHandler) List(c *gin.Context) {
 		filter.Status = status
 	}
 
-	userID := middleware.GetAuthenticatedUserID(c)
-	if userID != "" {
-		filter.UserID = &userID
-	}
+	// NOTE: No self-filtering by user ID for List(). Permission checks are handled
+	// at the gateway level (via permiddleware). If a client needs ownership filtering,
+	// it can pass an explicit query parameter (future enhancement).
 
 	filter.Limit = 50
 	filter.Offset = 0
