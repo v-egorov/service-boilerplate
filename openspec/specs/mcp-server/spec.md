@@ -159,3 +159,33 @@ Every MCP tool response that includes an ObjectType MUST have a non-empty `type_
 - **WHEN** any MCP tool returns an ObjectType (list_object_types, get_object_type, hierarchy resource)
 - **THEN** the `type_key` field in every returned object is a non-empty string matching the pattern `[a-z][a-z0-9-]*`
 
+### Requirement: MCP server structuredContent conforms to MCP spec object type
+The mcp-server MUST serialize `structuredContent` as a JSON object (map/dict), never as a bare array. When tools return collections, the result MUST be wrapped in an object with a domain-specific key so that structuredContent is always a valid JSON object. This ensures compatibility with the MCP specification's requirement that structuredContent is "a JSON object" and with Python SDK 1.26.0+ which enforces `dict[str, Any] | None`.
+
+#### Scenario: list_object_types returns structuredContent as wrapped array
+- **WHEN** the agent calls list_object_types and receives a CallToolResult
+- **THEN** result.structuredContent is an object with key `"types"` containing the array of ObjectType entries (e.g., `{"types": [{id:1,...}, {id:2,...}]}`)
+
+#### Scenario: get_object_type returns structuredContent as wrapped single object
+- **WHEN** the agent calls get_object_type and receives a CallToolResult
+- **THEN** result.structuredContent is an object with key `"item"` containing the ObjectType entry (e.g., `{"item": {id:1,...}}`) — a JSON object, not wrapped in an array
+
+#### Scenario: list_objects returns structuredContent as wrapped array
+- **WHEN** the agent calls list_objects and receives a CallToolResult
+- **THEN** result.structuredContent is an object with key `"objects"` containing the paginated Object results (e.g., `{"objects": [{id:1,...}, ...]}`)
+
+#### Scenario: get_object returns structuredContent as wrapped single object
+- **WHEN** the agent calls get_object and receives a CallToolResult
+- **THEN** result.structuredContent is an object with key `"object"` containing the Object entry (e.g., `{"object": {id:1,...}}`) — a JSON object, not wrapped in an array
+
+### Requirement: MCP server declares output schemas on all tools
+Every MCP tool MUST declare its output schema using mcp-go's `WithOutputSchema[T]()` option, where T is a Go struct matching the expected structuredContent shape. This enables client-side validation via Python SDK and accurate tool metadata from `tools/list`.
+
+#### Scenario: tools/list includes outputSchema for each tool
+- **WHEN** an MCP client calls tools/list
+- **THEN** every returned tool object includes an `"outputSchema"` field with a valid JSON Schema describing the structuredContent shape
+
+#### Scenario: Output schemas match actual return types
+- **WHEN** any tool is called and returns structuredContent
+- **THEN** the structuredContent value conforms to that tool's declared outputSchema
+
