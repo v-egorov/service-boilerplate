@@ -1,7 +1,8 @@
-# objects-service Specification
+# Specification: objects-service
 
 ## Purpose
-TBD - created by archiving change fix-query-builder-and-list-filtering. Update Purpose after archive.
+
+Define the behavior of the objects-service QueryBuilder SQL query builder (specifically WHERE clause placeholder handling) and the List endpoint filtering rules, ensuring correct multi-parameter queries and proper permission-based access control without implicit self-filtering.
 ## Requirements
 ### Requirement: QueryBuilder Where() uses distinct placeholder indices per call
 The QueryBuilder.Where() method MUST generate distinct `$N` placeholders for each invocation, starting from the current argIndex value and incrementing sequentially. Each argument appended to args[] must correspond to exactly one unique placeholder in the generated SQL string. This ensures that when multiple WHERE clauses are chained (e.g., object_type_id filter + user ID filter), PostgreSQL receives correctly typed values for each parameter without positional collision.
@@ -19,7 +20,7 @@ The QueryBuilder.Where() method MUST generate distinct `$N` placeholders for eac
 - **THEN** the generated SQL has "WHERE object_type_id = $1 AND created_by = $2" with args[0]=3, args[1]="uuid-string", and PostgreSQL executes without SQLSTATE 42883 errors
 
 ### Requirement: QueryBuilder WhereTagsContain() uses OR logic per tag
-The QueryBuilder.WhereTagsContain() method MUST use AND for the first tag and OR for each subsequent tag, with each tag consuming exactly one placeholder index. The argIndex must increment by 1 per tag (not by len(tags)).
+The QueryBuilder.WhereTagsContain() method MUST use AND for the first tag and OR for each subsequent tag, each consuming exactly one placeholder index. The argIndex must increment by 1 per tag (not by len(tags)).
 
 #### Scenario: Single tag produces AND clause
 - **WHEN** WhereTagsContain(["tag1"]) is called on a query that already has WHERE
@@ -43,4 +44,3 @@ The List endpoints (object_handler.go List() and relationship_handler.go List())
 #### Scenario: Explicit ownership filter can be added via query parameter (future)
 - **WHEN** a client passes ?owner_id=<uuid> query parameter to List
 - **THEN** the generated SQL includes "WHERE created_by = $N" for that specific owner value
-
