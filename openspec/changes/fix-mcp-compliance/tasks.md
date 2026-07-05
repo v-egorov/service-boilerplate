@@ -41,8 +41,4 @@
 - [ ] 6.5 Verify structuredContent is a dict with correct domain key (`types` or `objects`) for list operations, not bare array
 - [ ] 6.6 Verify content[] text fields are ~30 chars (summary) instead of multi-KB JSON strings — confirm token savings
 
-## 7. Commit and sync specs
 
-- [ ] 7.1 Commit all code changes with descriptive message
-- [ ] 7.2 Archive change: `npx openspec archive fix-mcp-compliance`
-- [ ] 7.3 Verify baseline mcp-server spec now includes the new structuredContent and outputSchema requirements
