@@ -1,6 +1,11 @@
-## MODIFIED Requirements
+## REMOVED Requirements
 
 ### Requirement: MCP server uses SSE transport via api-gateway
+**Reason**: Transport changed from SSE to StreamableHTTP. The original SSE requirement (`/mcp/sse` GET endpoint with chunked transfer encoding) is removed and replaced by a new StreamableHTTP requirement using a single POST `/mcp` endpoint with `MCP-Session-ID` headers. Modeled as REMOVE+ADD rather than MODIFY because the requirement title itself changes (SSE → StreamableHTTP), and OpenSpec MODIFIED matches on the original title.
+
+## ADDED Requirements
+
+### Requirement: MCP server uses StreamableHTTP transport via api-gateway
 The mcp-server MUST expose a StreamableHTTP endpoint at `/mcp` that MCP clients connect to. The api-gateway MUST route incoming POST requests from the path prefix `/mcp/*` to the mcp-server service using standard HTTP reverse proxying without path rewriting or body manipulation. Sessions are stateful — the first POST establishes session context, and subsequent requests echo back `MCP-Session-ID` in the header for session reuse.
 
 #### Scenario: Client connects via StreamableHTTP through gateway
