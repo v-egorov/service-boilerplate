@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/evilmartians/openspec/main/schemas/openspec.yaml
+id: fix-query-builder-and-list-filtering
+name: Fix QueryBuilder placeholder injection and List self-filtering
+created: 2026-07-05
+updated: 2026-07-05
+schema: spec-driven
