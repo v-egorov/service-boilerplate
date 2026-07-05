@@ -234,7 +234,9 @@ if first_type_id and str(first_type_id).isdigit():
                     sc = first_content.get('structuredContent')
 
         if sc and isinstance(sc, dict):
-            type_name = sc.get('name') or sc.get('type_key', '')
+            # New format: {"item": {...}} wrapper from output schema
+            item_data = sc.get('item') or sc
+            type_name = (item_data if isinstance(item_data, dict) else {}).get('name') or (item_data if isinstance(item_data, dict) else {}).get('type_key', '')
             if type_name:
                 pass_test(f"get_object_type(id={first_type_id}) → {type_name}")
             else:
