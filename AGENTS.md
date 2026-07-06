@@ -316,31 +316,10 @@ Rules:
 
 ## OpenSpec
 
-OpenSpec manages change proposals via delta specs. All operations MUST use the CLI — **never manually move, rename, or edit files under `openspec/changes/`**.
+OpenSpec is the change management workflow for this project. All operations use the CLI.
 
-Rules:
-- Use `npx openspec new change "<name>"` to create changes (not `mkdir`)
-- Use `npx openspec status --change <name>` and `--json` to inspect state (not `cat` files)
-- Use `npx openspec archive <name>` to archive changes — never `mv openspec/changes/...`
-- Use `npx openspec validate <name>` to check correctness
-- After archive, if the baseline spec has wrong title/purpose, fix it directly with `write` (archive tool sometimes substitutes placeholders)
-- Always use `npx openspec` prefix — never bare `openspec` or direct file manipulation under `openspec/`
+**Key rules:**
+- Always use `npx openspec` prefix (never bare `openspec` or direct file manipulation)
+- Use `--json` with `status`, `validate`, etc. when you need programmatic output (for checking artifact completion, parsing task status)
+- Delta specs in archives serve as historical reference — they document what changed at that point in time
 
-**Archive includes automatic spec sync:** `npx openspec archive <name>` performs both operations in one step:
-1. Moves the change directory to `openspec/changes/archive/YYYY-MM-DD-<name>/`
-2. Syncs all delta specs from the archived change into baseline specs (`openspec/specs/<capability>/spec.md`)
-
-Correct workflow — **do NOT split into separate sync + move steps**:
-1. Verify everything is done: `npx openspec status --change <name> --json` (all artifacts → "done")
-2. Confirm tasks complete: read `tasks.md`, verify no `- [ ]` incomplete items
-3. Run **one command**: `npx openspec archive <name>` — this handles both the directory move AND spec sync automatically
-
-## graphify
-
-This project has a graphify knowledge graph at graphify-out/.
-
-Rules:
-- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
-- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
-- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
-- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)
