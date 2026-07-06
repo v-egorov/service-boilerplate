@@ -31,15 +31,15 @@ The mcp-server MUST expose a tool named `get_object_type` that retrieves a singl
 - **THEN** the server returns the matching ObjectType using the same fields as ID lookup
 
 ### Requirement: MCP server exposes list_objects tool
-The mcp-server MUST expose a tool named `list_objects` that retrieves objects from objects-service filtered by object type. The tool SHALL accept at minimum a required object_type_id parameter and optional pagination parameters (page, page_size).
+The mcp-server MUST expose a tool named `list_objects` that retrieves objects from objects-service filtered by object type. The tool SHALL accept at minimum a required object_type_id parameter and optional pagination parameters (limit, offset). The limit parameter specifies the maximum number of results to return; the offset parameter specifies how many results to skip. These match the objects-service API contract (c.Query("limit"), c.Query("offset")).
 
 #### Scenario: List objects by type returns paginated results
 - **WHEN** the agent calls list_objects with a valid object_type_id
 - **THEN** the server returns a list of Object instances from objects-service including ID, public_id, name, status, tags, metadata, and associated ObjectType
 
 #### Scenario: List objects respects pagination parameters
-- **WHEN** the agent calls list_objects with page=1 and page_size=20
-- **THEN** the server returns at most 20 results starting from the first matching object with correct pagination metadata in the response
+- **WHEN** the agent calls list_objects with limit=20 and offset=0
+- **THEN** the server returns at most 20 results starting from the first matching object with pagination metadata (total, limit, offset) in the response
 
 ### Requirement: MCP server exposes get_object tool
 The mcp-server MUST expose a tool named `get_object` that retrieves a single object by its public_id. The tool SHALL return the complete object including all fields and associated ObjectType.
@@ -170,9 +170,9 @@ The mcp-server MUST serialize `structuredContent` as a JSON object (map/dict), n
 - **WHEN** the agent calls get_object_type and receives a CallToolResult
 - **THEN** result.structuredContent is an object with key `"item"` containing the ObjectType entry (e.g., `{"item": {id:1,...}}`) — a JSON object, not wrapped in an array
 
-#### Scenario: list_objects returns structuredContent as wrapped array
+#### Scenario: list_objects returns structuredContent as wrapped array with pagination metadata
 - **WHEN** the agent calls list_objects and receives a CallToolResult
-- **THEN** result.structuredContent is an object with key `"objects"` containing the paginated Object results (e.g., `{"objects": [{id:1,...}, ...]}`)
+- **THEN** result.structuredContent is an object with key `"objects"` containing the paginated Object results AND a `"pagination"` key with total, limit, offset (e.g., `{"objects": [{id:1,...}, ...], "pagination": {"total": 56, "limit": 20, "offset": 0}}`)
 
 #### Scenario: get_object returns structuredContent as wrapped single object
 - **WHEN** the agent calls get_object and receives a CallToolResult

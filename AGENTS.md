@@ -326,6 +326,15 @@ Rules:
 - After archive, if the baseline spec has wrong title/purpose, fix it directly with `write` (archive tool sometimes substitutes placeholders)
 - Always use `npx openspec` prefix — never bare `openspec` or direct file manipulation under `openspec/`
 
+**Archive includes automatic spec sync:** `npx openspec archive <name>` performs both operations in one step:
+1. Moves the change directory to `openspec/changes/archive/YYYY-MM-DD-<name>/`
+2. Syncs all delta specs from the archived change into baseline specs (`openspec/specs/<capability>/spec.md`)
+
+Correct workflow — **do NOT split into separate sync + move steps**:
+1. Verify everything is done: `npx openspec status --change <name> --json` (all artifacts → "done")
+2. Confirm tasks complete: read `tasks.md`, verify no `- [ ]` incomplete items
+3. Run **one command**: `npx openspec archive <name>` — this handles both the directory move AND spec sync automatically
+
 ## graphify
 
 This project has a graphify knowledge graph at graphify-out/.
