@@ -428,7 +428,7 @@ func (r *relationshipRepository) List(ctx context.Context, filter *models.Relati
 	}
 	defer rows.Close()
 
-	var rels []*models.Relationship
+	rels := make([]*models.Relationship, 0)
 	for rows.Next() {
 		var rel models.Relationship
 		var metadata []byte
@@ -511,7 +511,7 @@ func (r *relationshipRepository) GetForObject(ctx context.Context, objectPublicI
 	}
 	defer rows.Close()
 
-	var rels []*models.Relationship
+	rels := make([]*models.Relationship, 0)
 	for rows.Next() {
 		var rel models.Relationship
 		var metadata []byte
@@ -564,7 +564,7 @@ func (r *relationshipRepository) GetForObjectByType(ctx context.Context, objectP
 	}
 	defer rows.Close()
 
-	var rels []*models.Relationship
+	rels := make([]*models.Relationship, 0)
 	for rows.Next() {
 		var rel models.Relationship
 		var metadata []byte
@@ -632,7 +632,7 @@ func (r *relationshipRepository) GetRelatedObjects(ctx context.Context, objectPu
 	}
 	defer rows.Close()
 
-	var objects []*models.Object
+	objects := make([]*models.Object, 0)
 	for rows.Next() {
 		var obj models.Object
 		err := rows.Scan(
@@ -722,7 +722,7 @@ func (r *relationshipRepository) GetByTypeKey(ctx context.Context, typeKey strin
 	}
 	defer rows.Close()
 
-	var rels []*models.Relationship
+	rels := make([]*models.Relationship, 0)
 	for rows.Next() {
 		var rel models.Relationship
 		var metadata []byte

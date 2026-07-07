@@ -443,7 +443,7 @@ func (r *relationshipTypeRepository) List(ctx context.Context, filter *models.Re
 	}
 	defer rows.Close()
 
-	var types []*models.RelationshipType
+	types := make([]*models.RelationshipType, 0)
 	for rows.Next() {
 		var rt models.RelationshipType
 		var reverseTypeKey *string

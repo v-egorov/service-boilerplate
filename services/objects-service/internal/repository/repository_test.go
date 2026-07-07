@@ -139,7 +139,8 @@ func TestObjectTypeRepository_List(t *testing.T) {
 	repo := NewObjectTypeRepository(mockDB, DefaultRepositoryOptions())
 	result, err := repo.List(context.Background(), &models.ObjectTypeFilter{})
 	assert.NoError(t, err)
-	assert.Nil(t, result)
+	assert.NotNil(t, result)
+		assert.Len(t, result, 0)
 }
 
 // TestObjectTypeRepository_ValidateParentChild tests validation
@@ -173,7 +174,8 @@ func TestObjectTypeRepository_GetTree(t *testing.T) {
 	result, err := repo.GetTree(context.Background(), nil)
 	assert.NoError(t, err)
 	// Current implementation returns nil when there are no rows
-	assert.Nil(t, result)
+	assert.NotNil(t, result)
+		assert.Len(t, result, 0)
 }
 
 // TestObjectRepository_Creation tests that object repository can be created
@@ -436,7 +438,8 @@ func TestObjectRepository_GetDescendants(t *testing.T) {
 	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
 	result, err := repo.GetDescendants(context.Background(), 1, nil)
 	assert.NoError(t, err)
-	assert.Nil(t, result)
+	assert.NotNil(t, result)
+		assert.Len(t, result, 0)
 }
 
 // TestObjectRepository_GetAncestors tests getting ancestors
@@ -455,7 +458,8 @@ func TestObjectRepository_GetAncestors(t *testing.T) {
 	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
 	result, err := repo.GetAncestors(context.Background(), 1)
 	assert.NoError(t, err)
-	assert.Nil(t, result)
+	assert.NotNil(t, result)
+		assert.Len(t, result, 0)
 }
 
 // TestObjectRepository_GetPath tests getting path to root
@@ -474,7 +478,8 @@ func TestObjectRepository_GetPath(t *testing.T) {
 	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
 	result, err := repo.GetPath(context.Background(), 1)
 	assert.NoError(t, err)
-	assert.Nil(t, result)
+	assert.NotNil(t, result)
+		assert.Len(t, result, 0)
 }
 
 // TestObjectRepository_BulkUpdate tests bulk updating objects
@@ -499,7 +504,8 @@ func TestObjectRepository_BulkUpdate(t *testing.T) {
 
 	result, err := repo.BulkUpdate(context.Background(), ids, updates)
 	assert.NoError(t, err)
-	assert.Nil(t, result)
+	assert.NotNil(t, result)
+		assert.Len(t, result, 0)
 }
 
 // TestObjectRepository_BulkUpdate_EmptyIds tests with empty ids
@@ -589,4 +595,64 @@ func TestPGDatabaseCreation(t *testing.T) {
 	// This test just verifies the type can be instantiated
 	var db *PGDatabase
 	assert.Nil(t, db)
+}
+
+// TestObjectRepository_List_EmptyResultIsNonNil ensures empty collections serialize as [] not null
+func TestObjectRepository_List_EmptyResultIsNonNil(t *testing.T) {
+	mockDB := &MockDBPool{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			rows := &MockRows{NextFunc: func() bool { return false }}
+			return rows, nil
+		},
+	}
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	result, _, err := repo.List(context.Background(), &models.ObjectFilter{})
+	assert.NoError(t, err)
+	assert.NotNil(t, result, "List() must return non-nil slice for empty results")
+	assert.Len(t, result, 0)
+}
+
+// TestObjectRepository_Search_EmptyResultIsNonNil ensures search returns non-nil on no matches
+func TestObjectRepository_Search_EmptyResultIsNonNil(t *testing.T) {
+	mockDB := &MockDBPool{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			rows := &MockRows{NextFunc: func() bool { return false }}
+			return rows, nil
+		},
+	}
+	repo := NewObjectRepository(mockDB, DefaultRepositoryOptions())
+	result, err := repo.Search(context.Background(), "nonexistent", 10)
+	assert.NoError(t, err)
+	assert.NotNil(t, result, "Search() must return non-nil slice for no matches")
+	assert.Len(t, result, 0)
+}
+
+// TestObjectTypeRepository_GetChildrenTypes_EmptyResultIsNonNil ensures children types returns non-nil
+func TestObjectTypeRepository_GetChildrenTypes_EmptyResultIsNonNil(t *testing.T) {
+	mockDB := &MockDBPool{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			rows := &MockRows{NextFunc: func() bool { return false }}
+			return rows, nil
+		},
+	}
+	repo := NewObjectTypeRepository(mockDB, DefaultRepositoryOptions())
+	result, err := repo.GetChildren(context.Background(), 999)
+	assert.NoError(t, err)
+	assert.NotNil(t, result, "GetChildren() must return non-nil slice for no children")
+	assert.Len(t, result, 0)
+}
+
+// TestRelationshipRepository_List_EmptyResultIsNonNil ensures relationship list returns non-nil
+func TestRelationshipRepository_List_EmptyResultIsNonNil(t *testing.T) {
+	mockDB := &MockDBPool{
+		QueryFunc: func(ctx context.Context, sql string, args ...any) (Rows, error) {
+			rows := &MockRows{NextFunc: func() bool { return false }}
+			return rows, nil
+		},
+	}
+	repo := NewRelationshipRepository(mockDB, DefaultRepositoryOptions(), NewObjectRepository(mockDB, DefaultRepositoryOptions()))
+	result, err := repo.List(context.Background(), &models.RelationshipFilter{})
+	assert.NoError(t, err)
+	assert.NotNil(t, result, "List() must return non-nil slice for empty results")
+	assert.Len(t, result, 0)
 }

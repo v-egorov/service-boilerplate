@@ -513,7 +513,7 @@ func (r *objectRepository) List(ctx context.Context, filter *models.ObjectFilter
 	}
 	defer rows.Close()
 
-	var objects []*models.Object
+	objects := make([]*models.Object, 0)
 	for rows.Next() {
 		var object models.Object
 		var parentObjectID sql.NullInt64
@@ -684,7 +684,7 @@ func (r *objectRepository) Search(ctx context.Context, searchQuery string, limit
 	}
 	defer rows.Close()
 
-	var objects []*models.Object
+	objects := make([]*models.Object, 0)
 	for rows.Next() {
 		var object models.Object
 		var parentObjectID sql.NullInt64
@@ -742,7 +742,7 @@ func (r *objectRepository) FindByMetadata(ctx context.Context, key, value string
 	}
 	defer rows.Close()
 
-	var objects []*models.Object
+	objects := make([]*models.Object, 0)
 	for rows.Next() {
 		var object models.Object
 		var parentObjectID sql.NullInt64
@@ -811,7 +811,7 @@ func (r *objectRepository) FindByTags(ctx context.Context, tags []string, matchA
 	}
 	defer rows.Close()
 
-	var objects []*models.Object
+	objects := make([]*models.Object, 0)
 	for rows.Next() {
 		var object models.Object
 		var parentObjectID sql.NullInt64
@@ -943,7 +943,7 @@ func (r *objectRepository) GetChildren(ctx context.Context, parentID int64) ([]*
 	}
 	defer rows.Close()
 
-	var objects []*models.Object
+	objects := make([]*models.Object, 0)
 	for rows.Next() {
 		var object models.Object
 		var parentObjectID sql.NullInt64
@@ -1016,7 +1016,7 @@ func (r *objectRepository) GetDescendants(ctx context.Context, rootID int64, max
 	}
 	defer rows.Close()
 
-	var objects []*models.Object
+	objects := make([]*models.Object, 0)
 	for rows.Next() {
 		var object models.Object
 		var parentObjectID sql.NullInt64
@@ -1083,7 +1083,7 @@ func (r *objectRepository) GetAncestors(ctx context.Context, id int64) ([]*model
 	}
 	defer rows.Close()
 
-	var objects []*models.Object
+	objects := make([]*models.Object, 0)
 	for rows.Next() {
 		var object models.Object
 		var parentObjectID sql.NullInt64
@@ -1149,7 +1149,7 @@ func (r *objectRepository) GetPath(ctx context.Context, id int64) ([]*models.Obj
 	}
 	defer rows.Close()
 
-	var objects []*models.Object
+	objects := make([]*models.Object, 0)
 	for rows.Next() {
 		var object models.Object
 		var parentObjectID sql.NullInt64
@@ -1226,7 +1226,7 @@ func (r *objectRepository) BulkCreate(ctx context.Context, inputs []*models.Crea
 	}
 	defer rows.Close()
 
-	var objects []*models.Object
+	objects := make([]*models.Object, 0)
 	for rows.Next() {
 		var object models.Object
 		var parentObjectID sql.NullInt64
@@ -1337,7 +1337,7 @@ func (r *objectRepository) BulkUpdate(ctx context.Context, ids []int64, updates 
 	}
 	defer rows.Close()
 
-	var objects []*models.Object
+	objects := make([]*models.Object, 0)
 	for rows.Next() {
 		var object models.Object
 		var parentObjectID sql.NullInt64

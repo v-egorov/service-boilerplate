@@ -410,7 +410,7 @@ func (r *objectTypeRepository) GetTree(ctx context.Context, rootID *int64) ([]*m
 	}
 	defer rows.Close()
 
-	var objectTypes []*models.ObjectType
+	objectTypes := make([]*models.ObjectType, 0)
 	idMap := make(map[int64]*models.ObjectType)
 
 	for rows.Next() {
@@ -437,7 +437,7 @@ func (r *objectTypeRepository) GetTree(ctx context.Context, rootID *int64) ([]*m
 	}
 
 	// Build hierarchical structure
-	var roots []*models.ObjectType
+	roots := make([]*models.ObjectType, 0)
 	for _, obj := range objectTypes {
 		if obj.ParentTypeID != nil {
 			if parent, exists := idMap[*obj.ParentTypeID]; exists {
@@ -469,7 +469,7 @@ func (r *objectTypeRepository) GetChildren(ctx context.Context, parentID int64) 
 	}
 	defer rows.Close()
 
-	var children []*models.ObjectType
+	children := make([]*models.ObjectType, 0)
 	for rows.Next() {
 		var objectType models.ObjectType
 		var parentID sql.NullInt64
@@ -598,7 +598,7 @@ func (r *objectTypeRepository) GetDescendants(ctx context.Context, rootID int64,
 	}
 	defer rows.Close()
 
-	var objectTypes []*models.ObjectType
+	objectTypes := make([]*models.ObjectType, 0)
 	depthMap := make(map[int64]int)
 
 	for rows.Next() {
@@ -657,7 +657,7 @@ func (r *objectTypeRepository) GetAncestors(ctx context.Context, id int64) ([]*m
 	}
 	defer rows.Close()
 
-	var ancestors []*models.ObjectType
+	ancestors := make([]*models.ObjectType, 0)
 	for rows.Next() {
 		var objectType models.ObjectType
 		var parentID sql.NullInt64
@@ -711,7 +711,7 @@ func (r *objectTypeRepository) GetPath(ctx context.Context, id int64) ([]*models
 	}
 	defer rows.Close()
 
-	var path []*models.ObjectType
+	path := make([]*models.ObjectType, 0)
 	for rows.Next() {
 		var objectType models.ObjectType
 		var parentID sql.NullInt64
@@ -800,7 +800,7 @@ func (r *objectTypeRepository) List(ctx context.Context, filter *models.ObjectTy
 	}
 	defer rows.Close()
 
-	var objectTypes []*models.ObjectType
+	objectTypes := make([]*models.ObjectType, 0)
 	for rows.Next() {
 		var objectType models.ObjectType
 		var parentID sql.NullInt64
@@ -851,7 +851,7 @@ func (r *objectTypeRepository) Search(ctx context.Context, query string, limit i
 	}
 	defer rows.Close()
 
-	var objectTypes []*models.ObjectType
+	objectTypes := make([]*models.ObjectType, 0)
 	for rows.Next() {
 		var objectType models.ObjectType
 		var parentID sql.NullInt64
