@@ -22,6 +22,7 @@ brevity is good
 ## Development Workflow
 - Builds and tests run on host machine to simplify workflow
 - Air hot-reload inside containers - source changes trigger automatic rebuild/restart
+- **CRITICAL: Never switch `.air.toml` `poll = false` to `poll = true`.** Inotify works correctly — all 5 services use it. Suspected "Air didn't see the change" is always a code-level bug; verify by running the binary directly (`./tmp/<service-name>`) before touching Air config.
 - Key Makefile targets:
   - `make dev` - start services in development mode (blocks, tails logs - do not use in agentic mode)
   - `make dev-detached` - start services in development mode (detached, returns once services started)
