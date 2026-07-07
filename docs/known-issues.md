@@ -4,7 +4,86 @@ Items tracked for future investigation or deferred to a later delta. Each entry 
 
 ---
 
-## Air Hot-Reload — Never Switch to Polling Mode
+## Handler Error Mapping — All Service Errors Return 500
+
+**Discovered:** 2026-07-07 (during `fix-objects-service-null-data` container verification)  
+**Affected service:** objects-service (all handlers: object, object_type, relationship)
+
+### Problem
+The handler's error mapping function (`handleServiceError`) only special-cases one sentinel error (`repository.ErrOptimisticLock` → 409 Conflict). **All other errors map to HTTP 500 Internal Server Error**, including:
+- `sql.ErrNoRows` (resource not found) — should be 404 or validation_error
+- Invalid input parameters — should be 422 validation_error
+- Business logic violations — should be specific error types, not internal_error
+
+### Example
+```
+GET /api/v1/objects?object_type_id=999&limit=5   (ID doesn't exist)
+→ Returns: {"error":"Internal server error","type":"internal_error"}  (HTTP 500)
+→ Should be: {"error":"Object type not found","type":"not_found"}  (HTTP 404) or validation_error
+```
+
+### Root Cause
+`services/objects-service/internal/handlers/object_handler.go:75-98` — `handleServiceError()` has no error-type dispatch. It checks for one sentinel, then falls through to a generic 500:
+```go
+if errors.Is(err, repository.ErrOptimisticLock) {
+    c.JSON(http.StatusConflict, ...)
+    return
+}
+c.JSON(http.StatusInternalServerError, gin.H{
+    "error": "Internal server error",
+    "type":  "internal_error",
+})
+```
+
+### Impact
+Clients cannot distinguish between unexpected server failures and known validation/lookup errors. This violates the API response standards which require HTTP status codes to match error types.
+
+### Fix Strategy (future delta)
+Add error-type dispatch in `handleServiceError`:
+- Check for sentinel errors via `errors.Is()` (ErrNotFound, ErrInvalidInput, etc.)
+- Map each to appropriate HTTP status + error type per API response standards
+- Fall back to 500 only for truly unexpected errors
+
+---
+
+## Pagination Inconsistency Across Objects-Service Endpoints
+
+**Discovered:** 2026-07-07 (during `fix-objects-service-null-data` container verification)  
+**Affected service:** objects-service
+
+### Problem
+Different endpoints use different pagination parameter names and response field conventions:
+
+| Endpoint | Param Format | Response Field |
+|----------|-------------|----------------|
+| `/api/v1/objects` (List, Search) | `?limit=N&offset=M` | `"count"` + `"total"` |
+| `/api/v1/object-types` (List) | `?limit=N&offset=M` | `"count"` + `"total"` |
+| `/api/v1/relationships` (List) | `?page=P&page_size=S` | `"limit"` + `"total"` |
+
+### Example
+```bash
+# Objects-service uses limit/offset
+curl 'http://localhost:8085/api/v1/objects?limit=3&offset=0'   # ✅ works
+
+# Relationships uses page/page_size — limit/offset ignored!
+curl 'http://localhost:8085/api/v1/relationships?limit=3&offset=9999'  # ❌ returns all (defaults to page=1, page_size=20)
+
+curl 'http://localhost:8085/api/v1/relationships?page=1&page_size=3'   # ✅ works
+```
+
+### Root Cause
+- `ObjectFilter` struct uses `Limit int` / `Offset int` with form tags matching query params
+- `RelationshipFilter` struct uses `Page int` / `PageSize int` — completely different field names
+- No shared pagination interface or helper to normalize across endpoints
+
+### Impact
+Clients must remember which endpoint uses which param format. Breaking changes when calling different list endpoints from the same tool.
+
+### Fix Strategy (future delta)
+Standardize on one convention across all endpoints:
+1. Choose `limit`/`offset` OR `page`/`page_size` as canonical
+2. Update filter structs to use consistent field names
+3. Add a shared pagination response struct with consistent fields (`count`, `total`, `has_more`)
 
 **Discovered:** 2026-07-04 (during `fix-gateway-sse-and-perm-jwt` delta investigation)  
 **Resolved by:** revert commit `5aab940`
