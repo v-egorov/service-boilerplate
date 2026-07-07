@@ -46,204 +46,10 @@ Add error-type dispatch in `handleServiceError`:
 
 ---
 
-## Pagination Inconsistency Across Objects-Service Endpoints
-
-**Discovered:** 2026-07-07 (during `fix-objects-service-null-data` container verification)  
-**Affected service:** objects-service
-
-### Problem
-Different endpoints use different pagination parameter names and response field conventions:
-
-| Endpoint | Param Format | Response Field |
-|----------|-------------|----------------|
-| `/api/v1/objects` (List, Search) | `?limit=N&offset=M` | `"count"` + `"total"` |
-| `/api/v1/object-types` (List) | `?limit=N&offset=M` | `"count"` + `"total"` |
-| `/api/v1/relationships` (List) | `?page=P&page_size=S` | `"limit"` + `"total"` |
-
-### Example
-```bash
-# Objects-service uses limit/offset
-curl 'http://localhost:8085/api/v1/objects?limit=3&offset=0'   # ✅ works
-
-# Relationships uses page/page_size — limit/offset ignored!
-curl 'http://localhost:8085/api/v1/relationships?limit=3&offset=9999'  # ❌ returns all (defaults to page=1, page_size=20)
-
-curl 'http://localhost:8085/api/v1/relationships?page=1&page_size=3'   # ✅ works
-```
-
-### Root Cause
-- `ObjectFilter` struct uses `Limit int` / `Offset int` with form tags matching query params
-- `RelationshipFilter` struct uses `Page int` / `PageSize int` — completely different field names
-- No shared pagination interface or helper to normalize across endpoints
-
-### Impact
-Clients must remember which endpoint uses which param format. Breaking changes when calling different list endpoints from the same tool.
-
-### Fix Strategy (future delta)
-Standardize on one convention across all endpoints:
-1. Choose `limit`/`offset` OR `page`/`page_size` as canonical
-2. Update filter structs to use consistent field names
-3. Add a shared pagination response struct with consistent fields (`count`, `total`, `has_more`)
-
-**Discovered:** 2026-07-04 (during `fix-gateway-sse-and-perm-jwt` delta investigation)  
-**Resolved by:** revert commit `5aab940`
-
-### Problem (resolved)
-During debugging of a persistent **400 Bad Request** bug on StreamableHTTP POST requests, there was a suspicion that Air's volume mount + inotify watching caused Docker session state loss between rebuilds. This led to considering switching all `.air.toml` files from `poll = false` to `poll = true`.
-
-### Root Cause (debunked)
-The 400 bug was **NOT** an Air/watcher issue. It was a legitimate request-handling bug in the mcp-go HTTP handler chain — specifically how `handlePost` reads the body under certain client conditions. The issue persisted even when running the binary directly (no Air involved), proving it was not related to rebuild timing or session state.
-
-### Current State
-- **All 5 services** use `poll = false` (inotify mode) — confirmed working correctly
-- File changes are detected and hot-reloaded without issues across all services
-- Volume mounts work as expected: host file edits → Air detects → container rebuilds → new binary runs
-- **Triggering a rebuild**: Use `touch -m <file.go>` (not plain `touch`). The `-m` flag performs an actual metadata write syscall that Docker volume mounts translate into inotify IN_MODIFY events. Plain `touch` only updates stat info and does NOT trigger Air.
-
-### Lesson for Future Debugging
-When encountering bugs in containers with Air + volume mounts:
-1. **First** try running the compiled binary directly (`./tmp/service-name`) to rule out Air/watcher issues
-2. If `curl`/raw TCP still reproduces the bug → it's a code-level issue, NOT an Air issue
-3. **Never** switch `.air.toml` files to `poll = true` without first verifying the binary directly
-4. Inotify mode works fine — this is the correct configuration for all services
-
-### Affected Files (all unchanged)
-- `services/mcp-server/.air.toml`
-- `services/objects-service/.air.toml`
-- `services/auth-service/.air.toml`
-- `services/user-service/.air.toml`
-- `api-gateway/.air.toml`
-
----
-
-## MCP Server Identity Forwarding
-
-**Discovered:** 2026-07-04  
-**Resolved by:** `fix-mcp-auth-chain` delta
-
-### Problem (resolved)
-Gateway injects identity headers (`X-User-ID`, `X-User-Email`, `X-User-Roles`) for all `/mcp/*` requests. mcp-server receives them on the POST /message request, but when tool handlers call objects-service via `ObjectsClient.httpGet()`, they created a **brand new HTTP request with zero headers**. Identity was lost at hop 2 — every object-tool call returns 401 from objects-service's permiddleware.
-
-### Current State (post-fix)
-- Gateway → mcp-server: ✅ headers present and correct (verified in logs)
-- mcp-server → objects-service: ✅ identity headers forwarded via context threading
-- Objects-service permiddleware: sees valid user context → authorizes read operations
-
-### Root Cause (resolved)
-`services/mcp-server/internal/client/objects_client.go` — `httpGet()` created a new request without copying any headers. **mcp-go DOES carry HTTP headers** on each handler's `request.Header` (via SSE transport in v0.55.1). The gap was that:
-1. Tool/resource/prompt handlers never extracted identity from `request.Header`
-2. `ObjectsClient.httpGet()` had no mechanism to receive or forward identity
-3. No context-based threading existed between handler entry point and outbound HTTP call
-
-### Fix Applied
-- Added `identity.go` with `WithIdentity(ctx, hdr)` / `IdentityFromContext(ctx)` helpers
-- Modified 7 data methods on `ObjectsClient` to accept `context.Context`
-- `httpGet()` reads identity from context and forwards only the allow-listed headers (`X-User-ID`, `X-User-Email`, `X-User-Roles`)
-- Each handler injects identity at entry: `ctx = client.WithIdentity(ctx, request.Header)`
-- Regression test in `objects_client_identity_test.go` covers all scenarios
-
-See [`design.md`](../openspec/changes/fix-mcp-auth-chain/design.md) for full architectural rationale.
-
----
-
-## Migration 00012 — User-Role Linkage Not Applied
-
-**Discovered:** 2026-07-04  
-**Delta:** `mcp-server-initial` (archived)
-
-### Problem
-Migration file `services/auth-service/migrations/development/000012_mcp_agent_permissions.up.sql` exists and version 12 is recorded in `auth_service.schema_migrations`. However, the linking query produced zero rows — no entry in `auth_service.user_roles` connecting the mcp-agent user to the role.
-
-### Current State
-- ✅ User exists: `user_service.users` has `000...1 | mcp-agent@system.internal` (version 7 applied)
-- ✅ Role exists: `auth_service.roles` has `mcp-agent-read-only` (created by migration 000011)
-- ❌ No row in `auth_service.user_roles` linking them
-- ⚠️ Manually linked outside of migrations for now
-
-### Suspected Cause
-The migration uses `ON CONFLICT DO NOTHING` with a JOIN:
-```sql
-INSERT INTO auth_service.user_roles (user_id, role_id)
-SELECT u.id, r.id FROM user_service.users u
-CROSS JOIN auth_service.roles r
-WHERE u.email = 'mcp-agent@system.internal' AND r.name = 'mcp-agent-read-only'
-ON CONFLICT DO NOTHING;
-```
-
-Likely failure modes:
-1. Role was created by an earlier migration (000001–000010) with a **different UUID** than what the JOIN resolves to, causing the link query to match the wrong row or fail silently due to ON CONFLICT
-2. Migration 000011 (`ON CONFLICT DO NOTHING`) created the role, but its UUID doesn't match any previous reference — the join should still work unless there's a timing/ordering issue with how golang-migrate applies migrations vs. how rows are referenced
-
-### Investigation Needed
-- Compare actual role UUID in DB against migration 000011 content
-- Check if the JOIN query returns results when run manually against current DB state
-- Verify migration execution order and whether any earlier migration touched `roles` table
-
----
-
-## MCP Spec Gaps — Deferred to Future Delta
-
-**Discovered:** 2026-07-04 (initially), **re-audited:** 2026-07-04
-**Delta:** `mcp-server-initial` (archived)
-
-### Problem
-During a full spec-vs-reality audit, two requirements from the mcp-server baseline spec are defined but not implemented. The MCP server has 11 registered capabilities in total — 9 work correctly, 2 have no implementation.
-
-#### Gap 1: `list_object_types` with `parent_type_id` filter (spec line ~20)
-**Spec says:**
-> The tool SHALL accept optional filter parameters (`type_key_prefix`, **`parent_type_id`**) to narrow results.
-> Scenario: listing by parent_type_id — "querying Product's children returns Electronics, Clothing, Books"
-
-**Reality:** `ListObjectTypesParams` struct in `type_tools.go` has only `TypeKeyPrefix`. No `ParentTypeID` field. Objects-service repository supports filtering by `ObjectTypeID`, but there's no MCP tool param or client method to request "children of type X".
-
-**Impact:** Agents cannot ask "what are the children of Product?" through the MCP protocol. They must already know child IDs/names and call `get_object_type` individually.
-
-#### Gap 2: `list_objects` with `type_key_prefix` cross-type filtering (spec line ~195)
-**Spec says:**
-> The mcp-server MUST support filtering objects by **`type_key_prefix`** in addition to `object_type_id`. When a user wants all objects across a type namespace, the tool SHALL resolve child type_keys matching the prefix and query them.
-> Scenario: "list_objects with type_key_prefix=product" → resolves product, product-electronics, product-clothing
-
-**Reality:** `ListObjectsParams` struct has `object_type_id`, `page`, `page_size`. No `type_key_prefix` field. The objects-service `List()` repository method does NOT support filtering by `type_key` at all (it only filters by `ObjectTypeID`). No client method exists to resolve a prefix into multiple type IDs.
-
-**Impact:** Agents cannot query "show me all products and their variants" in one call. They must know each variant's object_type_id separately and issue multiple list_objects calls, then merge results client-side.
-
-#### What IS working (verified against spec)
-| Spec Requirement | Status |
-|-----------------|--------|
-| `list_object_types` with `type_key_prefix` filter | ✅ Implemented (`TypeKeyPrefix` param → objects-service) |
-| `get_object_type` by ID or name/type_key | ✅ Both paths: `GetObjectTypeByID`, `GetObjectTypeByName` |
-| Resource `objects-types://hierarchy` | ✅ Registered, returns full type tree with children |
-| Prompt `browse_schema` (with optional prefix filter) | ✅ Registered, works via SSE |
-| Prompt `get_object_info` (requires object_type_id) | ✅ Registered, works via SSE |
-| SSE transport via Gateway reverse proxy | ✅ Verified in e2e test |
-| Identity forwarding (3 headers only) | ✅ Via `identity.go` context threading |
-| Gateway-trust skip for MCP reads | ✅ permiddleware skip path active |
-| NOT NULL type_key guarantee on responses | ✅ DB constraint enforced |
-
-#### Deferred Actions
-- **Gap 1:** Add `ParentTypeID *int64` to `ListObjectTypesParams`, implement `ObjectTypeRepository.GetChildren(ctx, parentID)` method (or use existing `GetDescendants` with depth=1), wire through MCP tool.
-- **Gap 2:** Add `TypeKeyPrefix string` to `ListObjectsParams`, create client method that calls objects-service `/api/v1/object-types?type_key_prefix=X` → resolves matching type_keys → batches `list_objects` calls per ID → merges results. Or better: add a new endpoint on objects-service for prefix-based multi-type queries.
-
----
-
-## gin.ResponseWriter Interface Not Mockable
-
-**Discovered:** During api-gateway unit test development  
-**Delta:** `unit-tests-api-gateway-*` changes (archived)
-
-### Problem
-The `gin.ResponseWriter` interface requires 9 methods to implement. Creating a mock for it is impractical — any unimplemented method causes runtime panics in gin's internal code paths.
-
-### Current State
-- Established pattern: smoke testing through actual middleware execution rather than unit mocks
-- Tests verify behavior by running real middleware chains and checking response status/body, not by mocking the writer
-- This is a known limitation of the test strategy, not a bug — it affects how much coverage we can achieve for handlers like `ProxyRequest` (which uses `httputil.ReverseProxy`)
-
----
-
 ## E2E Test Script — Unverified Response Parsing
 
-**Discovered:** 2026-07-04 (same commit as script creation)
+**Discovered:** 2026-07-04 (same commit as script creation)  
+**Status:** May be fixed by `fix-mcp-e2e-parsing` delta
 
 ### Problem
 `scripts/test-mcp-e2e.sh` was written during debugging but never run end-to-end with a clean pass. The SSE response parsing logic may still have issues — earlier attempts failed with jq errors on malformed input, and the script's own output showed empty results for steps 4–6 despite raw data being present in the SSE stream.
@@ -252,106 +58,12 @@ The `gin.ResponseWriter` interface requires 9 methods to implement. Creating a m
 - Script exists and is executable
 - Initial SSE connection (Step 1–2) likely works
 - Subsequent tool call responses (Steps 3–6): **unconfirmed** — may fail silently due to JSON parsing errors, missing SSE response lines, or timing issues with the `sleep` delays between POST requests and SSE stream arrivals
-- No clean validation run has been performed
 
 ### Action Needed
 Run `bash scripts/test-mcp-e2e.sh` on a fresh environment (or at least after restarting all containers) to verify:
 1. All 7 steps pass cleanly with colored output
 2. Tool call results are correctly extracted from SSE stream and parsed by jq
 3. Auth-chain check in Step 7 reflects actual DB state
-
----
-
-## Gateway SSE Panic — httputil.ReverseProxy + gin Recovery Conflict
-
-**Discovered:** 2026-07-04
-**Planned for:** `fix-gateway-sse-and-perm-jwt` delta
-
-### Problem
-`ProxyMCPRequest()` uses `httputil.ReverseProxy` to stream SSE to clients. When the client disconnects or the SSE stream ends, Go's reverse proxy calls `panic(http.ErrAbortHandler)` as **control flow** (not a real error). Gin's `gin.Recovery()` middleware catches this panic and treats it as a server error, returning HTTP 500 and logging:
-
-```
-[Recovery] 2026/07/04 - 10:18:17 panic recovered:
-net/http: abort Handler
-```
-
-This breaks all SSE connections — the gateway can't maintain persistent event streams.
-
-### Fix (planned)
-Wrap `proxy.ServeHTTP(c.Writer, c.Request)` with a deferred recover that catches `http.ErrAbortHandler` specifically and silently returns, re-panicking everything else. ~5 lines in `gateway.go`.
-
----
-
-## MCP Auth Chain — Permission Check Gap (Objects → Auth Hop)
-
-**Discovered:** 2026-07-04
-**Planned for:** `fix-gateway-sse-and-perm-jwt` delta
-
-### Problem
-With the identity forwarding fix (`fix-mcp-auth-chain`), gateway-injected `X-User-*` headers now flow correctly:
-
-```
-Gateway → mcp-server → objects-service
-   ✅         ✅            ✅ identity headers arrive
-```
-
-Authentication works — objects-service's JWTMiddleware reads `X-User-ID` from headers and sets `user_id` in gin context (dev mode: `jwtSecret == nil`).
-
-But authorization breaks at the next hop:
-
-```
-objects-service ──CheckPermission──────────▶ auth-service
-  (no JWT token)           RequireAuth() → user_id empty → 401
-```
-
-`permiddleware.NewPermissionMiddleware()` calls `authClient.CheckPermission(userID, permission, jwtToken)` where `jwtToken` is empty (no Authorization header on the original MCP request). The auth client doesn't forward `X-User-*` headers. Auth-service's `RequireAuth()` middleware rejects because `GetAuthenticatedUserID()` returns empty.
-
-In production this path is unreachable — all services are isolated behind the gateway, everything has a JWT. But in dev mode with MCP (no JWT validation by design), the round-trip to auth-service is the gap.
-
-### Chosen Approach: Option B — Skip auth-service for gateway-trusted GET requests
-
-Architectural options evaluated:
-
-| Option | Approach | Verdict |
-|--------|----------|---------|
-| A | Forward `X-User-ID` to auth-service so its JWT middleware reads it | Papering over the gap, implicit trust |
-| **B** | **Skip `CheckPermission()` when `jwtToken == "" && userID != ""` for GET requests** | **Chosen — clean, dev-mode only** |
-| C | Inject a shared internal token header across all services | Overengineered for dev mode |
-
-**Rationale for Option B:**
-- In production, all requests have a JWT (gateway validates), so the `Authorization`-absent branch never triggers
-- In dev mode, the gateway IS the authenticator — skipping the auth-service round-trip is consistent with the existing gateway-trust model
-- Change is scoped to one file (`permiddleware.go`), ~3 lines
-
-**Known compromise:** This skips RBAC for MCP read operations in dev mode — the `mcp-agent` system user effectively has unrestricted read access. This is intentional: per-user MCP identity would require API keys (not login/password), which is a separate architectural scope. The current goal is "make the damn thing work" for a single developer interacting with their own system.
-
-### Future Consideration
-When API-key-based MCP client identity is implemented, the proper fix is to give mcp-server a valid JWT (gateway logs in as the MCP client, injects the token). Then the entire RBAC chain — `user_roles → role_permissions → permissions` — works natively without any shortcuts.
-
-### Delta Implementation Status: Paused
-
-**Date:** 2026-07-04  
-**Delta:** `fix-gateway-sse-and-perm-jwt`
-
-#### What worked (confirmed)
-1. **SSE panic recovery**: Gateway no longer crashes on SSE disconnect — E2E Step 2 passes, no `[Recovery]` panic logs
-2. **Permiddleware skip fires correctly**: When `jwtToken == "" && userID != "" && GET`, the auth-service round-trip is skipped and permiddleware sets `matched_permissions` → request reaches service layer
-
-#### What blocked E2E (pre-existing bug)
-After permiddleware passes through, objects-service returns **500 Internal Server Error** with an empty error (`{}`). This happens for ALL users — not just MCP:
-
-| User | Auth method | Result |
-|------|------------|--------|
-| MCP agent (no JWT) | Skip path → service layer | 500 `{}` |
-| Dev admin (real JWT) | Normal RBAC → auth-service returns false | 403 "Insufficient permissions" |
-
-**Root cause: permission model mismatch between permiddleware and DB.**
-
-- Permiddleware builds permission strings for GET as `{type_key}:read:all` and `{type_key}:read:own`
-- Auth-service migrations store permissions with `action = "read"` (not `":read:all"` or `":read:own"`)
-- Result: `CheckPermission()` returns false for both → empty matchedPermissions → 500 from handler
-
-**This is a pre-existing design bug in objects-service — not introduced by this delta.** It affects the entire service, not just MCP. Requires a separate fix.
 
 ---
 
@@ -398,7 +110,7 @@ Not part of this delta. Future work could explore:
 Go's zero-value behavior: `var items []*Model` produces a nil slice, which gin serializes as JSON `null`. Empty result sets should return `[]` (empty array), not `null`. This is idiomatic Go best practice for collection-returning functions — non-nil slices serialize consistently in JSON, behave predictably with equality checks and third-party libraries.
 
 ### Current State
-- **objects-service**: 25 occurrences across 3 repository files (`object_repository.go`, `object_type_repository.go`, `relationship_repository.go`) — all fixed by this delta
+- **objects-service**: 25 occurrences across 3 repository files (`object_repository.go`, `object_type_repository.go`, `relationship_repository.go`) — all fixed by this delta ✅
 - **user-service**: 1 occurrence in `services/user-service/internal/repository/user_repository.go:133`
   - `var users []*models.User` → serializes as `"data": null` when no users match a query
   - Same root cause, same fix pattern (`make([]*User, 0)`)
@@ -416,7 +128,7 @@ One line change in `user_service/internal/repository/user_repository.go`:
 // Before:
 var users []*models.User
 // After:
-users := make([]*models.User, 0)
+users := make([]*User, 0)
 ```
 No handler changes required — gin serialization fix is automatic.
 
@@ -441,3 +153,18 @@ Before adding schemas to resources/prompts, verify:
 3. Would it add value for agent debugging/tracing?
 
 **Decision:** Defer until a concrete client or use case demonstrates the need. Track here as a best-practice consideration.
+
+---
+
+## Resolved Items (Archived Deltas)
+
+The following items were resolved by archived OpenSpec deltas and are retained here for reference only:
+
+| Issue | Delta | Archive Location |
+|-------|-------|-----------------|
+| **Pagination Inconsistency** — endpoints used mixed `page/page_size` vs `limit/offset` | `fix-pagination-inconsistency` | `2026-07-07-fix-pagination-inconsistency` |
+| **Air/Polling Mode Suspicion** — suspected Air inotify issues on Docker volumes | N/A (debunked — code-level bug) | N/A |
+| **MCP Server Identity Forwarding** — identity headers lost at mcp-server → objects-service hop | `fix-mcp-auth-chain` | `2026-07-04-fix-mcp-auth-chain` |
+| **Migration 00012** — user-role linkage not applied | `mcp-server-initial` (archived) | Fixed in DB |
+| **Gateway SSE Panic** — `http.ErrAbortHandler` panic from reverse proxy + gin Recovery conflict | `fix-gateway-sse-and-perm-jwt` | `2026-07-04-fix-gateway-sse-and-perm-jwt` |
+| **MCP Auth Chain Permission Gap** — auth-service round-trip failed for gateway-trusted requests | `fix-gateway-sse-and-perm-jwt` | `2026-07-04-fix-gateway-sse-and-perm-jwt` |
