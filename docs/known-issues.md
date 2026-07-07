@@ -4,6 +4,38 @@ Items tracked for future investigation or deferred to a later delta. Each entry 
 
 ---
 
+## Air Hot-Reload — Never Switch to Polling Mode
+
+**Discovered:** 2026-07-04 (during `fix-gateway-sse-and-perm-jwt` delta investigation)  
+**Resolved by:** revert commit `5aab940`
+
+### Problem (resolved)
+During debugging of a persistent **400 Bad Request** bug on StreamableHTTP POST requests, there was a suspicion that Air's volume mount + inotify watching caused Docker session state loss between rebuilds. This led to considering switching all `.air.toml` files from `poll = false` to `poll = true`.
+
+### Root Cause (debunked)
+The 400 bug was **NOT** an Air/watcher issue. It was a legitimate request-handling bug in the mcp-go HTTP handler chain — specifically how `handlePost` reads the body under certain client conditions. The issue persisted even when running the binary directly (no Air involved), proving it was not related to rebuild timing or session state.
+
+### Current State
+- **All 5 services** use `poll = false` (inotify mode) — confirmed working correctly
+- File changes are detected and hot-reloaded without issues across all services
+- Volume mounts work as expected: host file edits → Air detects → container rebuilds → new binary runs
+
+### Lesson for Future Debugging
+When encountering bugs in containers with Air + volume mounts:
+1. **First** try running the compiled binary directly (`./tmp/service-name`) to rule out Air/watcher issues
+2. If `curl`/raw TCP still reproduces the bug → it's a code-level issue, NOT an Air issue
+3. **Never** switch `.air.toml` files to `poll = true` without first verifying the binary directly
+4. Inotify mode works fine — this is the correct configuration for all services
+
+### Affected Files (all unchanged)
+- `services/mcp-server/.air.toml`
+- `services/objects-service/.air.toml`
+- `services/auth-service/.air.toml`
+- `services/user-service/.air.toml`
+- `api-gateway/.air.toml`
+
+---
+
 ## MCP Server Identity Forwarding
 
 **Discovered:** 2026-07-04  
