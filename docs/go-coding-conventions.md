@@ -126,12 +126,33 @@ func (s *service) List(ctx context.Context, filter *Filter) ([]*T, int64, error)
 
 ## Rule 7: Test Coverage Expectations
 
-**Scope:** All Go packages in every service.
+**Scope:** All Go packages in every service. See [`docs/testify-overview.md`](testify-overview.md) for full framework guidance.
 
-| Layer | Minimum Coverage | Pattern |
-|-------|-----------------|---------|
-| Repository | Mock DB interface, test empty/non-empty paths | `MockDBPool` implementing `DBInterface` |
-| Service | Interface-based mock of repository layer | Test both happy path and error wrapping |
-| Handler | Integration through full middleware chain (no writer mocks) | Smoke-test via real gin engine |
+### Framework
+All tests use **[testify](https://github.com/stretchr/testify)**:
+```go
+import "github.com/stretchr/testify/assert"
+// or assert + require via:
+import (
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/require"
+)
+```
+- `assert` — non-fatal checks, continues test on failure
+- `require` — fatal checks, stops test immediately (use for critical setup)
 
-**Empty result guarantee:** Every collection-returning method must have at least one test asserting non-nil empty results (`assert.NotNil(t, result)` + `assert.Len(t, result, 0)`).
+### By Layer
+
+| Layer | Pattern | Mocking Approach |
+|-------|---------|------------------|
+| Repository | `MockDBPool` implementing `DBInterface` | Manual mocks — full control over pgx.Rows iteration |
+| Service | Interface-based mock of repository layer | Test both happy path and error wrapping (`fmt.Errorf("...: %w", err)`) |
+| Handler | Smoke-test through real middleware chain (no writer mocks) | gin.Context + httptest/recorder — `gin.ResponseWriter` interface is not mockable |
+
+### Empty Result Guarantee
+Every collection-returning method must have at least one test asserting non-nil empty results:
+```go
+assert.NotNil(t, result)
+assert.Len(t, result, 0)
+```
+This verifies Rule 1 (slice initialization) is working correctly in the handler response path.
