@@ -98,6 +98,7 @@ The 400 bug was **NOT** an Air/watcher issue. It was a legitimate request-handli
 - **All 5 services** use `poll = false` (inotify mode) — confirmed working correctly
 - File changes are detected and hot-reloaded without issues across all services
 - Volume mounts work as expected: host file edits → Air detects → container rebuilds → new binary runs
+- **Triggering a rebuild**: Use `touch -m <file.go>` (not plain `touch`). The `-m` flag performs an actual metadata write syscall that Docker volume mounts translate into inotify IN_MODIFY events. Plain `touch` only updates stat info and does NOT trigger Air.
 
 ### Lesson for Future Debugging
 When encountering bugs in containers with Air + volume mounts:
