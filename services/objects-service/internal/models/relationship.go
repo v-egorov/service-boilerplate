@@ -98,8 +98,8 @@ type RelationshipFilter struct {
 	RelationshipTypeKey  *string `json:"type_key,omitempty" form:"type_key"`
 	Status               *string `json:"status,omitempty" form:"status"`
 	UserID               *string `json:"user_id,omitempty" form:"user_id"`
-	Page                 int     `json:"page,omitempty" form:"page"`
-	PageSize             int     `json:"page_size,omitempty" form:"page_size"`
+	Limit                int     `json:"limit,omitempty" form:"limit"`
+	Offset               int     `json:"offset,omitempty" form:"offset"`
 	SortBy               string  `json:"sort_by,omitempty" form:"sort_by"`
 	SortOrder            string  `json:"sort_order,omitempty" form:"sort_order"`
 }
@@ -166,6 +166,6 @@ type RelationshipFilterForType struct {
 	SourceObjectPublicID *string `json:"source_object_id,omitempty" form:"source_object_id"`
 	TargetObjectPublicID *string `json:"target_object_id,omitempty" form:"target_object_id"`
 	Status               *string `json:"status,omitempty" form:"status"`
-	Page                 int     `json:"page,omitempty" form:"page"`
-	PageSize             int     `json:"page_size,omitempty" form:"page_size"`
+	Limit                int     `json:"limit,omitempty" form:"limit"`
+	Offset               int     `json:"offset,omitempty" form:"offset"`
 }

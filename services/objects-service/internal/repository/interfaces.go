@@ -35,8 +35,8 @@ type Rows interface {
 // RepositoryOptions for configuring repository behavior
 type RepositoryOptions struct {
 	// Query options
-	DefaultPageSize  int
-	MaxPageSize      int
+	DefaultLimit  int
+	MaxLimit      int
 	EnableSoftDelete bool
 	EnableVersioning bool
 
@@ -57,8 +57,8 @@ type RepositoryOptions struct {
 // DefaultRepositoryOptions returns sensible defaults
 func DefaultRepositoryOptions() *RepositoryOptions {
 	return &RepositoryOptions{
-		DefaultPageSize:         50,
-		MaxPageSize:             1000,
+		DefaultLimit:            50,
+		MaxLimit:                1000,
 		EnableSoftDelete:        true,
 		EnableVersioning:        true,
 		EnableQueryCache:        false,

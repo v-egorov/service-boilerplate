@@ -111,11 +111,11 @@ func (h *RelationshipTypeHandler) List(c *gin.Context) {
 	}
 
 	// Set defaults
-	if filter.Page < 1 {
-		filter.Page = 1
+	if filter.Limit < 1 {
+		filter.Limit = 50
 	}
-	if filter.PageSize < 1 {
-		filter.PageSize = 20
+	if filter.Offset < 0 {
+		filter.Offset = 0
 	}
 
 	rts, err := h.service.List(c.Request.Context(), &filter)
@@ -132,9 +132,10 @@ func (h *RelationshipTypeHandler) List(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"data": responses,
-		"pagination": gin.H{
-			"page":      filter.Page,
-			"page_size": filter.PageSize,
+		"pagination": models.PaginationResponse{
+			Limit:  filter.Limit,
+			Offset: filter.Offset,
+			Total:  int64(len(rts)),
 		},
 		"meta": gin.H{"request_id": requestID},
 	})

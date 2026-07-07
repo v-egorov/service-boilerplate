@@ -185,11 +185,11 @@ func (s *relationshipTypeService) List(ctx context.Context, filter *models.Relat
 	}
 
 	// Set defaults
-	if filter.Page < 1 {
-		filter.Page = 1
+	if filter.Limit < 1 {
+		filter.Limit = 50
 	}
-	if filter.PageSize < 1 {
-		filter.PageSize = 20
+	if filter.Offset < 0 {
+		filter.Offset = 0
 	}
 
 	return s.repo.List(ctx, filter)

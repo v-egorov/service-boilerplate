@@ -275,7 +275,7 @@ func TestRelationshipService_List_WithFilter(t *testing.T) {
 func TestRelationshipService_List_WithPagination(t *testing.T) {
 	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{
 		listFunc: func(ctx context.Context, filter *models.RelationshipFilter) ([]*models.Relationship, error) {
-			if filter.Page == 2 && filter.PageSize == 10 {
+			if filter.Limit == 10 && filter.Offset == 10 {
 				return []*models.Relationship{{ObjectID: 11}}, nil
 			}
 			return []*models.Relationship{}, nil
@@ -285,8 +285,8 @@ func TestRelationshipService_List_WithPagination(t *testing.T) {
 	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, &mockObjectRepository{})
 
 	result, err := service.List(context.Background(), &models.RelationshipFilter{
-		Page:     2,
-		PageSize: 10,
+		Limit:  10,
+		Offset: 10,
 	})
 
 	assert.NoError(t, err)
@@ -1184,7 +1184,7 @@ func TestRelationshipService_GetForObject_WithStatusFilter(t *testing.T) {
 func TestRelationshipService_GetForObject_WithPagination(t *testing.T) {
 	mockRelRepo := &mockRelationshipRepositoryForRelationshipService{
 		getForObjectFunc: func(ctx context.Context, objectPublicID uuid.UUID, filter *models.RelationshipFilterForType) ([]*models.Relationship, error) {
-			if filter.Page == 2 && filter.PageSize == 5 {
+			if filter.Limit == 5 && filter.Offset == 5 {
 				return []*models.Relationship{{ObjectID: 6}}, nil
 			}
 			return []*models.Relationship{}, nil
@@ -1194,8 +1194,8 @@ func TestRelationshipService_GetForObject_WithPagination(t *testing.T) {
 	service := NewRelationshipService(mockRelRepo, &mockRelationshipTypeRepository{}, &mockObjectRepository{})
 
 	result, err := service.GetForObject(context.Background(), testSourcePublicID, &models.RelationshipFilterForType{
-		Page:     2,
-		PageSize: 5,
+		Limit:  5,
+		Offset: 5,
 	})
 
 	assert.NoError(t, err)

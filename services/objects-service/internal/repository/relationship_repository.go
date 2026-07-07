@@ -346,14 +346,14 @@ func (r *relationshipRepository) DeleteByPublicID(ctx context.Context, publicID 
 func (r *relationshipRepository) List(ctx context.Context, filter *models.RelationshipFilter) ([]*models.Relationship, error) {
 	r.metrics.QueryCount++
 
-	if filter.Page < 1 {
-		filter.Page = 1
+	if filter.Limit < 1 {
+		filter.Limit = r.options.DefaultLimit
 	}
-	if filter.PageSize < 1 {
-		filter.PageSize = r.options.DefaultPageSize
+	if filter.Offset < 0 {
+		filter.Offset = 0
 	}
-	if filter.PageSize > r.options.MaxPageSize {
-		filter.PageSize = r.options.MaxPageSize
+	if filter.Limit > r.options.MaxLimit {
+		filter.Limit = r.options.MaxLimit
 	}
 
 	whereClauses := []string{"1=1"}
@@ -401,8 +401,6 @@ func (r *relationshipRepository) List(ctx context.Context, filter *models.Relati
 		order = "ASC"
 	}
 
-	offset := (filter.Page - 1) * filter.PageSize
-
 	query := fmt.Sprintf(`
 		SELECT 
 			r.object_id, o.public_id, r.source_object_id, r.target_object_id, r.relationship_type_id,
@@ -419,7 +417,7 @@ func (r *relationshipRepository) List(ctx context.Context, filter *models.Relati
 		LIMIT $%d OFFSET $%d
 	`, where, orderBy, order, argNum, argNum+1)
 
-	args = append(args, filter.PageSize, offset)
+	args = append(args, filter.Limit, filter.Offset)
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
@@ -462,14 +460,14 @@ func (r *relationshipRepository) GetForObject(ctx context.Context, objectPublicI
 	if filter == nil {
 		filter = &models.RelationshipFilterForType{}
 	}
-	if filter.Page < 1 {
-		filter.Page = 1
+	if filter.Limit < 1 {
+		filter.Limit = r.options.DefaultLimit
 	}
-	if filter.PageSize < 1 {
-		filter.PageSize = r.options.DefaultPageSize
+	if filter.Offset < 0 {
+		filter.Offset = 0
 	}
-	if filter.PageSize > r.options.MaxPageSize {
-		filter.PageSize = r.options.MaxPageSize
+	if filter.Limit > r.options.MaxLimit {
+		filter.Limit = r.options.MaxLimit
 	}
 
 	whereClauses := []string{"(r.source_object_id = $1 OR r.target_object_id = $1)"}
@@ -483,8 +481,6 @@ func (r *relationshipRepository) GetForObject(ctx context.Context, objectPublicI
 	}
 
 	where := strings.Join(whereClauses, " AND ")
-
-	offset := (filter.Page - 1) * filter.PageSize
 
 	query := fmt.Sprintf(`
 		SELECT 
@@ -502,7 +498,7 @@ func (r *relationshipRepository) GetForObject(ctx context.Context, objectPublicI
 		LIMIT $%d OFFSET $%d
 	`, where, argNum, argNum+1)
 
-	args = append(args, filter.PageSize, offset)
+	args = append(args, filter.Limit, filter.Offset)
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
@@ -792,3 +788,4 @@ func (r *relationshipRepository) CheckCircular(ctx context.Context, sourceObject
 
 	return isCircular, nil
 }
+

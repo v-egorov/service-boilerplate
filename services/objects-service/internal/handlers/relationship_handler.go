@@ -220,11 +220,11 @@ func (h *RelationshipHandler) List(c *gin.Context) {
 		return
 	}
 
-	if filter.Page < 1 {
-		filter.Page = 1
+	if filter.Limit < 1 {
+		filter.Limit = 50
 	}
-	if filter.PageSize < 1 {
-		filter.PageSize = 20
+	if filter.Offset < 0 {
+		filter.Offset = 0
 	}
 
 	// NOTE: No self-filtering by user ID for List(). Permission checks are handled
@@ -245,8 +245,8 @@ func (h *RelationshipHandler) List(c *gin.Context) {
 	response := models.RelationshipListResponse{
 		Data: make([]models.RelationshipResponse, len(rels)),
 		Pagination: models.PaginationResponse{
-			Limit:  filter.PageSize,
-			Offset: (filter.Page - 1) * filter.PageSize,
+			Limit:  filter.Limit,
+			Offset: filter.Offset,
 		},
 	}
 

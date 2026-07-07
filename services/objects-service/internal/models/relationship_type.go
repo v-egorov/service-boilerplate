@@ -113,8 +113,8 @@ type UpdateRelationshipTypeRequest struct {
 type RelationshipTypeFilter struct {
 	Cardinality string `json:"cardinality,omitempty" form:"cardinality"`
 	Required    *bool  `json:"required,omitempty" form:"required"`
-	Page        int    `json:"page,omitempty" form:"page"`
-	PageSize    int    `json:"page_size,omitempty" form:"page_size"`
+	Limit       int    `json:"limit,omitempty" form:"limit"`
+	Offset      int    `json:"offset,omitempty" form:"offset"`
 	SortBy      string `json:"sort_by,omitempty" form:"sort_by"`
 	SortOrder   string `json:"sort_order,omitempty" form:"sort_order"`
 }

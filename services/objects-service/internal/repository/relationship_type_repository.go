@@ -376,14 +376,14 @@ func (r *relationshipTypeRepository) List(ctx context.Context, filter *models.Re
 	r.metrics.QueryCount++
 
 	// Set defaults
-	if filter.Page < 1 {
-		filter.Page = 1
+	if filter.Limit < 1 {
+		filter.Limit = r.options.DefaultLimit
 	}
-	if filter.PageSize < 1 {
-		filter.PageSize = r.options.DefaultPageSize
+	if filter.Offset < 0 {
+		filter.Offset = 0
 	}
-	if filter.PageSize > r.options.MaxPageSize {
-		filter.PageSize = r.options.MaxPageSize
+	if filter.Limit > r.options.MaxLimit {
+		filter.Limit = r.options.MaxLimit
 	}
 
 	// Build query
@@ -420,8 +420,7 @@ func (r *relationshipTypeRepository) List(ctx context.Context, filter *models.Re
 	}
 	orderClause := fmt.Sprintf("ORDER BY %s %s", orderBy, order)
 
-	// Calculate offset
-	offset := (filter.Page - 1) * filter.PageSize
+
 
 	// Build and execute query
 	query := fmt.Sprintf(`
@@ -434,7 +433,7 @@ func (r *relationshipTypeRepository) List(ctx context.Context, filter *models.Re
 		LIMIT $%d OFFSET $%d
 	`, where, orderClause, argNum, argNum+1)
 
-	args = append(args, filter.PageSize, offset)
+	args = append(args, filter.Limit, filter.Offset)
 
 	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
