@@ -277,6 +277,39 @@ Not part of this delta. Future work could explore:
 
 ---
 
+## Nil Slice Initialization — user-service Deferred to Follow-up Delta
+
+**Discovered:** 2026-07-04 (during `fix-objects-service-null-data` exploration)  
+**Delta:** `fix-objects-service-null-data` (objects-service only, scoped)
+
+### Problem
+Go's zero-value behavior: `var items []*Model` produces a nil slice, which gin serializes as JSON `null`. Empty result sets should return `[]` (empty array), not `null`. This is idiomatic Go best practice for collection-returning functions — non-nil slices serialize consistently in JSON, behave predictably with equality checks and third-party libraries.
+
+### Current State
+- **objects-service**: 25 occurrences across 3 repository files (`object_repository.go`, `object_type_repository.go`, `relationship_repository.go`) — all fixed by this delta
+- **user-service**: 1 occurrence in `services/user-service/internal/repository/user_repository.go:133`
+  - `var users []*models.User` → serializes as `"data": null` when no users match a query
+  - Same root cause, same fix pattern (`make([]*User, 0)`)
+- **auth-service**: ✅ Already clean — uses maps and individual objects (no collection nil-slice issue)
+
+### Delta Scope Decision
+This delta fixes all 25 occurrences in objects-service only. The user-service instance is deferred to a follow-up change for these reasons:
+1. Smaller, lower-risk diff — 25 changes vs 26 across two services
+2. Independent deploy risk — don't want objects-service test failures blocking user-service deployment
+3. Pattern reuse — once this delta ships cleanly, the same one-line fix applies to user-service with zero design decisions needed
+
+### Action Needed (future)
+One line change in `user_service/internal/repository/user_repository.go`:
+```go
+// Before:
+var users []*models.User
+// After:
+users := make([]*models.User, 0)
+```
+No handler changes required — gin serialization fix is automatic.
+
+---
+
 ## MCP Resources and Prompts — Output Schema Declarations Out of Scope
 
 **Discovered:** 2026-07-04 (during `fix-mcp-compliance` exploration)  
