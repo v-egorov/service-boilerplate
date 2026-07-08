@@ -4,6 +4,42 @@ Items tracked for future investigation or deferred to a later delta. Each entry 
 
 ---
 
+## Repository `GetByID()` Wraps `sql.ErrNoRows` Instead of Returning `ErrNotFound`
+
+**Discovered:** 2026-07-08 (during `fix-handler-error-dispatch` implementation)  
+**Priority:** Medium — causes inconsistent error wrapping that the handler dispatcher must work around
+
+### Problem
+The repository layer's `GetByID()` method does **not** check for `sql.ErrNoRows`. When a query returns zero rows, pgx propagates the raw `sql.ErrNoRows` directly wrapped with `%w`: `fmt.Errorf("failed to get object: %w", err)`. The service layer then checks `err == repository.ErrNotFound` (direct pointer comparison), which **fails** because direct equality doesn't unwrap.
+
+```go
+// Repository (object_repository.go:208-210)
+if err != nil {
+    return nil, fmt.Errorf("failed to get object: %w", err)  // ErrNoRows wrapped directly!
+}
+
+// Service (object_service.go:93)
+if err == repository.ErrNotFound {  // Direct comparison — FAILS on wrapped error
+    return nil, fmt.Errorf("object not found: %w", err)
+}
+```
+
+### Impact
+- The handler dispatcher must include a `sql.ErrNoRows` fallback case to catch these unwrapped errors (workaround added in `error.go`)
+- This pattern is **consistent across all repository methods** that use direct comparisons instead of `errors.Is()`
+- Service layers that DO use `errors.Is(err, sql.ErrNoRows)` then wrap with their own sentinel → dispatcher catches those correctly
+- But the gap means some errors reach handlers as double-wrapped `sql.ErrNoRows` without a service-layer sentinel
+
+### Root Cause
+Inconsistent error conversion patterns across repository methods:
+- `GetByPublicID()` checks `errors.Is(err, sql.ErrNoRows)` → returns `repository.ErrNotFound` ✅
+- `GetByID()` does NOT check — passes raw `sql.ErrNoRows` through ❌
+
+### Fix (future)
+Each repository `Get*()` method should convert `sql.ErrNoRows` to `repository.ErrNotFound` consistently. Currently only some do. This would eliminate the need for the `sql.ErrNoRows` fallback in the handler dispatcher.
+
+---
+
 ## Handler Error Mapping — All Service Errors Return 500
 
 **Discovered:** 2026-07-07 (during `fix-objects-service-null-data` container verification)  
@@ -69,7 +105,7 @@ Run `bash scripts/test-mcp-e2e.sh` on a fresh environment (or at least after res
 
 ## JSON Validation Errors Lack Field-Level Detail
 
-**Discovered:** 2026-07-04 (during `fix-handler-error-dispatch` exploration)  
+**Discovered:** 2026-07-08 (during `fix-handler-error-dispatch` exploration)  
 **Priority:** Low
 
 ### Problem
