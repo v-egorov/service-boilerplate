@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,7 +9,6 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/logging"
 	"github.com/v-egorov/service-boilerplate/common/middleware"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/models"
-	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/repository"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/services"
 )
 
@@ -51,7 +49,7 @@ func (h *RelationshipHandler) Create(c *gin.Context) {
 
 	rel, err := h.service.Create(c.Request.Context(), &req)
 	if err != nil {
-		h.handleError(c, requestID, err, "create relationship")
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -83,7 +81,7 @@ func (h *RelationshipHandler) GetByPublicID(c *gin.Context) {
 
 	rel, err := h.service.GetByPublicID(c.Request.Context(), publicID)
 	if err != nil {
-		h.handleError(c, requestID, err, "get relationship")
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -120,7 +118,7 @@ func (h *RelationshipHandler) Update(c *gin.Context) {
 
 	existingRel, err := h.service.GetByPublicID(c.Request.Context(), publicID)
 	if err != nil {
-		h.handleError(c, requestID, err, "update relationship")
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -149,7 +147,7 @@ func (h *RelationshipHandler) Update(c *gin.Context) {
 
 	rel, err := h.service.Update(c.Request.Context(), publicID, &req)
 	if err != nil {
-		h.handleError(c, requestID, err, "update relationship")
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -181,7 +179,7 @@ func (h *RelationshipHandler) Delete(c *gin.Context) {
 
 	existingRel, err := h.service.GetByPublicID(c.Request.Context(), publicID)
 	if err != nil {
-		h.handleError(c, requestID, err, "delete relationship")
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -192,7 +190,7 @@ func (h *RelationshipHandler) Delete(c *gin.Context) {
 
 	err = h.service.Delete(c.Request.Context(), publicID)
 	if err != nil {
-		h.handleError(c, requestID, err, "delete relationship")
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -233,7 +231,7 @@ func (h *RelationshipHandler) List(c *gin.Context) {
 
 	rels, err := h.service.List(c.Request.Context(), &filter)
 	if err != nil {
-		h.handleError(c, requestID, err, "list relationships")
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -293,7 +291,7 @@ func (h *RelationshipHandler) GetForObject(c *gin.Context) {
 
 	rels, err := h.service.GetForObject(c.Request.Context(), objectPublicID, &filter)
 	if err != nil {
-		h.handleError(c, requestID, err, "get relationships for object")
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -333,7 +331,7 @@ func (h *RelationshipHandler) GetForObjectByType(c *gin.Context) {
 
 	rels, err := h.service.GetForObjectByType(c.Request.Context(), objectPublicID, typeKey)
 	if err != nil {
-		h.handleError(c, requestID, err, "get relationships for object by type")
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -356,58 +354,3 @@ func (h *RelationshipHandler) GetForObjectByType(c *gin.Context) {
 	})
 }
 
-func (h *RelationshipHandler) handleError(c *gin.Context, requestID string, err error, operation string) {
-	h.logger.WithFields(logrus.Fields{
-		"request_id": requestID,
-		"operation":  operation,
-	}).WithError(err).Error("Relationship operation failed")
-
-	statusCode := http.StatusInternalServerError
-	errorMessage := "Internal server error"
-	errorType := "internal_error"
-
-	switch {
-	case errors.Is(err, services.ErrRelationshipNotFound):
-		statusCode = http.StatusNotFound
-		errorMessage = "Relationship not found"
-		errorType = "not_found"
-	case errors.Is(err, services.ErrDuplicateRelationship):
-		statusCode = http.StatusConflict
-		errorMessage = "Relationship already exists"
-		errorType = "conflict"
-	case errors.Is(err, services.ErrSourceObjectNotFound):
-		statusCode = http.StatusNotFound
-		errorMessage = "Source object not found"
-		errorType = "not_found"
-	case errors.Is(err, services.ErrTargetObjectNotFound):
-		statusCode = http.StatusNotFound
-		errorMessage = "Target object not found"
-		errorType = "not_found"
-	case errors.Is(err, services.ErrRelationshipTypeNotFound):
-		statusCode = http.StatusNotFound
-		errorMessage = "Relationship type not found"
-		errorType = "not_found"
-	case errors.Is(err, services.ErrCircularRelationship):
-		statusCode = http.StatusUnprocessableEntity
-		errorMessage = "Cannot create circular relationship"
-		errorType = "validation_error"
-	case errors.Is(err, services.ErrCardinalityViolation):
-		statusCode = http.StatusUnprocessableEntity
-		errorMessage = "Cardinality constraint violated"
-		errorType = "validation_error"
-	case errors.Is(err, services.ErrSourceTargetSame):
-		statusCode = http.StatusBadRequest
-		errorMessage = "Source and target cannot be the same"
-		errorType = "validation_error"
-	case errors.Is(err, repository.ErrInvalidInput):
-		statusCode = http.StatusBadRequest
-		errorMessage = err.Error()
-		errorType = "validation_error"
-	}
-
-	c.JSON(statusCode, gin.H{
-		"error":   errorMessage,
-		"type":    errorType,
-		"meta":    gin.H{"request_id": requestID},
-	})
-}

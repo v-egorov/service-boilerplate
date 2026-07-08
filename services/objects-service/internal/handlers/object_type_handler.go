@@ -59,22 +59,6 @@ func NewObjectTypeHandlerWithInterface(service ObjectTypeServiceInterface, logge
 	}
 }
 
-func (h *ObjectTypeHandler) handleServiceError(c *gin.Context, err error, operation string, requestID string) {
-	h.logger.WithFields(logrus.Fields{
-		"request_id": requestID,
-	}).WithError(err).Error(operation)
-
-	switch err {
-	case nil:
-		return
-	default:
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Internal server error",
-			"type":  "internal_error",
-		})
-	}
-}
-
 func (h *ObjectTypeHandler) Create(c *gin.Context) {
 	requestID := c.GetHeader("X-Request-ID")
 
@@ -98,7 +82,7 @@ func (h *ObjectTypeHandler) Create(c *gin.Context) {
 
 	objectType, err := h.service.Create(c.Request.Context(), &req)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to create object type", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -135,7 +119,7 @@ func (h *ObjectTypeHandler) GetByID(c *gin.Context) {
 
 	objectType, err := h.service.GetByID(c.Request.Context(), id)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get object type", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -169,7 +153,7 @@ func (h *ObjectTypeHandler) GetByName(c *gin.Context) {
 
 	objectType, err := h.service.GetByName(c.Request.Context(), name)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get object type by name", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -223,7 +207,7 @@ func (h *ObjectTypeHandler) Update(c *gin.Context) {
 
 	objectType, err := h.service.Update(c.Request.Context(), id, &req)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to update object type", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -260,7 +244,7 @@ func (h *ObjectTypeHandler) Delete(c *gin.Context) {
 
 	err = h.service.Delete(c.Request.Context(), id)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to delete object type", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -286,7 +270,7 @@ func (h *ObjectTypeHandler) GetTree(c *gin.Context) {
 
 	tree, err := h.service.GetTree(c.Request.Context(), rootID)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get object type tree", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -319,7 +303,7 @@ func (h *ObjectTypeHandler) GetChildren(c *gin.Context) {
 
 	children, err := h.service.GetChildren(c.Request.Context(), id)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get children", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -354,7 +338,7 @@ func (h *ObjectTypeHandler) GetDescendants(c *gin.Context) {
 
 	descendants, err := h.service.GetDescendants(c.Request.Context(), id, maxDepth)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get descendants", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -381,7 +365,7 @@ func (h *ObjectTypeHandler) GetAncestors(c *gin.Context) {
 
 	ancestors, err := h.service.GetAncestors(c.Request.Context(), id)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get ancestors", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -408,7 +392,7 @@ func (h *ObjectTypeHandler) GetPath(c *gin.Context) {
 
 	path, err := h.service.GetPath(c.Request.Context(), id)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get path", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -442,7 +426,7 @@ func (h *ObjectTypeHandler) List(c *gin.Context) {
 
 	objectTypes, err := h.service.List(c.Request.Context(), filter)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to list object types", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -480,7 +464,7 @@ func (h *ObjectTypeHandler) Search(c *gin.Context) {
 
 	results, err := h.service.Search(c.Request.Context(), query, limit)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to search object types", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -530,7 +514,7 @@ func (h *ObjectTypeHandler) ValidateMove(c *gin.Context) {
 
 	err = h.service.ValidateMove(c.Request.Context(), id, &newParentID)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to validate move", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -558,7 +542,7 @@ func (h *ObjectTypeHandler) GetSubtreeObjectCount(c *gin.Context) {
 
 	count, err := h.service.GetSubtreeObjectCount(c.Request.Context(), id)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get subtree object count", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 

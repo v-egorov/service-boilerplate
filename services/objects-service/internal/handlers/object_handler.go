@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -72,30 +71,6 @@ func NewObjectHandlerWithInterface(service ObjectServiceInterface, logger *logru
 	}
 }
 
-func (h *ObjectHandler) handleServiceError(c *gin.Context, err error, operation string, requestID string) {
-	h.logger.WithFields(logrus.Fields{
-		"request_id": requestID,
-	}).WithError(err).Error(operation)
-
-	if err == nil {
-		return
-	}
-
-	if errors.Is(err, repository.ErrOptimisticLock) {
-		c.JSON(http.StatusConflict, gin.H{
-			"error": "Version conflict - the object has been modified by another request",
-			"type":  "conflict",
-			"meta":  gin.H{"request_id": requestID},
-		})
-		return
-	}
-
-	c.JSON(http.StatusInternalServerError, gin.H{
-		"error": "Internal server error",
-		"type":  "internal_error",
-		"meta":  gin.H{"request_id": requestID},
-	})
-}
 
 func (h *ObjectHandler) checkOwnership(c *gin.Context, object *models.Object, allPermission string) bool {
 	userID := middleware.GetAuthenticatedUserID(c)
@@ -152,7 +127,7 @@ func (h *ObjectHandler) Create(c *gin.Context) {
 
 	object, err := h.service.Create(c.Request.Context(), &req)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to create object", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -185,7 +160,7 @@ func (h *ObjectHandler) GetByID(c *gin.Context) {
 
 	object, err := h.service.GetByID(c.Request.Context(), id)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get object", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -227,7 +202,7 @@ func (h *ObjectHandler) GetByPublicID(c *gin.Context) {
 			"error_type":  fmt.Sprintf("%T", err),
 			"error_error": err.Error(),
 		}).Error("GetByPublicID service returned error")
-		h.handleServiceError(c, err, "Failed to get object by public ID", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -262,7 +237,7 @@ func (h *ObjectHandler) GetByName(c *gin.Context) {
 
 	object, err := h.service.GetByName(c.Request.Context(), name)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get object by name", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -298,7 +273,7 @@ func (h *ObjectHandler) Update(c *gin.Context) {
 
 	existingObj, err := h.service.GetByID(c.Request.Context(), id)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get object", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -331,7 +306,7 @@ func (h *ObjectHandler) Update(c *gin.Context) {
 
 	object, err := h.service.Update(c.Request.Context(), id, &req)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to update object", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -364,7 +339,7 @@ func (h *ObjectHandler) Delete(c *gin.Context) {
 
 	existingObj, err := h.service.GetByID(c.Request.Context(), id)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get object", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -379,7 +354,7 @@ func (h *ObjectHandler) Delete(c *gin.Context) {
 
 	err = h.service.Delete(c.Request.Context(), id)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to delete object", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -431,7 +406,7 @@ func (h *ObjectHandler) List(c *gin.Context) {
 
 	objects, total, err := h.service.List(c.Request.Context(), filter)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to list objects", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -470,7 +445,7 @@ func (h *ObjectHandler) Search(c *gin.Context) {
 
 	results, err := h.service.Search(c.Request.Context(), query, limit)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to search objects", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -511,7 +486,7 @@ func (h *ObjectHandler) UpdateMetadata(c *gin.Context) {
 
 	existingObj, err := h.service.GetByID(c.Request.Context(), id)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get object", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -527,7 +502,7 @@ func (h *ObjectHandler) UpdateMetadata(c *gin.Context) {
 	userID := middleware.GetAuthenticatedUserID(c)
 	err = h.service.UpdateMetadata(c.Request.Context(), id, metadata, userID)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to update metadata", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -566,7 +541,7 @@ func (h *ObjectHandler) AddTags(c *gin.Context) {
 
 	existingObj, err := h.service.GetByID(c.Request.Context(), id)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get object", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -582,7 +557,7 @@ func (h *ObjectHandler) AddTags(c *gin.Context) {
 	userID := middleware.GetAuthenticatedUserID(c)
 	err = h.service.AddTags(c.Request.Context(), id, req.Tags, userID)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to add tags", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -646,7 +621,7 @@ func (h *ObjectHandler) RemoveTags(c *gin.Context) {
 
 	existingObj, err := h.service.GetByID(c.Request.Context(), id)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get object", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -669,7 +644,7 @@ func (h *ObjectHandler) RemoveTags(c *gin.Context) {
 			"tags":        req.Tags,
 			"service_err": err,
 		}).Error("Failed to remove tags")
-		h.handleServiceError(c, err, "Failed to remove tags", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -703,7 +678,7 @@ func (h *ObjectHandler) GetChildren(c *gin.Context) {
 
 	children, err := h.service.GetChildren(c.Request.Context(), id)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get children", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -738,7 +713,7 @@ func (h *ObjectHandler) GetDescendants(c *gin.Context) {
 
 	descendants, err := h.service.GetDescendants(c.Request.Context(), id, maxDepth)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get descendants", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -765,7 +740,7 @@ func (h *ObjectHandler) GetAncestors(c *gin.Context) {
 
 	ancestors, err := h.service.GetAncestors(c.Request.Context(), id)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get ancestors", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -792,7 +767,7 @@ func (h *ObjectHandler) GetPath(c *gin.Context) {
 
 	path, err := h.service.GetPath(c.Request.Context(), id)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get path", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -820,7 +795,7 @@ func (h *ObjectHandler) BulkCreate(c *gin.Context) {
 
 	results, err := h.service.BulkCreate(c.Request.Context(), objects)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to bulk create objects", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -864,7 +839,7 @@ func (h *ObjectHandler) BulkUpdate(c *gin.Context) {
 
 	results, err := h.service.BulkUpdate(c.Request.Context(), req.IDs, req.Updates)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to bulk update objects", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -902,7 +877,7 @@ func (h *ObjectHandler) BulkDelete(c *gin.Context) {
 
 	err := h.service.BulkDelete(c.Request.Context(), req.IDs)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to bulk delete objects", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -926,7 +901,7 @@ func (h *ObjectHandler) GetStats(c *gin.Context) {
 
 	stats, err := h.service.GetObjectStats(c.Request.Context(), filter)
 	if err != nil {
-		h.handleServiceError(c, err, "Failed to get object stats", requestID)
+		HandleError(c, err, requestID)
 		return
 	}
 

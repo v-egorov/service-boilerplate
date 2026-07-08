@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,7 +9,6 @@ import (
 	"github.com/v-egorov/service-boilerplate/common/logging"
 	"github.com/v-egorov/service-boilerplate/common/middleware"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/models"
-	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/repository"
 	"github.com/v-egorov/service-boilerplate/services/objects-service/internal/services"
 )
 
@@ -72,7 +70,7 @@ func (h *RelationshipTypeHandler) Create(c *gin.Context) {
 
 	rt, err := h.service.Create(c.Request.Context(), &req)
 	if err != nil {
-		h.handleError(c, requestID, err, "create relationship type")
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -120,7 +118,7 @@ func (h *RelationshipTypeHandler) List(c *gin.Context) {
 
 	rts, err := h.service.List(c.Request.Context(), &filter)
 	if err != nil {
-		h.handleError(c, requestID, err, "list relationship types")
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -158,7 +156,7 @@ func (h *RelationshipTypeHandler) GetByTypeKey(c *gin.Context) {
 
 	rt, err := h.service.GetByTypeKey(c.Request.Context(), typeKey)
 	if err != nil {
-		h.handleError(c, requestID, err, "get relationship type")
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -202,7 +200,7 @@ func (h *RelationshipTypeHandler) Update(c *gin.Context) {
 
 	rt, err := h.service.Update(c.Request.Context(), typeKey, &req)
 	if err != nil {
-		h.handleError(c, requestID, err, "update relationship type")
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -234,7 +232,7 @@ func (h *RelationshipTypeHandler) Delete(c *gin.Context) {
 
 	err := h.service.Delete(c.Request.Context(), typeKey)
 	if err != nil {
-		h.handleError(c, requestID, err, "delete relationship type")
+		HandleError(c, err, requestID)
 		return
 	}
 
@@ -246,61 +244,3 @@ func (h *RelationshipTypeHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// handleError maps service errors to HTTP status codes
-func (h *RelationshipTypeHandler) handleError(c *gin.Context, requestID string, err error, operation string) {
-	h.logger.WithFields(logrus.Fields{
-		"request_id": requestID,
-	}).WithError(err).Error(operation)
-
-	// Check for specific error types
-	switch {
-	case errors.Is(err, services.ErrRelationshipTypeNotFound):
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Relationship type not found",
-			"type":  "not_found",
-			"meta":  gin.H{"request_id": requestID},
-		})
-	case errors.Is(err, services.ErrDuplicateRelationshipType):
-		c.JSON(http.StatusConflict, gin.H{
-			"error": "Relationship type already exists",
-			"type":  "conflict",
-			"meta":  gin.H{"request_id": requestID},
-		})
-	case errors.Is(err, services.ErrInvalidCardinality):
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"error": "Invalid cardinality value",
-			"type":  "validation_error",
-			"meta":  gin.H{"request_id": requestID},
-		})
-	case errors.Is(err, services.ErrInvalidReverseType):
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"error": "Invalid reverse type key",
-			"type":  "validation_error",
-			"meta":  gin.H{"request_id": requestID},
-		})
-	case errors.Is(err, services.ErrRelationshipTypeInUse):
-		c.JSON(http.StatusConflict, gin.H{
-			"error": "Relationship type is in use and cannot be deleted",
-			"type":  "conflict",
-			"meta":  gin.H{"request_id": requestID},
-		})
-	case errors.Is(err, services.ErrInvalidCountConstraint):
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"error": "Invalid count constraint: min_count cannot exceed max_count",
-			"type":  "validation_error",
-			"meta":  gin.H{"request_id": requestID},
-		})
-	case errors.Is(err, repository.ErrInvalidInput):
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid input",
-			"type":  "validation_error",
-			"meta":  gin.H{"request_id": requestID},
-		})
-	default:
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Internal server error",
-			"type":  "internal_error",
-			"meta":  gin.H{"request_id": requestID},
-		})
-	}
-}
