@@ -67,6 +67,34 @@ Run `bash scripts/test-mcp-e2e.sh` on a fresh environment (or at least after res
 
 ---
 
+## JSON Validation Errors Lack Field-Level Detail
+
+**Discovered:** 2026-07-04 (during `fix-handler-error-dispatch` exploration)  
+**Priority:** Low
+
+### Problem
+When `ShouldBindJSON()` fails, gin returns a generic error without field-level path information. The handler catches this and returns a 400 with no indication of which field or why parsing failed.
+
+```go
+// Current — loses field context
+var req models.CreateObjectRequest
+if err := c.ShouldBindJSON(&req); err != nil {
+    // Returns: {"error": "invalid request body", "type": "validation_error"}
+    // No idea if it's missing 'name', invalid object_type_id, etc.
+}
+```
+
+### Current State
+- gin's `ShouldBindJSON` uses Go's `encoding/json` which doesn't track field paths on parse errors
+- Validation library (`go-playground/validator`) only validates struct tags — it doesn't help with JSON parsing errors (malformed input, unknown fields)
+
+### Possible Improvements (future)
+1. Use `json.Decoder` with custom `UnmarshalJSON` methods per request type to provide field-level error messages
+2. Use a validation framework like `go-playground/validator/v10` + manual parsing for richer errors
+3. Accept the current behavior — most clients send well-formed JSON, parse errors indicate client bugs
+
+---
+
 ## Object Types — Hardcoded Route Configuration Gap
 
 **Discovered:** 2026-07-04  
