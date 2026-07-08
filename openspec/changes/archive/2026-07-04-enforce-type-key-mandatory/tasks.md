@@ -93,4 +93,4 @@ UPDATE objects_service.object_types SET type_key = NULL WHERE name IN ('Electron
   - `?type_key_prefix=product` → returns `product`, `product-electronics`, `product-clothing`, `product-books`
   - `?type_key_prefix=article` → returns `article`, `article-news-article`, `article-blog-post`, `article-tutorial`
 
-- [ ] 4.5 Rollback path: down migration exists and is structurally correct (reverts type_keys to NULL, drops NOT NULL). Not tested end-to-end in container environment due to repeated build issues with Air dev server. The down migration uses name-based lookups matching the up migration.
+
