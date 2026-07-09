@@ -64,17 +64,8 @@ func handleServiceError(c *gin.Context, err error) {
 func handleServiceError(c *gin.Context, err error) {
     handlers.HandleError(c, err, requestID)  // centralized mapping table
 }
-        c.JSON(http.StatusNotFound, ...)
-        return
-    }
-    if errors.Is(err, repository.ErrInvalidInput) {
-        c.JSON(http.StatusBadRequest, ...)
-        return
-    }
-    // fallback for truly unexpected errors only
-    c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error", "type": "internal_error"})
-}
 ```
+**Note:** The shared dispatcher lives at `internal/handlers/error.go`. Every handler calls it — never write per-handler error dispatch logic.
 
 **Why:** The API response standards require HTTP status codes to match error types. A 500 with `"type":"internal_error"` for a missing resource (404) or invalid input (422) misleads clients and breaks automated error handling.
 
