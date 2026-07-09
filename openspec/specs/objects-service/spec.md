@@ -116,20 +116,22 @@ The dispatcher SHALL map the following error types:
 
 | Sentinel Error | HTTP Status | Error Type |
 |---------------|-------------|------------|
-| `repository.ErrNotFound` | 404 | `not_found` |
+| `common/errors.ErrNotFound` | 404 | `not_found` |
 | `services.*ErrNotFound` (all service variants) | 404 | `not_found` |
-| `repository.ErrAlreadyExists` / `services.*ErrDuplicate*` | 409 | `conflict` |
+| `services.*ErrDuplicate*` | 409 | `conflict` |
 | `repository.ErrOptimisticLock` / `repository.ErrVersionConflict` | 409 | `conflict` |
 | `services.ErrCircularRelationship` / `services.ErrCardinalityViolation` | 422 | `validation_error` |
-| `repository.ErrInvalidInput` / `services.*ErrTypeKeyRequired` / `services.*ErrCardinalityRequired` | 400 | `validation_error` |
+| `common/errors.ErrInvalidInput` / `services.*ErrTypeKeyRequired` / `services.*ErrCardinalityRequired` | 400 | `validation_error` |
 | All other errors (unknown) | 500 | `internal_error` |
 
-**Removed:** The dispatcher no longer maps raw `sql.ErrNoRows` via a fallback case. Repository methods return `repository.ErrNotFound` sentinel directly when rows are not found, eliminating the need for SQL-level error handling in the handler layer.
+**Changed:** `ErrNotFound` and `ErrInvalidInput` migrated from `repository.*` to `common/errors.*`. These are now shared infra sentinels importable by all services.
+
+**Removed:** `repository.ErrAlreadyExists` — was never returned by any repository method, so the dispatcher case is dead code. Removed from mapping table and all references.
 
 #### Scenario: Missing object returns 404 not_found
 
 - **WHEN** a client requests `/api/v1/objects/:id` for an ID that does not exist in the database
-- **THEN** the repository returns `repository.ErrNotFound`, the service layer wraps it, and the handler dispatches via `HandleError()` which matches `repository.ErrNotFound` and returns HTTP 404 with `"type": "not_found"`
+- **THEN** the repository returns `common/errors.ErrNotFound`, the service layer wraps it, and the handler dispatches via `HandleError()` which matches `common/errors.ErrNotFound` and returns HTTP 404 with `"type": "not_found"`
 
 #### Scenario: Circular relationship returns 422 validation_error
 
