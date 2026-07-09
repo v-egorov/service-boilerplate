@@ -124,10 +124,12 @@ The dispatcher SHALL map the following error types:
 | `repository.ErrInvalidInput` / `services.*ErrTypeKeyRequired` / `services.*ErrCardinalityRequired` | 400 | `validation_error` |
 | All other errors (unknown) | 500 | `internal_error` |
 
+**Removed:** The dispatcher no longer maps raw `sql.ErrNoRows` via a fallback case. Repository methods return `repository.ErrNotFound` sentinel directly when rows are not found, eliminating the need for SQL-level error handling in the handler layer.
+
 #### Scenario: Missing object returns 404 not_found
 
 - **WHEN** a client requests `/api/v1/objects/:id` for an ID that does not exist in the database
-- **THEN** the handler dispatches via `HandleError()` which matches `repository.ErrNotFound` (wrapped by service layer) and returns HTTP 404 with `"type": "not_found"`
+- **THEN** the repository returns `repository.ErrNotFound`, the service layer wraps it, and the handler dispatches via `HandleError()` which matches `repository.ErrNotFound` and returns HTTP 404 with `"type": "not_found"`
 
 #### Scenario: Circular relationship returns 422 validation_error
 
