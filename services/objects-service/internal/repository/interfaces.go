@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	errors "github.com/v-egorov/service-boilerplate/common/errors"
 )
 
 // DBInterface defines the minimal database operations needed for testing (user-service pattern)
@@ -123,11 +125,13 @@ type Repository interface {
 	Healthy(ctx context.Context) error
 }
 
-// Error types for repository operations
+// Error types for repository operations.
+// ErrNotFound and ErrInvalidInput are aliases to common/errors sentinels
+// so that existing service-layer code (which references repository.Err*) continues working.
+// Objects-service-specific errors (ErrOptimisticLock, etc.) remain local.
 var (
-	ErrNotFound        = fmt.Errorf("resource not found")
-	ErrAlreadyExists   = fmt.Errorf("resource already exists")
-	ErrInvalidInput    = fmt.Errorf("invalid input")
+	ErrNotFound        = errors.ErrNotFound
+	ErrInvalidInput    = errors.ErrInvalidInput
 	ErrOptimisticLock  = fmt.Errorf("optimistic lock failed")
 	ErrVersionConflict = fmt.Errorf("version conflict")
 	ErrSoftDeleted     = fmt.Errorf("resource is soft deleted")

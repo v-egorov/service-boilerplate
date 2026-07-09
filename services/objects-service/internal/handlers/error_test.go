@@ -193,7 +193,6 @@ func TestHandleError_RequestsAllSentinels(t *testing.T) {
 	}{
 		// Repository sentinels
 		{"repo:ErrNotFound", repository.ErrNotFound, http.StatusNotFound},
-		{"repo:ErrAlreadyExists", repository.ErrAlreadyExists, http.StatusConflict},
 		{"repo:ErrInvalidInput", repository.ErrInvalidInput, http.StatusBadRequest},
 		{"repo:ErrOptimisticLock", repository.ErrOptimisticLock, http.StatusConflict},
 		{"repo:ErrVersionConflict", repository.ErrVersionConflict, http.StatusConflict},

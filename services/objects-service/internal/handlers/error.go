@@ -95,11 +95,6 @@ func HandleError(c *gin.Context, err error, requestID string) {
 		errorMessage = err.Error()
 		errorType = "conflict"
 
-	case errors.Is(err, repository.ErrAlreadyExists):
-		statusCode = http.StatusConflict
-		errorMessage = err.Error()
-		errorType = "conflict"
-
 	case errors.Is(err, repository.ErrNotFound):
 		statusCode = http.StatusNotFound
 		errorMessage = err.Error()
