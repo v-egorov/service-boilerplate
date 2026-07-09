@@ -28,15 +28,22 @@ return items  // → "data": [] when empty
 
 ---
 
-## Rule 2: Standardize Pagination Parameters Across Endpoints
+## Rule 2: Pagination Parameters — limit/offset Canonical, Default=50
 
 **Scope:** All list endpoints returning paginated collections.
 
-Choose **one convention** and use it everywhere:
-- `?limit=N&offset=M` (used by objects-service List/Search)
-- OR `?page=P&page_size=S` (currently used only by relationship handler)
+Always use **`limit` and `offset`** query parameters. Never use `page/page_size`. Default to `limit=50`, `offset=0` when client omits pagination params.
 
-Do NOT mix conventions within the same service. Response field names must also be consistent (`count`, `total`, `has_more`).
+```go
+// Handler extracts params with defaults
+filter.Limit = 50
+if l := c.Query("limit"); l != "" {
+    fmt.Sscanf(l, "%d", &filter.Limit)
+}
+filter.Offset = 0
+if o := c.Query("offset"); o != "" {
+    fmt.Sscanf(o, "%d", &filter.Offset)
+}
 
 ---
 
@@ -53,9 +60,10 @@ func handleServiceError(c *gin.Context, err error) {
     })
 }
 
-// ✅ CORRECT — dispatch via errors.Is()
+// ✅ CORRECT — use shared HandleError dispatcher (internal/handlers/error.go)
 func handleServiceError(c *gin.Context, err error) {
-    if errors.Is(err, repository.ErrNotFound) {
+    handlers.HandleError(c, err, requestID)  // centralized mapping table
+}
         c.JSON(http.StatusNotFound, ...)
         return
     }
@@ -124,7 +132,52 @@ func (s *service) List(ctx context.Context, filter *Filter) ([]*T, int64, error)
 
 ---
 
-## Rule 7: Test Coverage Expectations
+## Rule 7: Repository Get*() Methods Return ErrNotFound for Missing Rows
+
+**Scope:** All repository `Get*()` methods that retrieve a single row.
+
+```go
+func (r *objectRepository) GetByID(ctx context.Context, id int64) (*models.Object, error) {
+    err := r.db.QueryRow(ctx, query, id).Scan(&obj.ID, ...)
+    if err != nil {
+        if errors.Is(err, sql.ErrNoRows) {  // ← CHECK FIRST
+            return nil, ErrNotFound           // ← RETURN UNWRAPPED SENTINEL
+        }
+        return nil, fmt.Errorf("failed to get object: %w", err)
+    }
+}
+```
+
+**Why:** This is the single most common source of error handling bugs in this codebase. When a repository method passes raw `sql.ErrNoRows` through `%w` wrapping instead of converting it to the `repository.ErrNotFound` sentinel, two cascading problems occur:
+
+1. **Service layer direct comparison fails:** Service methods check `err == ErrNotFound` (pointer equality). A wrapped pgx error never matches, so the service layer falls through to its own generic wrap — hiding the "not found" intent.
+2. **Handler dispatcher workaround required:** The handler must include a `sql.ErrNoRows` fallback case as a bandage to catch these unwrapped errors. This masks the real issue at the repository boundary.
+
+**Contract between layers:**
+- Repository returns `repository.ErrNotFound` directly (unwrapped) for missing rows → service layer's direct comparison works ✅
+- Service wraps with its own sentinel via `fmt.Errorf("...: %w", err)` when needed → handler uses `errors.Is()` to match ✅
+
+**Anti-patterns:**
+```go
+// ❌ WRONG — raw ErrNoRows wrapped through, service layer direct comparison fails
+if err != nil {
+    return nil, fmt.Errorf("failed to get object: %w", err)
+}
+
+// ❌ WRONG — wrapping ErrNotFound twice creates double-wrapped error
+return nil, fmt.Errorf("service failed: %w", fmt.Errorf("repo failed: %w", repository.ErrNotFound))
+
+// ✅ CORRECT — check first, return sentinel unwrapped
+if errors.Is(err, sql.ErrNoRows) {
+    return nil, ErrNotFound
+}
+```
+
+**Applies to:** All single-row `Get*()` methods across all repositories (object_repository, object_type_repository, relationship_repository, relationship_type_repository, etc.). Collection-returning methods (List, Search, tree traversal) do NOT apply — they return empty slices instead.
+
+---
+
+## Rule 8: Test Coverage Expectations
 
 **Scope:** All Go packages in every service. See [`docs/testify-overview.md`](testify-overview.md) for full framework guidance.
 
