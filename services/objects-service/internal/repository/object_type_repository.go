@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -178,6 +179,9 @@ func (r *objectTypeRepository) GetByID(ctx context.Context, id int64) (*models.O
 	)
 	if err != nil {
 		r.metrics.ErrorCount++
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf("failed to get object type: %w", err)
 	}
 

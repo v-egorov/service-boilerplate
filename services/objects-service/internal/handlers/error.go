@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"errors"
 	"net/http"
 
@@ -88,12 +87,6 @@ func HandleError(c *gin.Context, err error, requestID string) {
 		statusCode = http.StatusBadRequest
 		errorMessage = "cardinality is required"
 		errorType = "validation_error"
-
-	// ── SQL-level sentinels (handle pre-existing repo wrapping gaps) ──
-	case errors.Is(err, sql.ErrNoRows):
-		statusCode = http.StatusNotFound
-		errorMessage = err.Error()
-		errorType = "not_found"
 
 	// ── Repository-level sentinels (catch-all for object/object_type wrappers) ──
 	case errors.Is(err, repository.ErrOptimisticLock),

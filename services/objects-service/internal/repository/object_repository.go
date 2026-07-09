@@ -207,6 +207,9 @@ func (r *objectRepository) GetByID(ctx context.Context, id int64) (*models.Objec
 
 	if err != nil {
 		r.metrics.ErrorCount++
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf("failed to get object: %w", err)
 	}
 
@@ -262,6 +265,9 @@ func (r *objectRepository) GetByName(ctx context.Context, name string) (*models.
 	err := r.db.QueryRow(ctx, query, name).Scan(&id)
 	if err != nil {
 		r.metrics.ErrorCount++
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, fmt.Errorf("failed to get object by name: %w", err)
 	}
 
