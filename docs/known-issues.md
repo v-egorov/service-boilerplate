@@ -220,6 +220,67 @@ Before adding schemas to resources/prompts, verify:
 
 ---
 
+## DB Constraint Violations Detected via Fragile String Matching
+
+**Discovered:** 2026-07-10 (during auth-service error handling exploration)  
+**Affected services:** auth-service (handlers), user-service (service layer)
+
+### Problem
+Both auth-service and user-service detect PostgreSQL constraint violations by matching raw error message strings:
+
+```go
+// AUTH-SERVICE — in HANDLER (most fragile ❌)
+if strings.Contains(err.Error(), "duplicate key value") || 
+   strings.Contains(err.Error(), "23505") {
+    h.errorResponse(c, http.StatusConflict, ...)
+}
+
+// USER-SERVICE — in SERVICE LAYER (still fragile ⚠️)
+if strings.Contains(err.Error(), "duplicate key") ||
+   strings.Contains(err.Error(), "unique constraint") ||
+   strings.Contains(err.Error(), "already exists") {
+    return nil, models.NewConflictError(...)
+}
+```
+
+This is fragile because:
+1. **Hardcodes PostgreSQL error messages/codes** — breaks if DB driver or error format changes
+2. **Auth-service handles it in the handler layer** — not just service layer, which means the handler knows about PostgreSQL internals (error code `23505`)
+3. **Inconsistent placement** — auth-service detects in handlers via inline `strings.Contains()`, user-service detects in service layer but still uses string matching
+4. **No structured error type** — auth-service's handler returns a hardcoded status message instead of wrapping with an error sentinel that the dispatcher can match
+
+### Current State by Service
+| Service | Detection Location | Pattern | Status |
+|---------|-------------------|---------|--------|
+| objects-service | N/A (uses domain sentinels) | `ErrRelationshipTypeInUse` etc. | ✅ No string matching |
+| user-service | Service layer (3 places) | `strings.Contains("duplicate key")` → wraps with typed `ConflictError` | ⚠️ Fragile but consistent error flow |
+| auth-service | Handler layer (2 places) | `strings.Contains(err.Error(), "23505")` → inline JSON response | ❌ Most fragile — handler knows DB internals |
+
+### Root Cause
+No standard sentinel type exists for "resource in use" / constraint violation conditions. Each service either:
+- Defines domain-specific sentinels (objects-service) ✅
+- Wraps with generic typed structs (user-service) ⚠️  
+- Falls back to inline handler detection (auth-service) ❌
+
+### Impact on Auth-Service Error Unification
+This is the primary blocker for making auth-service error handling more unified. The handler currently has two places where it:
+1. Calls `h.authService.CreateRole()` or `CreatePermission()`
+2. Checks if err contains "duplicate key" or "23505"
+3. Returns HTTP 409 directly (bypassing HandleAuthError dispatcher)
+
+To unify, these should move to the service layer and return a wrapped sentinel that HandleAuthError can match.
+
+### Fix Strategy (future delta)
+1. Define domain-specific sentinels in auth-service's services package:
+   - `ErrRoleNameConflict` — role with this name already exists (unique constraint on roles.name)
+   - `ErrPermissionNameConflict` — permission with this name/resource/action already exists
+2. Move duplicate detection from handlers to service layer CreateRole/CreatePermission methods
+3. Wrap detected violations with `%w ErrAlreadyExists` or domain-specific sentinels
+4. Add corresponding cases to HandleAuthError dispatcher
+5. Remove all `strings.Contains("duplicate key")` and `strings.Contains("23505")` from handlers
+
+---
+
 ## Resolved Items (Archived Deltas)
 
 The following items were resolved by archived OpenSpec deltas and are retained here for reference only:
