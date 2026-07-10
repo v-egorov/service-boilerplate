@@ -2077,7 +2077,7 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 			mockGetRoleErr:   sql.ErrNoRows,
 			mockAssignError:  nil,
 			expectError:      true,
-			expectedErrorMsg: "not found",
+			expectedErrorMsg: "validate role",
 		},
 	}
 

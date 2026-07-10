@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -60,6 +62,9 @@ func (r *AuthRepository) GetAuthTokenByHash(ctx context.Context, tokenHash strin
 			&token.ExpiresAt, &token.RevokedAt, &token.CreatedAt, &token.UpdatedAt)
 	})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	return &token, nil
@@ -105,6 +110,9 @@ func (r *AuthRepository) GetUserSession(ctx context.Context, sessionToken string
 		&session.ID, &session.UserID, &session.SessionToken,
 		&session.IPAddress, &session.UserAgent, &session.ExpiresAt, &session.CreatedAt)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	return &session, nil
@@ -206,6 +214,9 @@ func (r *AuthRepository) GetRoleByName(ctx context.Context, roleName string) (*m
 	err := r.db.QueryRow(ctx, query, roleName).Scan(
 		&role.ID, &role.Name, &role.Description, &role.CreatedAt)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	return &role, nil
@@ -269,6 +280,9 @@ func (r *AuthRepository) GetRole(ctx context.Context, roleID uuid.UUID) (*models
 	err := r.db.QueryRow(ctx, query, roleID).Scan(
 		&role.ID, &role.Name, &role.Description, &role.CreatedAt)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	return &role, nil
@@ -339,6 +353,9 @@ func (r *AuthRepository) GetPermission(ctx context.Context, permissionID uuid.UU
 	err := r.db.QueryRow(ctx, query, permissionID).Scan(
 		&permission.ID, &permission.Name, &permission.Resource, &permission.Action, &permission.CreatedAt)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	return &permission, nil
