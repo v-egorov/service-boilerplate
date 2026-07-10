@@ -2,13 +2,13 @@
 
 ## Purpose
 
-Define the shared sentinel error package (`common/errors`) that provides five error types for cross-service error handling. All services import this package and use these sentinels as the base of their error chains via `%w` wrapping, enabling uniform matching with `errors.Is()` across all service layers.
+Define the shared error package (`common/errors`) that provides both sentinel error variables AND typed error structs for cross-service error handling. Sentinels serve as the base of error chains via `%w` wrapping; typed structs carry structured data (field names, resource identifiers) that handlers render into JSON response fields.
 
 ## Requirements
 
-### Requirement: Common error package provides shared sentinel variables for cross-service error handling
+### Requirement: Common error package provides shared sentinel variables and typed error structs for cross-service error handling
 
-The `common/errors` package MUST provide five sentinel error variables that all services import and use as the base of their error chains. Services SHALL wrap domain-specific errors with these sentinels via `%w` so that downstream handlers can match them using `errors.Is()`.
+The `common/errors` package MUST provide both sentinel error variables AND typed error structs that all services import. Sentinels serve as the base of error chains via `%w` wrapping; typed structs carry structured data (field names, resource identifiers) that handlers render into JSON response fields.
 
 | Sentinel | HTTP Status | Error Type | Description |
 |----------|-------------|------------|-------------|
@@ -17,6 +17,23 @@ The `common/errors` package MUST provide five sentinel error variables that all 
 | `common/errors.ErrInvalidInput` | 400 | `validation_error` | Request contains invalid or missing required fields |
 | `common/errors.ErrUnauthorized` | 401 | `unauthorized` | Authentication failed — invalid or expired credentials |
 | `common/errors.ErrForbidden` | 403 | `permission_denied` | User lacks permission to perform the requested action |
+
+**Typed error structs** (ADDED):
+
+| Struct | HTTP Status | Fields | Description |
+|--------|-------------|--------|-------------|
+| `ValidationError` | 400 | `Field string`, `Message string` | Validation failure on a specific field |
+| `ConflictError` | 409 | `Resource string`, `Field string`, `Value string` | Resource conflict (duplicate) |
+| `NotFoundError` | 404 | `Resource string`, `Field string`, `Value string` | Resource not found with identifiers |
+| `InternalError` | 500 | `Operation string`, `Err error` + `Unwrap()` | Internal server error wrapping a cause |
+
+Each typed struct MUST have an `Error() string` method and constructor helper functions:
+- `NewValidationError(field, message string) ValidationError`
+- `NewConflictError(resource, field, value string) ConflictError`
+- `NewNotFoundError(resource, field, value string) NotFoundError`
+- `NewInternalError(operation string, err error) InternalError`
+
+Typed structs are used by service layers that need to carry structured metadata (field names, resource types) into handler responses. Handlers match these via Go's type-switch (`switch e := err.(type)`), not `errors.Is()`.
 
 #### Scenario: ErrNotFound is importable by all services
 
@@ -37,6 +54,16 @@ The `common/errors` package MUST provide five sentinel error variables that all 
 
 - **WHEN** a user-service service layer returns `models.NotFoundError{Resource: "user", Field: "email"}`
 - **THEN** the type-switch in the handler still matches on the struct type for rich metadata, while `errors.Is()` can match any wrapped `common/errors.ErrNotFound` at deeper layers
+
+#### Scenario: Typed errors coexist with sentinel errors in common package
+
+- **WHEN** a service needs both infra-level signaling (ErrNotFound) and domain-level metadata (NotFoundError with field info)
+- **THEN** it can use sentinels for error chain base types and typed structs where structured response data is required
+
+#### Scenario: InternalError supports error unwrapping
+
+- **WHEN** `errors.As(err, &cause)` is called on an InternalError
+- **THEN** the underlying wrapped error is returned via `Unwrap()`, enabling inspection of the root cause
 
 #### Scenario: Sentinel variables are simple fmt.Errorf values
 
