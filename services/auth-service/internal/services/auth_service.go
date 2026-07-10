@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,6 +20,12 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
+)
+
+// Domain-specific sentinel errors for business rule violations.
+var (
+	ErrRoleInUse         = errors.New("role has assigned users and cannot be deleted")
+	ErrPermissionInUse   = errors.New("permission has assigned roles and cannot be deleted")
 )
 
 // RepositoryInterface defines the interface for repository operations
@@ -610,6 +617,10 @@ func (s *AuthService) CreateRole(ctx context.Context, name, description string) 
 	createdRole, err := s.repo.CreateRole(ctx, role)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to create role")
+		// Check if it's a constraint violation (duplicate role name)
+		if strings.Contains(err.Error(), "duplicate key value") || strings.Contains(err.Error(), "23505") {
+			return nil, fmt.Errorf("role already exists: %w", errors_pkg.ErrAlreadyExists)
+		}
 		return nil, fmt.Errorf("failed to create role: %w", err)
 	}
 
@@ -665,7 +676,7 @@ func (s *AuthService) DeleteRole(ctx context.Context, roleID uuid.UUID) error {
 	}
 
 	if userCount > 0 {
-		return fmt.Errorf("cannot delete role: %d users are assigned to this role", userCount)
+		return fmt.Errorf("role deletion blocked: %w", ErrRoleInUse)
 	}
 
 	err = s.repo.DeleteRole(ctx, roleID)
@@ -689,6 +700,10 @@ func (s *AuthService) CreatePermission(ctx context.Context, name, resource, acti
 	createdPermission, err := s.repo.CreatePermission(ctx, permission)
 	if err != nil {
 		s.logger.WithError(err).Error("Failed to create permission")
+		// Check if it's a constraint violation (duplicate permission name)
+		if strings.Contains(err.Error(), "duplicate key value") || strings.Contains(err.Error(), "23505") {
+			return nil, fmt.Errorf("permission already exists: %w", errors_pkg.ErrAlreadyExists)
+		}
 		return nil, fmt.Errorf("failed to create permission: %w", err)
 	}
 
@@ -744,7 +759,7 @@ func (s *AuthService) DeletePermission(ctx context.Context, permissionID uuid.UU
 	}
 
 	if roleCount > 0 {
-		return fmt.Errorf("cannot delete permission: %d roles are assigned this permission", roleCount)
+		return fmt.Errorf("permission deletion blocked: %w", ErrPermissionInUse)
 	}
 
 	err = s.repo.DeletePermission(ctx, permissionID)

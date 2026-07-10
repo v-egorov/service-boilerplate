@@ -71,6 +71,15 @@ func (h *AuthHandler) HandleAuthError(c *gin.Context, err error) {
 		statusCode = http.StatusNotFound
 		errorMessage = err.Error()
 		errorType = "not_found"
+	case errors.Is(err, services.ErrRoleInUse),
+		errors.Is(err, services.ErrPermissionInUse):
+		statusCode = http.StatusUnprocessableEntity
+		errorMessage = err.Error()
+		errorType = "validation_error"
+	case errors.Is(err, errors_pkg.ErrAlreadyExists):
+		statusCode = http.StatusConflict
+		errorMessage = err.Error()
+		errorType = "conflict"
 	default:
 		// Unknown error — fall back to 500
 	}
@@ -420,14 +429,6 @@ func (h *AuthHandler) CreateRole(c *gin.Context) {
 	role, err := h.authService.CreateRole(c.Request.Context(), req.Name, req.Description)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to create role")
-
-		// Check if this is a unique constraint violation (duplicate role name)
-		if strings.Contains(err.Error(), "duplicate key value") || strings.Contains(err.Error(), "23505") {
-			h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_role", traceID, spanID, false, "Role with this name already exists")
-			h.errorResponse(c, http.StatusConflict, "conflict", "Role with this name already exists")
-			return
-		}
-
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_role", traceID, spanID, false, err.Error())
 		h.HandleAuthError(c, err)
 		return
@@ -563,14 +564,6 @@ func (h *AuthHandler) CreatePermission(c *gin.Context) {
 	permission, err := h.authService.CreatePermission(c.Request.Context(), req.Name, req.Resource, req.Action)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to create permission")
-
-		// Check if this is a unique constraint violation (duplicate permission name)
-		if strings.Contains(err.Error(), "duplicate key value") || strings.Contains(err.Error(), "23505") {
-			h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_permission", traceID, spanID, false, "Permission with this name already exists")
-			h.errorResponse(c, http.StatusConflict, "conflict", "Permission with this name already exists")
-			return
-		}
-
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_permission", traceID, spanID, false, err.Error())
 		h.HandleAuthError(c, err)
 		return

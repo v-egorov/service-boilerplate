@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	errors_pkg "github.com/v-egorov/service-boilerplate/common/errors"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
+	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/services"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/utils"
 )
 
@@ -859,13 +860,13 @@ func TestAuthHandler_CreateRole(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name: "service error",
+			name: "service error - duplicate role",
 			requestBody: map[string]string{
 				"name":        "admin",
 				"description": "Administrator role",
 			},
 			mockResponse:   nil,
-			mockError:      errors.New("duplicate key value violates unique constraint"),
+			mockError:      fmt.Errorf("role already exists: %w", errors_pkg.ErrAlreadyExists),
 			expectedStatus: http.StatusConflict,
 		},
 	}
@@ -1714,6 +1715,12 @@ func TestAuthHandler_DeleteRole(t *testing.T) {
 			mockError:      fmt.Errorf("lookup failed: %w", errors_pkg.ErrNotFound),
 			expectedStatus: http.StatusNotFound,
 		},
+		{
+			name:           "role in use",
+			roleID:         roleID.String(),
+			mockError:      fmt.Errorf("role deletion blocked: %w", services.ErrRoleInUse),
+			expectedStatus: http.StatusUnprocessableEntity,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1780,14 +1787,14 @@ func TestAuthHandler_CreatePermission(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
-			name: "service error",
+			name: "service error - duplicate permission",
 			requestBody: map[string]string{
 				"name":     "read:users",
 				"resource": "users",
 				"action":   "read",
 			},
 			mockResponse:   nil,
-			mockError:      errors.New("duplicate key value violates unique constraint"),
+			mockError:      fmt.Errorf("permission already exists: %w", errors_pkg.ErrAlreadyExists),
 			expectedStatus: http.StatusConflict,
 		},
 	}

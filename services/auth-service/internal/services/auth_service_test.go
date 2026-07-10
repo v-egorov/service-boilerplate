@@ -1316,7 +1316,7 @@ func TestAuthService_DeleteRole(t *testing.T) {
 			mockCountError:   nil,
 			mockDeleteError:  nil,
 			expectError:      true,
-			expectedErrorMsg: "cannot delete role: 3 users are assigned to this role",
+			expectedErrorMsg: "role deletion blocked",
 		},
 		{
 			name:             "count users error",
@@ -1701,7 +1701,7 @@ func TestAuthService_DeletePermission(t *testing.T) {
 			mockCountError:   nil,
 			mockDeleteError:  nil,
 			expectError:      true,
-			expectedErrorMsg: "cannot delete permission: 2 roles are assigned this permission",
+			expectedErrorMsg: "permission deletion blocked",
 		},
 		{
 			name:             "count roles error",
