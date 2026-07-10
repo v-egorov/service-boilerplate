@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	errors_pkg "github.com/v-egorov/service-boilerplate/common/errors"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/cache"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/client"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
@@ -155,13 +156,13 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest, ipAdd
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "Failed to get user from user service")
 		s.logger.WithError(err).Error("Failed to get user from user service")
-		return nil, fmt.Errorf("invalid credentials")
+		return nil, fmt.Errorf("invalid credentials: %w", errors_pkg.ErrUnauthorized)
 	}
 
 	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(userLogin.Data.PasswordHash), []byte(req.Password)); err != nil {
 		s.logger.WithField("email", req.Email).Warn("Invalid password")
-		return nil, fmt.Errorf("invalid credentials")
+		return nil, fmt.Errorf("invalid credentials: %w", errors_pkg.ErrUnauthorized)
 	}
 
 	// Use the actual user ID from user service
@@ -324,7 +325,7 @@ func (s *AuthService) Logout(ctx context.Context, tokenString string) error {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "Invalid token during logout")
-		return fmt.Errorf("invalid token: %w", err)
+		return fmt.Errorf("invalid token: %w", errors_pkg.ErrUnauthorized)
 	}
 
 	span.SetAttributes(
@@ -338,7 +339,7 @@ func (s *AuthService) Logout(ctx context.Context, tokenString string) error {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "Token not found in database during logout")
 		s.logger.WithError(err).Warn("Token not found in database during logout")
-		return fmt.Errorf("token not found: %w", err)
+		return fmt.Errorf("token not found: %w", errors_pkg.ErrUnauthorized)
 	}
 
 	// Revoke token
@@ -376,7 +377,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, req *models.RefreshToken
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "Invalid refresh token")
 		s.logger.WithError(err).Warn("Invalid refresh token")
-		return nil, fmt.Errorf("invalid refresh token: %w", err)
+		return nil, fmt.Errorf("invalid refresh token: %w", errors_pkg.ErrUnauthorized)
 	}
 
 	span.SetAttributes(
@@ -386,19 +387,19 @@ func (s *AuthService) RefreshToken(ctx context.Context, req *models.RefreshToken
 
 	if claims.TokenType != "refresh" {
 		s.logger.Warn("Non-refresh token used for refresh")
-		return nil, fmt.Errorf("invalid token type for refresh")
+		return nil, fmt.Errorf("invalid token type for refresh: %w", errors_pkg.ErrUnauthorized)
 	}
 
 	// Get token from database
 	token, err := s.repo.GetAuthTokenByHash(ctx, s.hashToken(req.RefreshToken))
 	if err != nil {
 		s.logger.WithError(err).Warn("Refresh token not found in database")
-		return nil, fmt.Errorf("refresh token not found: %w", err)
+		return nil, fmt.Errorf("refresh token not found: %w", errors_pkg.ErrUnauthorized)
 	}
 
 	if token.RevokedAt != nil {
 		s.logger.Warn("Attempted to refresh revoked token")
-		return nil, fmt.Errorf("refresh token has been revoked")
+		return nil, fmt.Errorf("refresh token has been revoked: %w", errors_pkg.ErrUnauthorized)
 	}
 
 	// Revoke old refresh token
@@ -564,7 +565,7 @@ func (s *AuthService) ValidateToken(ctx context.Context, tokenString string) (*u
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "Token not found in database")
-		return nil, fmt.Errorf("token not found in database: %w", err)
+		return nil, fmt.Errorf("token not found in database: %w", errors_pkg.ErrUnauthorized)
 	}
 
 	if token.RevokedAt != nil {
@@ -573,7 +574,7 @@ func (s *AuthService) ValidateToken(ctx context.Context, tokenString string) (*u
 			attribute.String("token.revoked_at", token.RevokedAt.String()),
 		)
 		span.SetStatus(codes.Error, "Token has been revoked")
-		return nil, fmt.Errorf("token has been revoked")
+		return nil, fmt.Errorf("token has been revoked: %w", errors_pkg.ErrUnauthorized)
 	}
 
 	span.SetAttributes(
@@ -763,7 +764,7 @@ func (s *AuthService) AssignPermissionToRole(ctx context.Context, roleID, permis
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			s.logger.WithField("permission_id", permissionID.String()).Warn("Permission not found for role assignment")
-			return models.NewNotFoundError("permission", "id", permissionID.String())
+			return fmt.Errorf("permission not found: %w", errors_pkg.ErrNotFound)
 		}
 		s.logger.WithError(err).Error("Failed to get permission for conflict detection")
 		return fmt.Errorf("failed to get permission: %w", err)
@@ -772,7 +773,7 @@ func (s *AuthService) AssignPermissionToRole(ctx context.Context, roleID, permis
 	if _, err := s.repo.GetRole(ctx, roleID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			s.logger.WithField("role_id", roleID.String()).Warn("Role not found for permission assignment")
-			return models.NewNotFoundError("role", "id", roleID.String())
+			return fmt.Errorf("role not found: %w", errors_pkg.ErrNotFound)
 		}
 		s.logger.WithError(err).Error("Failed to get role for validation")
 		return fmt.Errorf("failed to validate role: %w", err)

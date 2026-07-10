@@ -1,75 +1,36 @@
+// Package models provides re-export aliases for typed error types that are now
+// defined in common/errors. These aliases maintain backward compatibility — any code
+// importing auth-service/models and using ValidationError, ConflictError, etc.
+// continues working because Go type aliases have identical struct identity to the
+// original types. This allows existing errors.As() dispatchers (e.g., in handlers)
+// to match on the aliased types without changes.
+//
+// New code SHOULD import directly from common/errors:
+//   errors.NewNotFoundError("user", "email", "...")
 package models
 
 import (
 	"fmt"
 
+	errors_pkg "github.com/v-egorov/service-boilerplate/common/errors"
 	"github.com/google/uuid"
 )
 
-// Custom error types for better error handling
-type ValidationError struct {
-	Field   string
-	Message string
-}
+// Re-export typed error types and constructors from common/errors for backward compatibility.
+type ValidationError = errors_pkg.ValidationError
+type ConflictError = errors_pkg.ConflictError
+type NotFoundError = errors_pkg.NotFoundError
+type InternalError = errors_pkg.InternalError
 
-func (e ValidationError) Error() string {
-	return fmt.Sprintf("validation error on field '%s': %s", e.Field, e.Message)
-}
-
-type ConflictError struct {
-	Resource string
-	Field    string
-	Value    string
-}
-
-func (e ConflictError) Error() string {
-	return fmt.Sprintf("%s with %s '%s' already exists", e.Resource, e.Field, e.Value)
-}
-
-type NotFoundError struct {
-	Resource string
-	Field    string
-	Value    string
-}
-
-func (e NotFoundError) Error() string {
-	return fmt.Sprintf("%s with %s '%s' not found", e.Resource, e.Field, e.Value)
-}
-
-type InternalError struct {
-	Operation string
-	Err       error
-}
-
-func (e InternalError) Error() string {
-	return fmt.Sprintf("internal error during %s: %v", e.Operation, e.Err)
-}
-
-func (e InternalError) Unwrap() error {
-	return e.Err
-}
-
-// Helper functions to create errors
-func NewValidationError(field, message string) ValidationError {
-	return ValidationError{Field: field, Message: message}
-}
-
-func NewConflictError(resource, field, value string) ConflictError {
-	return ConflictError{Resource: resource, Field: field, Value: value}
-}
-
-func NewNotFoundError(resource, field, value string) NotFoundError {
-	return NotFoundError{Resource: resource, Field: field, Value: value}
-}
-
-func NewInternalError(operation string, err error) InternalError {
-	return InternalError{Operation: operation, Err: err}
-}
+var NewValidationError = errors_pkg.NewValidationError
+var NewConflictError = errors_pkg.NewConflictError
+var NewNotFoundError = errors_pkg.NewNotFoundError
+var NewInternalError = errors_pkg.NewInternalError
 
 // PermissionParseError represents a malformed permission name (bad format/structure).
 type PermissionParseError struct {
-	Name string // The invalid permission name that was passed
-	Reason  string // Human-readable explanation of why parsing failed
+	Name   string // The invalid permission name that was passed
+	Reason string // Human-readable explanation of why parsing failed
 }
 
 func (e PermissionParseError) Error() string {

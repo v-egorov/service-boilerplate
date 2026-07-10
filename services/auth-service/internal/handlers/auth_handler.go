@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
+	errors_pkg "github.com/v-egorov/service-boilerplate/common/errors"
 	"github.com/v-egorov/service-boilerplate/common/logging"
 	"github.com/v-egorov/service-boilerplate/common/middleware"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
@@ -49,6 +50,38 @@ func (h *AuthHandler) validationError(c *gin.Context, message string, field ...s
 	}
 }
 
+// HandleAuthError dispatches service-layer sentinel errors to appropriate HTTP status codes.
+// It logs the error, then matches via errors.Is() for common sentinels and falls through
+// to default 500 for unknown errors. Auth-specific typed errors (ScopedVariantConflictError,
+// PermissionParseError) continue to be handled via separate errors.As() type-switches in
+// their respective handler methods.
+func (h *AuthHandler) HandleAuthError(c *gin.Context, err error) {
+	h.logger.WithError(err).Error("Auth service error")
+
+	statusCode := http.StatusInternalServerError
+	errorMessage := "Internal server error"
+	errorType := "internal_error"
+
+	switch {
+	case errors.Is(err, errors_pkg.ErrUnauthorized):
+		statusCode = http.StatusUnauthorized
+		errorMessage = err.Error()
+		errorType = "unauthorized"
+	case errors.Is(err, errors_pkg.ErrNotFound):
+		statusCode = http.StatusNotFound
+		errorMessage = err.Error()
+		errorType = "not_found"
+	default:
+		// Unknown error — fall back to 500
+	}
+
+	c.JSON(statusCode, gin.H{
+		"error": errorMessage,
+		"type":  errorType,
+		"meta":  gin.H{"request_id": c.GetHeader("X-Request-ID")},
+	})
+}
+
 func NewAuthHandler(authService services.AuthServiceInterface, logger *logrus.Logger) *AuthHandler {
 	return &AuthHandler{
 		authService:    authService,
@@ -80,7 +113,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if err != nil {
 		h.standardLogger.AuthOperation(requestID, "", req.Email, "login", false, err)
 		h.auditLogger.LogAuthAttempt("", requestID, ipAddress, userAgent, req.Email, traceID, spanID, false, err.Error())
-		h.errorResponse(c, http.StatusUnauthorized, "unauthorized", "Invalid credentials")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -116,7 +149,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	if err != nil {
 		h.standardLogger.AuthOperation(requestID, "", req.Email, "register", false, err)
 		h.auditLogger.LogUserCreation("", requestID, "", ipAddress, userAgent, traceID, spanID, false, err.Error())
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Registration failed")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -196,7 +229,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Warn("Token refresh failed")
 		h.auditLogger.LogTokenOperation(actorUserID, requestID, "", ipAddress, userAgent, "refresh", traceID, spanID, false, err.Error())
-		h.errorResponse(c, http.StatusUnauthorized, "unauthorized", "Invalid refresh token")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -243,7 +276,7 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 	user, err := h.authService.GetCurrentUser(c.Request.Context(), userID, userEmail)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get current user")
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to get user information")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -267,7 +300,7 @@ func (h *AuthHandler) ValidateToken(c *gin.Context) {
 	_, err := h.authService.ValidateToken(c.Request.Context(), tokenString)
 	if err != nil {
 		h.logger.WithError(err).Warn("Token validation failed")
-		h.errorResponse(c, http.StatusUnauthorized, "unauthorized", "Invalid or revoked token")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -278,7 +311,7 @@ func (h *AuthHandler) GetPublicKey(c *gin.Context) {
 	publicKeyPEM, err := h.authService.GetPublicKeyPEM()
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get public key")
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to get public key")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -318,7 +351,7 @@ func (h *AuthHandler) RotateKeys(c *gin.Context) {
 	if err := h.authService.RotateKeys(c.Request.Context()); err != nil {
 		h.logger.WithError(err).Error("Failed to rotate JWT keys")
 		h.auditLogger.LogTokenOperation(actorUserID, requestID, "", ipAddress, userAgent, "admin_rotate_keys", traceID, spanID, false, err.Error())
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to rotate keys")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -396,7 +429,7 @@ func (h *AuthHandler) CreateRole(c *gin.Context) {
 		}
 
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_role", traceID, spanID, false, err.Error())
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to create role")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -409,7 +442,7 @@ func (h *AuthHandler) ListRoles(c *gin.Context) {
 	roles, err := h.authService.ListRoles(c.Request.Context())
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to list roles")
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to list roles")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -427,7 +460,7 @@ func (h *AuthHandler) GetRole(c *gin.Context) {
 	role, err := h.authService.GetRole(c.Request.Context(), roleID)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get role")
-		h.errorResponse(c, http.StatusNotFound, "not_found", "Role not found")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -466,7 +499,7 @@ func (h *AuthHandler) UpdateRole(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to update role")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_role", traceID, spanID, false, err.Error())
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to update role")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -495,7 +528,7 @@ func (h *AuthHandler) DeleteRole(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to delete role")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "delete_role", traceID, spanID, false, err.Error())
-		h.errorResponse(c, http.StatusBadRequest, "validation_error", err.Error())
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -539,7 +572,7 @@ func (h *AuthHandler) CreatePermission(c *gin.Context) {
 		}
 
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), "", c.ClientIP(), c.GetHeader("User-Agent"), "create_permission", traceID, spanID, false, err.Error())
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to create permission")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -552,7 +585,7 @@ func (h *AuthHandler) ListPermissions(c *gin.Context) {
 	permissions, err := h.authService.ListPermissions(c.Request.Context())
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to list permissions")
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to list permissions")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -570,7 +603,7 @@ func (h *AuthHandler) GetPermission(c *gin.Context) {
 	permission, err := h.authService.GetPermission(c.Request.Context(), permissionID)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get permission")
-		h.errorResponse(c, http.StatusNotFound, "not_found", "Permission not found")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -610,7 +643,7 @@ func (h *AuthHandler) UpdatePermission(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to update permission")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), permissionID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_permission", traceID, spanID, false, err.Error())
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to update permission")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -639,7 +672,7 @@ func (h *AuthHandler) DeletePermission(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to delete permission")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), permissionID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "delete_permission", traceID, spanID, false, err.Error())
-		h.errorResponse(c, http.StatusBadRequest, "validation_error", err.Error())
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -715,9 +748,16 @@ func (h *AuthHandler) AssignPermissionToRole(c *gin.Context) {
 			return
 		}
 
+		// Check for ErrNotFound sentinel (sql.ErrNoRows detection in service layer)
+		if errors.Is(err, errors_pkg.ErrNotFound) {
+			h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_permission_to_role", traceID, spanID, false, err.Error())
+			h.HandleAuthError(c, err)
+			return
+		}
+
 		h.logger.WithError(err).Error("Failed to assign permission to role")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_permission_to_role", traceID, spanID, false, err.Error())
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to assign permission to role")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -849,7 +889,7 @@ func (h *AuthHandler) RemovePermissionFromRole(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to remove permission from role")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), roleID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "remove_permission_from_role", traceID, spanID, false, err.Error())
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to remove permission from role")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -872,7 +912,7 @@ func (h *AuthHandler) GetRolePermissions(c *gin.Context) {
 	permissions, err := h.authService.GetRolePermissions(c.Request.Context(), roleID)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get role permissions")
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to get role permissions")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -923,7 +963,7 @@ func (h *AuthHandler) AssignRoleToUser(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to assign role to user")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "assign_role_to_user", traceID, spanID, false, err.Error())
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to assign role to user")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -959,7 +999,7 @@ func (h *AuthHandler) RemoveRoleFromUser(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to remove role from user")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "remove_role_from_user", traceID, spanID, false, err.Error())
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to remove role from user")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -978,7 +1018,7 @@ func (h *AuthHandler) GetUserRoles(c *gin.Context) {
 	roles, err := h.authService.GetUserRoles(c.Request.Context(), userID)
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to get user roles")
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to get user roles")
+		h.HandleAuthError(c, err)
 		return
 	}
 
@@ -1027,7 +1067,7 @@ func (h *AuthHandler) UpdateUserRoles(c *gin.Context) {
 	if err != nil {
 		h.logger.WithError(err).Error("Failed to update user roles")
 		h.auditLogger.LogAdminAction(actorUserID, c.GetHeader("X-Request-ID"), userID.String(), c.ClientIP(), c.GetHeader("User-Agent"), "update_user_roles", traceID, spanID, false, err.Error())
-		h.errorResponse(c, http.StatusInternalServerError, "internal_error", "Failed to update user roles")
+		h.HandleAuthError(c, err)
 		return
 	}
 

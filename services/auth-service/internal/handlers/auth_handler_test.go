@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	errors_pkg "github.com/v-egorov/service-boilerplate/common/errors"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/models"
 	"github.com/v-egorov/service-boilerplate/services/auth-service/internal/utils"
 )
@@ -302,7 +304,7 @@ func TestAuthHandler_GetPublicKey(t *testing.T) {
 			mockError:      errors.New("service error"),
 			expectedStatus: http.StatusInternalServerError,
 			expectJSON:     true,
-			expectedBody:   `{"error":"Failed to get public key"}`,
+			expectedBody:   `{"error":"Internal server error"}`,
 		},
 	}
 
@@ -337,7 +339,7 @@ func TestAuthHandler_GetPublicKey(t *testing.T) {
 				if tt.name == "service error" {
 					errorMsg, exists := response["error"]
 					assert.True(t, exists, "Expected error field in response")
-					assert.Equal(t, "Failed to get public key", errorMsg)
+					assert.Equal(t, "Internal server error", errorMsg)
 				}
 			} else {
 				// For plain text responses, check exact match
@@ -390,7 +392,7 @@ func TestAuthHandler_Login(t *testing.T) {
 				Password: "password123",
 			},
 			mockResponse:   nil,
-			mockError:      errors.New("invalid credentials"),
+			mockError:      fmt.Errorf("auth failed: %w", errors_pkg.ErrUnauthorized),
 			expectedStatus: http.StatusUnauthorized,
 			expectJSON:     true,
 		},
@@ -702,7 +704,7 @@ func TestAuthHandler_RefreshToken(t *testing.T) {
 				RefreshToken: "invalid.refresh.token",
 			},
 			mockResponse:   nil,
-			mockError:      errors.New("invalid refresh token"),
+			mockError:      fmt.Errorf("auth failed: %w", errors_pkg.ErrUnauthorized),
 			expectedStatus: http.StatusUnauthorized,
 			expectJSON:     true,
 		},
@@ -780,7 +782,7 @@ func TestAuthHandler_ValidateToken(t *testing.T) {
 			name:           "expired token",
 			authHeader:     "Bearer expired.jwt.token",
 			mockClaims:     nil,
-			mockError:      errors.New("token expired"),
+			mockError:      fmt.Errorf("auth failed: %w", errors_pkg.ErrUnauthorized),
 			expectedStatus: http.StatusUnauthorized,
 		},
 	}
@@ -1002,7 +1004,7 @@ func TestAuthHandler_GetRole(t *testing.T) {
 			name:           "role not found",
 			roleID:         roleID.String(),
 			mockResponse:   nil,
-			mockError:      errors.New("role not found"),
+			mockError:      fmt.Errorf("lookup failed: %w", errors_pkg.ErrNotFound),
 			expectedStatus: http.StatusNotFound,
 		},
 	}
@@ -1637,8 +1639,8 @@ func TestAuthHandler_UpdateRole(t *testing.T) {
 				"name": "updated-admin",
 			},
 			mockResponse:   nil,
-			mockError:      errors.New("role not found"),
-			expectedStatus: http.StatusInternalServerError,
+			mockError:      fmt.Errorf("lookup failed: %w", errors_pkg.ErrNotFound),
+			expectedStatus: http.StatusNotFound,
 		},
 	}
 
@@ -1709,8 +1711,8 @@ func TestAuthHandler_DeleteRole(t *testing.T) {
 		{
 			name:           "role not found",
 			roleID:         roleID.String(),
-			mockError:      errors.New("role not found"),
-			expectedStatus: http.StatusBadRequest,
+			mockError:      fmt.Errorf("lookup failed: %w", errors_pkg.ErrNotFound),
+			expectedStatus: http.StatusNotFound,
 		},
 	}
 
@@ -1943,7 +1945,7 @@ func TestAuthHandler_GetPermission(t *testing.T) {
 			name:           "permission not found",
 			permissionID:   permissionID.String(),
 			mockResponse:   nil,
-			mockError:      errors.New("permission not found"),
+			mockError:      fmt.Errorf("lookup failed: %w", errors_pkg.ErrNotFound),
 			expectedStatus: http.StatusNotFound,
 		},
 	}
@@ -2038,8 +2040,8 @@ func TestAuthHandler_UpdatePermission(t *testing.T) {
 				"action":   "write",
 			},
 			mockResponse:   nil,
-			mockError:      errors.New("permission not found"),
-			expectedStatus: http.StatusInternalServerError,
+			mockError:      fmt.Errorf("lookup failed: %w", errors_pkg.ErrNotFound),
+			expectedStatus: http.StatusNotFound,
 		},
 	}
 
@@ -2110,8 +2112,8 @@ func TestAuthHandler_DeletePermission(t *testing.T) {
 		{
 			name:           "permission not found",
 			permissionID:   permissionID.String(),
-			mockError:      errors.New("permission not found"),
-			expectedStatus: http.StatusBadRequest,
+			mockError:      fmt.Errorf("lookup failed: %w", errors_pkg.ErrNotFound),
+			expectedStatus: http.StatusNotFound,
 		},
 	}
 
