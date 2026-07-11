@@ -333,6 +333,7 @@ Every layer mocks the one below it. No test exercises a real SQL query against a
 | **G2: List() total value captured** | `repository_test.go` | `result, _, err := repo.List(...)` — total discarded | Assert `total >= int64(len(result))`, test with known filter counts |
 | **G3: Handler response body structure** | `object_handler_test.go` | Only `assert.Equal(t, 200, w.Code)` | Parse JSON, verify pagination fields exist and are consistent (`count == len(data)`, `total >= count`) |
 | **G4: Cross-layer filter flow** | (anywhere) | Each layer mocked in isolation | When a filter is applied at handler → service → repo → SQL contains WHERE → total reflects filtered set |
+| **G5: RBAC does not affect List() pagination total** | `object_handler.go:389` + `permiddleware/permission.go` | Permission middleware gates ACCESS (403 vs allow) but does NOT filter DATA. Handler comment: "No self-filtering by user ID for List()." A user with only `objects:read:own` sees ALL objects in List(), not just their own. Total = 56 regardless of ownership. | Pagination total should reflect RBAC scope: if user has only `:read:own`, total = count of objects where `created_by = current_user_id`. Currently the permission system is a gatekeeper, not a data filter.
 
 ### Concrete Fix Patterns Needed
 
@@ -369,6 +370,54 @@ This is too large for a single delta. Expected split:
 | **delta B** — Handler response body checks | Add JSON parsing + pagination invariant assertions to handler List tests (object, object_type, relationship) | ~1 hour |
 | **delta C** — Repository total value validation | Stop discarding `total` from List() return; add invariant tests (`total >= count`, `count <= limit`) | ~30 min |
 | **delta D** — Cross-layer filter flow test | Contract-style test: handler filter → service call → repo SQL contains WHERE → correct total. Could use a thin real-DB or sophisticated mock capture layer | ~2 hours |
+
+### RBAC Does Not Filter List Data (Compounds the Total Bug)
+
+**Discovered:** 2026-07-11 (during pagination bug investigation)  
+**Status:** Architectural gap — compounding factor for total=56 bug
+
+The `fix-pagination-count-bug` delta corrected BuildCount() to preserve WHERE filters, but there's a deeper issue: **RBAC permissions are never translated into data filters on List queries.**
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Current RBAC → Pagination Flow                     │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  permiddleware:                                     │
+│    has :read:all? → ALLOW, matched=["...:all"]     │
+│    has :read:own? → ALLOW, matched=["...:own"]     │
+│         ↓                                             │
+│      handler.List()                                  │
+│         ↓  ← NO OWNERSHIP FILTERING                 │
+│         ↓  Comment (object_handler.go:389):          │
+│         ↓  "No self-filtering by user ID for List" │
+│         ↓                                             │
+│      service.List(filter)                            │
+│         ↓                                             │
+│      repo.List(sql → SELECT * FROM objects...)       │
+│         ↓                                             │
+│      total = ALL rows (56), regardless of user     │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+**What this means:** Even after fixing WHERE filter preservation, a user with `:read:own` permission would still see `total=56` instead of their own object count. The permission system gates access but does not scope data.
+
+**Current state by operation:**
+| Operation | RBAC check | Data filtered? |
+|-----------|-----------|----------------|
+| GetByID/GetByPublicID | ✓ Ownership check via `checkOwnership()` | N/A (single object) |
+| Update/Delete | ✓ Ownership check via `checkOwnership()` | N/A (single object) |
+| **List** | ✗ Only gates access, no filter | **NO — sees everything** |
+
+This is likely intentional design (ownership filtering is opt-in via explicit query params as the comment notes), but it creates a **misleading pagination total** for users who only have `:read:own`. The client receives 56 objects in `data` with `total=56`, when from that user's perspective they should only see N objects.
+
+**Design decision needed (future delta):**
+- Option A: Add implicit `created_by = current_user_id` filter to List() when matched_permissions contains `:read:own` but NOT `:read:all`
+- Option B: Document that pagination total represents global count and ownership filtering must be explicit via query params
+- Option C: Return both a scoped total (user's objects) and an admin total in the response metadata
+
+---
 
 ### Principle to Adopt Going Forward
 
