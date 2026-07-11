@@ -3,16 +3,20 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/sirupsen/logrus"
+
 	"github.com/v-egorov/service-boilerplate/common/config"
 	"github.com/v-egorov/service-boilerplate/common/logging"
 	"github.com/v-egorov/service-boilerplate/common/tracing"
@@ -62,11 +66,6 @@ func main() {
 	// Initialize MCP server with StreamableHTTP transport + stateful sessions
 	mcpServer := initMCPServer(objClient, logger.Logger, cfg.App.Name, cfg.App.Version)
 
-	// Create StreamableHTTP server for HTTP handler (single endpoint at /mcp)
-	streamableHTTPServer := server.NewStreamableHTTPServer(mcpServer,
-		server.WithEndpointPath("/mcp"),
-	)
-
 	// Build multi-route mux: health endpoints + MCP StreamableHTTP endpoint
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler.LivenessHandler)
@@ -77,6 +76,13 @@ func main() {
 
 	// MCP StreamableHTTP endpoint — single /mcp path handles all JSON-RPC communication.
 	// Session management is stateful: first POST establishes session, subsequent calls echo back MCP-Session-ID header.
+	// Register slog bridge for mcp-go transport logging → logrus.
+	transportLogger := logger.Logger.WithField("component", "mcp-transport")
+	streamableHTTPServer := server.NewStreamableHTTPServer(mcpServer,
+		server.WithEndpointPath("/mcp"),
+		server.WithStreamableHTTPLogger(slog.New(&logrusSlogHandler{logger: transportLogger})),
+	)
+
 	mux.Handle("/mcp", otelhttp.NewHandler(streamableHTTPServer, "mcp-server"))
 
 	// Start HTTP server serving the mux
@@ -116,8 +122,200 @@ func main() {
 	logger.Info("MCP Server exited")
 }
 
+// logrusSlogHandler bridges mcp-go's internal slog transport logging to logrus.
+type logrusSlogHandler struct {
+	logger *logrus.Entry
+	group  string
+	attrs  []slog.Attr
+}
+
+func (h *logrusSlogHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h *logrusSlogHandler) Handle(_ context.Context, r slog.Record) error {
+	fields := logrus.Fields{}
+	for _, a := range h.attrs {
+		fields[a.Key] = a.Value.Any()
+	}
+	if h.group != "" {
+		fields["component"] = h.group
+	}
+	r.Attrs(func(a slog.Attr) bool {
+		fields[a.Key] = a.Value.Any()
+		return true
+	})
+	if r.Message != "" {
+		fields["msg"] = r.Message
+	}
+
+	switch r.Level {
+	case slog.LevelDebug:
+		h.logger.WithFields(fields).Debug(r.Message)
+	case slog.LevelInfo:
+		h.logger.WithFields(fields).Info(r.Message)
+	case slog.LevelWarn:
+		h.logger.WithFields(fields).Warn(r.Message)
+	case slog.LevelError:
+		h.logger.WithFields(fields).Error(r.Message)
+	default:
+		h.logger.WithFields(fields).Info(r.Message)
+	}
+	return nil
+}
+
+func (h *logrusSlogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	merged := make([]slog.Attr, len(h.attrs), len(h.attrs)+len(attrs))
+	copy(merged, h.attrs)
+	merged = append(merged, attrs...)
+	return &logrusSlogHandler{logger: h.logger, group: h.group, attrs: merged}
+}
+
+func (h *logrusSlogHandler) WithGroup(name string) slog.Handler {
+	group := name
+	if h.group != "" {
+		group = h.group + "." + name
+	}
+	return &logrusSlogHandler{logger: h.logger, group: group, attrs: h.attrs}
+}
+
+// opTimeStore stores per-request start times keyed by request ID string.
+type opTimeStore struct {
+	mu  sync.Mutex
+	tms map[string]time.Time
+}
+
+var (
+	opTimes     = &opTimeStore{tms: make(map[string]time.Time)}
+	hooksLogger *logrus.Entry
+)
+
+func onBeforeAny(ctx context.Context, id any, method mcp.MCPMethod, message any) {
+	rid := fmt.Sprintf("%v", id)
+	opTimes.mu.Lock()
+	opTimes.tms[rid] = time.Now()
+	opTimes.mu.Unlock()
+
+	fields := logrus.Fields{
+		"op":         string(method),
+		"request_id": rid,
+		"service":    "mcp-server",
+	}
+
+	switch method {
+	case mcp.MethodToolsCall:
+		if p, ok := message.(*mcp.CallToolParams); ok && p != nil {
+			fields["tool"] = p.Name
+			if args, ok := p.Arguments.(map[string]any); ok {
+				fields["params"] = args
+			}
+		}
+	case mcp.MethodResourcesRead:
+		if p, ok := message.(*mcp.ReadResourceParams); ok && p != nil {
+			fields["resource_uri"] = p.URI
+			if len(p.Arguments) > 0 {
+				fields["arguments"] = p.Arguments
+			}
+		}
+	case mcp.MethodPromptsGet:
+		if p, ok := message.(*mcp.GetPromptParams); ok && p != nil {
+			fields["prompt_name"] = p.Name
+			if len(p.Arguments) > 0 {
+				fields["arguments"] = p.Arguments
+			}
+		}
+	case mcp.MethodPing:
+		hooksLogger.WithFields(fields).Debug("mcp_operation_start")
+		return
+	}
+
+	hooksLogger.WithFields(fields).Info("mcp_operation_start")
+}
+
+func onSuccess(ctx context.Context, id any, method mcp.MCPMethod, message any, result any) {
+	rid := fmt.Sprintf("%v", id)
+
+	opTimes.mu.Lock()
+	start := opTimes.tms[rid]
+	delete(opTimes.tms, rid)
+	opTimes.mu.Unlock()
+
+	duration := time.Since(start).Milliseconds()
+
+	fields := logrus.Fields{
+		"op":          string(method),
+		"request_id":  rid,
+		"service":     "mcp-server",
+		"status":      "success",
+		"duration_ms": duration,
+	}
+
+	switch method {
+	case mcp.MethodToolsCall:
+		if p, ok := message.(*mcp.CallToolParams); ok && p != nil {
+			fields["tool"] = p.Name
+		}
+	case mcp.MethodResourcesRead:
+		if p, ok := message.(*mcp.ReadResourceParams); ok && p != nil {
+			fields["resource_uri"] = p.URI
+		}
+	case mcp.MethodPromptsGet:
+		if p, ok := message.(*mcp.GetPromptParams); ok && p != nil {
+			fields["prompt_name"] = p.Name
+		}
+	}
+
+	hooksLogger.WithFields(fields).Info("mcp_operation_end")
+}
+
+func onError(ctx context.Context, id any, method mcp.MCPMethod, message any, err error) {
+	rid := fmt.Sprintf("%v", id)
+
+	opTimes.mu.Lock()
+	start := opTimes.tms[rid]
+	delete(opTimes.tms, rid)
+	opTimes.mu.Unlock()
+
+	duration := time.Since(start).Milliseconds()
+
+	fields := logrus.Fields{
+		"op":          string(method),
+		"request_id":  rid,
+		"service":     "mcp-server",
+		"status":      "error",
+		"duration_ms": duration,
+		"error":       err.Error(),
+	}
+
+	switch method {
+	case mcp.MethodToolsCall:
+		if p, ok := message.(*mcp.CallToolParams); ok && p != nil {
+			fields["tool"] = p.Name
+		}
+	case mcp.MethodResourcesRead:
+		if p, ok := message.(*mcp.ReadResourceParams); ok && p != nil {
+			fields["resource_uri"] = p.URI
+		}
+	case mcp.MethodPromptsGet:
+		if p, ok := message.(*mcp.GetPromptParams); ok && p != nil {
+			fields["prompt_name"] = p.Name
+		}
+	}
+
+	hooksLogger.WithFields(fields).Error("mcp_operation_error")
+}
+
 func initMCPServer(objClient *mcpclient.ObjectsClient, logger *logrus.Logger, name, version string) *server.MCPServer {
-	mcpServer := server.NewMCPServer(name, version)
+	hooksLogger = logger.WithField("component", "mcp-hooks")
+
+	// Initialize the MCPServer with a Hooks container so GetHooks() returns non-nil.
+	mcpServer := server.NewMCPServer(name, version,
+		server.WithHooks(&server.Hooks{}),
+	)
+
+	// Register operation-level hooks for per-request visibility.
+	hooks := mcpServer.GetHooks()
+	hooks.AddBeforeAny(onBeforeAny)
+	hooks.AddOnSuccess(onSuccess)
+	hooks.AddOnError(onError)
 
 	// Register tools for object types (schema layer)
 	mcptools.RegisterTypeTools(mcpServer, objClient, logger)
