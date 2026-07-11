@@ -196,6 +196,7 @@ services:
       - ./volumes/user-service/logs:/var/log/user-service:ro
       - ./volumes/auth-service/logs:/var/log/auth-service:ro
       - ./volumes/objects-service/logs:/var/log/objects-service:ro
+      - ./volumes/mcp-server/logs:/var/log/mcp-server:ro
     command: -config.file=/etc/promtail/config.yml
     networks:
       - service-network

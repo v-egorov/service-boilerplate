@@ -656,3 +656,125 @@ func TestRelationshipRepository_List_EmptyResultIsNonNil(t *testing.T) {
 	assert.NotNil(t, result, "List() must return non-nil slice for empty results")
 	assert.Len(t, result, 0)
 }
+
+// --- BuildCount() tests ---
+
+func TestQueryBuilder_BuildCount_SingleWhereFilter(t *testing.T) {
+	qb := NewQueryBuilder()
+	qb.Select("id", "name").From("objects_service.objects").
+		Where("object_type_id = $1", int64(3)).
+		Where("deleted_at IS NULL")
+
+	countSQL, countArgs := qb.BuildCount()
+	_, buildArgs := qb.Build()
+
+	// BuildCount should preserve WHERE but replace SELECT columns with COUNT(*)
+	assert.Contains(t, countSQL, "SELECT COUNT(*) FROM objects_service.objects")
+	assert.Contains(t, countSQL, "object_type_id = $1")
+	assert.Contains(t, countSQL, "deleted_at IS NULL")
+	// Args must be preserved (same as Build args)
+	assert.Equal(t, buildArgs, countArgs)
+	assert.Len(t, countArgs, 1)
+}
+
+func TestQueryBuilder_BuildCount_MultipleChainedWhereAndTagsContain(t *testing.T) {
+	qb := NewQueryBuilder()
+	qb.Select("id", "name").From("objects_service.objects").
+		Where("object_type_id = $1", int64(5)).
+		Where("deleted_at IS NULL").
+		WhereTagsContain([]string{"tag1", "tag2"})
+
+	countSQL, countArgs := qb.BuildCount()
+	_, _ = qb.Build()
+
+	assert.Contains(t, countSQL, "SELECT COUNT(*) FROM objects_service.objects")
+	assert.Contains(t, countSQL, "object_type_id = $1")
+	assert.Contains(t, countSQL, "deleted_at IS NULL")
+	assert.Contains(t, countSQL, "= ANY(tags)) OR (")
+	// 3 args: object_type_id + tag1 + tag2
+	assert.Len(t, countArgs, 3)
+	assert.Equal(t, int64(5), countArgs[0])
+	assert.Equal(t, "tag1", countArgs[1])
+	assert.Equal(t, "tag2", countArgs[2])
+}
+
+func TestQueryBuilder_BuildCount_WhereJsonContains(t *testing.T) {
+	qb := NewQueryBuilder()
+	qb.Select("id", "name").From("objects_service.objects").
+		WhereJsonContains("metadata", map[string]interface{}{"key": "val"})
+
+	countSQL, countArgs := qb.BuildCount()
+
+	assert.Contains(t, countSQL, "SELECT COUNT(*) FROM objects_service.objects")
+	assert.Contains(t, countSQL, "@> $1::jsonb")
+	assert.Len(t, countArgs, 1)
+	metaMap, ok := countArgs[0].(map[string]interface{})
+	assert.True(t, ok)
+	assert.Equal(t, "val", metaMap["key"])
+}
+
+func TestQueryBuilder_BuildCount_WhereDateRange(t *testing.T) {
+	qb := NewQueryBuilder()
+	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2024, 12, 31, 23, 59, 59, 0, time.UTC)
+
+	qb.Select("id").From("objects_service.objects").
+		WhereDateRange("created_at", start, end)
+
+	countSQL, countArgs := qb.BuildCount()
+
+	assert.Contains(t, countSQL, "SELECT COUNT(*) FROM objects_service.objects")
+	assert.Contains(t, countSQL, "created_at >= $1")
+	assert.Contains(t, countSQL, "created_at <= $2")
+	assert.Len(t, countArgs, 2)
+}
+
+func TestQueryBuilder_BuildCount_NoFilters(t *testing.T) {
+	qb := NewQueryBuilder()
+	qb.Select("id", "name").From("objects_service.objects")
+
+	countSQL, _ := qb.BuildCount()
+
+	// With no WHERE clauses, just SELECT COUNT(*) FROM table
+	assert.Contains(t, countSQL, "SELECT COUNT(*) FROM objects_service.objects")
+	assert.NotContains(t, countSQL, "WHERE")
+}
+
+func TestQueryBuilder_BuildCount_DropsOrderByLimitOffset(t *testing.T) {
+	qb := NewQueryBuilder()
+	qb.Select("id", "name").From("objects_service.objects").
+		Where("object_type_id = $1", int64(3)).
+		OrderByDesc("created_at").
+		Limit(50).
+		Offset(20)
+
+	countSQL, _ := qb.BuildCount()
+
+	// COUNT query must NOT have ORDER BY, LIMIT, or OFFSET
+	assert.NotContains(t, countSQL, "ORDER BY")
+	assert.NotContains(t, countSQL, "LIMIT")
+	assert.NotContains(t, countSQL, "OFFSET")
+	// But WHERE must be preserved
+	assert.Contains(t, countSQL, "object_type_id = $1")
+}
+
+func TestQueryBuilder_BuildCount_ArgsMatchPlaceholders(t *testing.T) {
+	qb := NewQueryBuilder()
+	qb.Select("id", "name").From("objects_service.objects").
+		Where("object_type_id = $1", int64(5)).
+		Where("status = $1", "active").
+		WhereTagsContain([]string{"a", "b"}).
+		WhereJsonContains("metadata", map[string]interface{}{"k": "v"})
+
+	countSQL, countArgs := qb.BuildCount()
+
+	// Count the number of $N placeholders in SQL
+	placeholderCount := 0
+	for i := 0; i < len(countSQL)-1; i++ {
+		if countSQL[i] == '$' && countSQL[i+1] >= '0' && countSQL[i+1] <= '9' {
+			placeholderCount++
+		}
+	}
+	assert.Equal(t, len(countArgs), placeholderCount,
+		"args length (%d) must match placeholder count in SQL: %s", len(countArgs), countSQL)
+}

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -172,9 +173,28 @@ func (qb *QueryBuilder) Build() (string, []interface{}) {
 }
 
 func (qb *QueryBuilder) BuildCount() (string, []interface{}) {
-	// COUNT query has no $N placeholders, so we return empty args.
-	// If filtered counts are needed later, a separate BuildFilteredCount method can be added.
-	return "SELECT COUNT(*) FROM " + extractTable(qb.query), nil
+	// Transform the existing SELECT query into a filtered COUNT query:
+	// Replace SELECT columns with COUNT(*), keep FROM + WHERE clauses,
+	// drop ORDER BY / LIMIT / OFFSET (unnecessary for counting).
+
+	fromIdx := strings.Index(qb.query, "FROM ")
+	if fromIdx < 0 {
+		return qb.query, qb.args
+	}
+
+	// Extract everything starting from FROM clause
+	fromClause := qb.query[fromIdx:]
+
+	// Drop ORDER BY / LIMIT / OFFSET — find the first of these keywords
+	// and truncate there. These are unnecessary for COUNT queries.
+	for _, keyword := range []string{"ORDER BY", "LIMIT ", "OFFSET"} {
+		pos := strings.Index(fromClause, " "+keyword)
+		if pos >= 0 {
+			fromClause = fromClause[:pos]
+		}
+	}
+
+	return "SELECT COUNT(*) " + fromClause, qb.args
 }
 
 // Helper functions
@@ -235,3 +255,4 @@ func extractTable(query string) string {
 	}
 	return ""
 }
+
