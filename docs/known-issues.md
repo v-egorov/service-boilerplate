@@ -281,6 +281,101 @@ To unify, these should move to the service layer and return a wrapped sentinel t
 
 ---
 
+## Test Coverage Gaps — Systemic Blind Spots
+
+**Discovered:** 2026-07-11 (during `fix-pagination-count-bug` investigation)  
+**Status:** Open — will split into multiple future deltas
+
+### Problem
+The existing test suite has **zero coverage for SQL string correctness and pagination metadata**. A bug where `QueryBuilder.BuildCount()` discarded all WHERE filters went undetected because:
+
+1. No unit test ever asserted what SQL `BuildCount()` produces (only verified placeholder distinctness)
+2. Repository tests mocked DBPool entirely — no SQL strings captured or validated
+3. Handler tests only checked HTTP status codes, never parsed response body structure
+4. Service tests stubbed repository methods with hardcoded return values
+5. The `total` field from `List()` was consistently discarded via `_`
+
+Every layer mocks the one below it. No test exercises a real SQL query against a real database. This creates a **false sense of coverage** — 241+ unit tests pass, but structural bugs in SQL generation and response shape are invisible.
+
+### The Test Chain — Where Bugs Fall Through
+
+```
+┌──────────┬─────────────────────┬─────────────────────┬──────────────────────┐
+│  Layer   │ What IS tested      │ What is NOT tested  │ Why bugs escape      │
+├──────────┼─────────────────────┼─────────────────────┼──────────────────────┤
+│ Models   │ Struct fields, tag  │ N/A                 │ Irrelevant           │
+│          │ logic               │                     │                      │
+├──────────┼─────────────────────┼─────────────────────┼──────────────────────┤
+│ Query    │ Placeholder         │ SQL string content; │ Tests verify $1,$2   │
+│ Builder  │ distinctness        │ BuildCount() output │ are ≠, not what the  │
+│          │                     │                     │ final SQL looks like │
+├──────────┼─────────────────────┼─────────────────────┼──────────────────────┤
+│ Re       │ Mock rows return    │ Actual SQL executed;│ DBPool is mocked; no │
+│ pository │ non-nil slices      │ total value from    │ query ever runs, so  │
+│          │                     │ List() return value │ output shape never   │
+│          │                     │ (discarded via _)   │ validated            │
+├──────────┼─────────────────────┼─────────────────────┼──────────────────────┤
+│ Service  │ Validation logic,   │ End-to-end data     │ Repo method stubbed; │
+│          │ business rules      │ flow                │ pagination total     │
+│          │                     │                     │ never flows through  │
+├──────────┼─────────────────────┼─────────────────────┼──────────────────────┤
+│ Handler  │ HTTP status codes   │ Response body JSON; │ Service is mocked;   │
+│          │                     │ pagination structure│ handler returns      │
+│          │                     │ invariants          │ whatever mock said   │
+└──────────┴─────────────────────┴─────────────────────┴──────────────────────┘
+```
+
+### Specific Gaps (objects-service)
+
+| Gap | Location | Current Behavior | What Should Be Tested |
+|-----|----------|-----------------|----------------------|
+| **G1: BuildCount SQL content** | `repository_test.go` | Placeholder distinctness checked only | `BuildCount()` SQL contains WHERE clauses for every filter type (Where, WhereTagsContain, WhereJsonContains, WhereDateRange) |
+| **G2: List() total value captured** | `repository_test.go` | `result, _, err := repo.List(...)` — total discarded | Assert `total >= int64(len(result))`, test with known filter counts |
+| **G3: Handler response body structure** | `object_handler_test.go` | Only `assert.Equal(t, 200, w.Code)` | Parse JSON, verify pagination fields exist and are consistent (`count == len(data)`, `total >= count`) |
+| **G4: Cross-layer filter flow** | (anywhere) | Each layer mocked in isolation | When a filter is applied at handler → service → repo → SQL contains WHERE → total reflects filtered set |
+
+### Concrete Fix Patterns Needed
+
+**Pattern A — Capture SQL strings in mocks:**
+```go
+capturedSQL := ""
+mockDB.QueryFunc = func(ctx, sql string, args...) { capturedSQL = sql; return ... }
+repo.List(...)
+assert.Contains(t, capturedSQL, "WHERE object_type_id")  // catches filter loss
+```
+
+**Pattern B — Assert response body structure:**
+```go
+var resp map[string]interface{}
+json.Unmarshal(w.Body.Bytes(), &resp)
+pagination := resp["pagination"].(map[string]interface{})
+assert.Equal(t, float64(len(data)), pagination["count"])
+```
+
+**Pattern C — SQL content assertions on QueryBuilder:**
+```go
+sql, _ := qb.BuildCount()
+assert.Contains(t, sql, "WHERE object_type_id = $1")
+assert.NotContains(t, sql, "ORDER BY")  // if stripped
+```
+
+### Scope & Splitting Plan (future deltas)
+
+This is too large for a single delta. Expected split:
+
+| Delta | Scope | Effort |
+|-------|-------|--------|
+| **delta A** — QueryBuilder SQL assertions | Add content-assertion tests to existing `repository_test.go` BuildCount cases; add SQL capture pattern to a subset of repository tests | ~30 min |
+| **delta B** — Handler response body checks | Add JSON parsing + pagination invariant assertions to handler List tests (object, object_type, relationship) | ~1 hour |
+| **delta C** — Repository total value validation | Stop discarding `total` from List() return; add invariant tests (`total >= count`, `count <= limit`) | ~30 min |
+| **delta D** — Cross-layer filter flow test | Contract-style test: handler filter → service call → repo SQL contains WHERE → correct total. Could use a thin real-DB or sophisticated mock capture layer | ~2 hours |
+
+### Principle to Adopt Going Forward
+
+> **Never assert just status codes.** For any endpoint returning structured data, always parse and validate response body structure. Status code is necessary but not sufficient.
+
+---
+
 ## Resolved Items (Archived Deltas)
 
 The following items were resolved by archived OpenSpec deltas and are retained here for reference only:
