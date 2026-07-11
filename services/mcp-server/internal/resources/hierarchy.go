@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/sirupsen/logrus"
@@ -22,11 +25,18 @@ func RegisterTypeHierarchyResource(mcpServer *server.MCPServer, objClient *mcpcl
 	}
 
 	mcpServer.AddResource(resource, func(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+		tracer := otel.Tracer("mcp-server")
+
+		ctx, span := tracer.Start(ctx, "resource.hierarchy")
+		defer span.End()
+
 		ctx = mcpclient.WithIdentity(ctx, req.Header)
 
 		// Fetch the root type tree from objects-service
 		tree, err := objClient.GetRootTree(ctx)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			logger.WithError(err).Error("Failed to fetch type hierarchy")
 			return nil, fmt.Errorf("failed to fetch type hierarchy: %w", err)
 		}

@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/sirupsen/logrus"
@@ -26,6 +29,8 @@ func RegisterBrowseSchemaPrompt(mcpServer *server.MCPServer, objClient *mcpclien
 	)
 
 	mcpServer.AddPrompt(prompt, func(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+		tracer := otel.Tracer("mcp-server")
+
 		var args BrowseSchemaArgs
 		if req.Params.Arguments != nil {
 			argsBytes, _ := json.Marshal(req.Params.Arguments)
@@ -36,10 +41,15 @@ func RegisterBrowseSchemaPrompt(mcpServer *server.MCPServer, objClient *mcpclien
 			}
 		}
 
+		_, span := tracer.Start(ctx, "prompt.browse_schema")
+		defer span.End()
+
 		ctx = mcpclient.WithIdentity(ctx, req.Header)
 
 		types, err := objClient.ListObjectTypes(ctx, "", nil)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			logger.WithError(err).Error("Failed to list types for prompt")
 			return mcp.NewGetPromptResult("", []mcp.PromptMessage{
 				{Role: mcp.RoleAssistant, Content: mcp.NewTextContent(fmt.Sprintf("Failed to list object types: %v", err))},

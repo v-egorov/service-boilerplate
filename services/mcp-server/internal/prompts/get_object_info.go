@@ -6,6 +6,9 @@ import (
 	"strconv"
 	"strings"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	mcpclient "github.com/v-egorov/service-boilerplate/services/mcp-server/internal/client"
@@ -27,6 +30,8 @@ func RegisterGetObjectInfoPrompt(mcpServer *server.MCPServer, objClient *mcpclie
 	)
 
 	mcpServer.AddPrompt(prompt, func(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+		tracer := otel.Tracer("mcp-server")
+
 		var args GetObjectInfoArgs
 		if req.Params.Arguments == nil {
 			return mcp.NewGetPromptResult("", []mcp.PromptMessage{
@@ -46,10 +51,15 @@ func RegisterGetObjectInfoPrompt(mcpServer *server.MCPServer, objClient *mcpclie
 			offset = *args.Offset
 		}
 
+		_, span := tracer.Start(ctx, "prompt.get_object_info")
+		defer span.End()
+
 		ctx = mcpclient.WithIdentity(ctx, req.Header)
 
 		objects, _, err := objClient.ListObjects(ctx, args.ObjectTypeID, limit, offset, "")
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return mcp.NewGetPromptResult("", []mcp.PromptMessage{
 				{Role: mcp.RoleAssistant, Content: mcp.NewTextContent(fmt.Sprintf("Failed to list objects: %v", err))},
 			}), nil

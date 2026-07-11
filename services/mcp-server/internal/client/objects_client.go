@@ -8,6 +8,9 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // ObjectsClient wraps HTTP calls to objects-service REST API.
@@ -191,10 +194,14 @@ var forwardHeaders = []string{"X-User-ID", "X-User-Email", "X-User-Roles"}
 // carries identity (via WithIdentity), only headers in forwardHeaders are copied onto
 // the outbound request; when nil, the request proceeds without identity headers.
 func (c *ObjectsClient) httpGet(ctx context.Context, url string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
+
+	// Inject trace context into outbound request headers.
+	propagator := otel.GetTextMapPropagator()
+	propagator.Inject(ctx, propagation.HeaderCarrier(req.Header))
 
 	// Copy allow-listed identity headers from context when present.
 	if hdr := IdentityFromContext(ctx); hdr != nil {

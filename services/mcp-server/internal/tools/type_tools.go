@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/sirupsen/logrus"
@@ -47,6 +51,8 @@ func RegisterTypeTools(mcpServer *server.MCPServer, objClient *mcpclient.Objects
 	)
 
 	mcpServer.AddTool(listTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		tracer := otel.Tracer("mcp-server")
+
 		var args ListObjectTypesParams
 		if err := request.BindArguments(&args); err != nil {
 			return &mcp.CallToolResult{
@@ -55,10 +61,25 @@ func RegisterTypeTools(mcpServer *server.MCPServer, objClient *mcpclient.Objects
 			}, nil
 		}
 
+		ctx, span := tracer.Start(ctx, "tool.list_object_types")
+		defer span.End()
+
+		span.SetAttributes(
+			attribute.String("tool.name", "list_object_types"),
+		)
+		if args.TypeKeyPrefix != "" {
+			span.SetAttributes(attribute.String("type_key_prefix", args.TypeKeyPrefix))
+		}
+		if args.ParentTypeID != nil {
+			span.SetAttributes(attribute.Int64("parent_type_id", *args.ParentTypeID))
+		}
+
 		ctx = mcpclient.WithIdentity(ctx, request.Header)
 
 		types, err := objClient.ListObjectTypes(ctx, args.TypeKeyPrefix, args.ParentTypeID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			logger.WithError(err).Error("Failed to list object types")
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{mcp.NewTextContent(fmt.Sprintf("Failed to list object types: %v", err))},
@@ -66,11 +87,13 @@ func RegisterTypeTools(mcpServer *server.MCPServer, objClient *mcpclient.Objects
 			}, nil
 		}
 
+		span.SetStatus(codes.Ok, "")
+
 		return &mcp.CallToolResult{
 			Content:         []mcp.Content{mcp.NewTextContent(fmt.Sprintf("list_object_types returned %d types", len(types)))},
 			StructuredContent: ListObjectTypesResult{Items: types},
 		}, nil
-	})
+})
 
 	// Tool: get_object_type
 	getTool := mcp.NewTool(
@@ -81,6 +104,8 @@ func RegisterTypeTools(mcpServer *server.MCPServer, objClient *mcpclient.Objects
 	)
 
 	mcpServer.AddTool(getTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		tracer := otel.Tracer("mcp-server")
+
 		var args GetObjectTypeParams
 		if err := request.BindArguments(&args); err != nil {
 			return &mcp.CallToolResult{
@@ -96,6 +121,19 @@ func RegisterTypeTools(mcpServer *server.MCPServer, objClient *mcpclient.Objects
 			}, nil
 		}
 
+		ctx, span := tracer.Start(ctx, "tool.get_object_type")
+		defer span.End()
+
+		span.SetAttributes(
+			attribute.String("tool.name", "get_object_type"),
+		)
+		if args.ID != nil {
+			span.SetAttributes(attribute.Int64("id", *args.ID))
+		}
+		if args.Name != nil {
+			span.SetAttributes(attribute.String("name", *args.Name))
+		}
+
 		ctx = mcpclient.WithIdentity(ctx, request.Header)
 
 		var typ map[string]interface{}
@@ -107,11 +145,15 @@ func RegisterTypeTools(mcpServer *server.MCPServer, objClient *mcpclient.Objects
 		}
 
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{mcp.NewTextContent(fmt.Sprintf("Failed to get object type: %v", err))},
 				IsError: true,
 			}, nil
 		}
+
+		span.SetStatus(codes.Ok, "")
 
 		// Extract name and id for summary (safe defaults if missing)
 		name := "unknown"

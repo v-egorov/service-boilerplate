@@ -9,10 +9,13 @@ import (
 	"syscall"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/sirupsen/logrus"
 	"github.com/v-egorov/service-boilerplate/common/config"
 	"github.com/v-egorov/service-boilerplate/common/logging"
+	"github.com/v-egorov/service-boilerplate/common/tracing"
 	mcpclient "github.com/v-egorov/service-boilerplate/services/mcp-server/internal/client"
 	"github.com/v-egorov/service-boilerplate/services/mcp-server/internal/handlers"
 	promptsPkg "github.com/v-egorov/service-boilerplate/services/mcp-server/internal/prompts"
@@ -38,6 +41,18 @@ func main() {
 		StripANSIFromFiles: cfg.Logging.StripANSIFromFiles,
 	})
 
+	// Initialize tracing
+	tracerProvider, err := tracing.InitTracer(cfg.Tracing)
+	if err != nil {
+		logger.Warn("Failed to initialize tracing", err)
+	} else if tracerProvider != nil {
+		defer func() {
+			if err := tracing.ShutdownTracer(tracerProvider); err != nil {
+				logger.Error("Failed to shutdown tracer", err)
+			}
+		}()
+	}
+
 	// Create HTTP client for objects-service
 	objClient := mcpclient.NewObjectsClient(cfg.ObjectsService.URL, time.Duration(cfg.ObjectsService.Timeout)*time.Second)
 
@@ -62,7 +77,7 @@ func main() {
 
 	// MCP StreamableHTTP endpoint — single /mcp path handles all JSON-RPC communication.
 	// Session management is stateful: first POST establishes session, subsequent calls echo back MCP-Session-ID header.
-	mux.Handle("/mcp", streamableHTTPServer)
+	mux.Handle("/mcp", otelhttp.NewHandler(streamableHTTPServer, "mcp-server"))
 
 	// Start HTTP server serving the mux
 	srv := &http.Server{
@@ -86,6 +101,11 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	if tracerProvider != nil {
+		if err := tracing.ShutdownTracer(tracerProvider); err != nil {
+			logger.Error("Failed to shutdown tracer during graceful shutdown", err)
+		}
+	}
 	if err := streamableHTTPServer.Shutdown(ctx); err != nil {
 		logger.Error("StreamableHTTP server forced to shutdown", err)
 	}
@@ -114,3 +134,4 @@ func initMCPServer(objClient *mcpclient.ObjectsClient, logger *logrus.Logger, na
 
 	return mcpServer
 }
+

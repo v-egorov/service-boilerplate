@@ -4,6 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	mcpclient "github.com/v-egorov/service-boilerplate/services/mcp-server/internal/client"
@@ -56,6 +60,8 @@ func RegisterObjectTools(mcpServer *server.MCPServer, objClient *mcpclient.Objec
 	)
 
 	mcpServer.AddTool(listTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		tracer := otel.Tracer("mcp-server")
+
 		var args ListObjectsParams
 		if err := request.BindArguments(&args); err != nil {
 			return &mcp.CallToolResult{
@@ -70,6 +76,14 @@ func RegisterObjectTools(mcpServer *server.MCPServer, objClient *mcpclient.Objec
 				IsError: true,
 			}, nil
 		}
+
+		ctx, span := tracer.Start(ctx, "tool.list_objects")
+		defer span.End()
+
+		span.SetAttributes(
+			attribute.String("tool.name", "list_objects"),
+			attribute.Int64("object_type_id", args.ObjectTypeID),
+		)
 
 		limit := 50 // default matches objects-service default
 		if args.Limit != nil && *args.Limit > 0 {
@@ -88,6 +102,12 @@ func RegisterObjectTools(mcpServer *server.MCPServer, objClient *mcpclient.Objec
 		ctx = mcpclient.WithIdentity(ctx, request.Header)
 
 		objects, paginationMeta, err := objClient.ListObjects(ctx, args.ObjectTypeID, limit, offset, typeKeyPrefix)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+		} else {
+			span.SetStatus(codes.Ok, "")
+		}
 		if err != nil {
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{mcp.NewTextContent(fmt.Sprintf("Failed to list objects: %v", err))},
@@ -127,6 +147,8 @@ func RegisterObjectTools(mcpServer *server.MCPServer, objClient *mcpclient.Objec
 	)
 
 	mcpServer.AddTool(getTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		tracer := otel.Tracer("mcp-server")
+
 		var args GetObjectParams
 		if err := request.BindArguments(&args); err != nil {
 			return &mcp.CallToolResult{
@@ -142,15 +164,27 @@ func RegisterObjectTools(mcpServer *server.MCPServer, objClient *mcpclient.Objec
 			}, nil
 		}
 
+		ctx, span := tracer.Start(ctx, "tool.get_object")
+		defer span.End()
+
+		span.SetAttributes(
+			attribute.String("tool.name", "get_object"),
+			attribute.String("public_id", args.PublicID),
+		)
+
 		ctx = mcpclient.WithIdentity(ctx, request.Header)
 
 		obj, err := objClient.GetObjectByPublicID(ctx, args.PublicID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{mcp.NewTextContent(fmt.Sprintf("Failed to get object: %v", err))},
 				IsError: true,
 			}, nil
 		}
+
+		span.SetStatus(codes.Ok, "")
 
 		// Extract name and public_id for summary (safe defaults if missing)
 		name := "unknown"
