@@ -202,24 +202,24 @@ func onBeforeAny(ctx context.Context, id any, method mcp.MCPMethod, message any)
 
 	switch method {
 	case mcp.MethodToolsCall:
-		if p, ok := message.(*mcp.CallToolParams); ok && p != nil {
-			fields["tool"] = p.Name
-			if args, ok := p.Arguments.(map[string]any); ok {
+		if r, ok := message.(*mcp.CallToolRequest); ok && r != nil {
+			fields["tool"] = r.Params.Name
+			if args, ok := r.Params.Arguments.(map[string]any); ok {
 				fields["params"] = args
 			}
 		}
 	case mcp.MethodResourcesRead:
-		if p, ok := message.(*mcp.ReadResourceParams); ok && p != nil {
-			fields["resource_uri"] = p.URI
-			if len(p.Arguments) > 0 {
-				fields["arguments"] = p.Arguments
+		if r, ok := message.(*mcp.ReadResourceRequest); ok && r != nil {
+			fields["resource_uri"] = r.Params.URI
+			if len(r.Params.Arguments) > 0 {
+				fields["arguments"] = r.Params.Arguments
 			}
 		}
 	case mcp.MethodPromptsGet:
-		if p, ok := message.(*mcp.GetPromptParams); ok && p != nil {
-			fields["prompt_name"] = p.Name
-			if len(p.Arguments) > 0 {
-				fields["arguments"] = p.Arguments
+		if r, ok := message.(*mcp.GetPromptRequest); ok && r != nil {
+			fields["prompt_name"] = r.Params.Name
+			if len(r.Params.Arguments) > 0 {
+				fields["arguments"] = r.Params.Arguments
 			}
 		}
 	case mcp.MethodPing:
@@ -250,16 +250,16 @@ func onSuccess(ctx context.Context, id any, method mcp.MCPMethod, message any, r
 
 	switch method {
 	case mcp.MethodToolsCall:
-		if p, ok := message.(*mcp.CallToolParams); ok && p != nil {
-			fields["tool"] = p.Name
+		if r, ok := message.(*mcp.CallToolRequest); ok && r != nil {
+			fields["tool"] = r.Params.Name
 		}
 	case mcp.MethodResourcesRead:
-		if p, ok := message.(*mcp.ReadResourceParams); ok && p != nil {
-			fields["resource_uri"] = p.URI
+		if r, ok := message.(*mcp.ReadResourceRequest); ok && r != nil {
+			fields["resource_uri"] = r.Params.URI
 		}
 	case mcp.MethodPromptsGet:
-		if p, ok := message.(*mcp.GetPromptParams); ok && p != nil {
-			fields["prompt_name"] = p.Name
+		if r, ok := message.(*mcp.GetPromptRequest); ok && r != nil {
+			fields["prompt_name"] = r.Params.Name
 		}
 	}
 
@@ -269,12 +269,14 @@ func onSuccess(ctx context.Context, id any, method mcp.MCPMethod, message any, r
 func onError(ctx context.Context, id any, method mcp.MCPMethod, message any, err error) {
 	rid := fmt.Sprintf("%v", id)
 
+	var duration int64 = -1 // unknown — OnBeforeAny may not have fired (e.g. unparsable request)
+
 	opTimes.mu.Lock()
-	start := opTimes.tms[rid]
+	if t := opTimes.tms[rid]; !t.IsZero() {
+		duration = time.Since(t).Milliseconds()
+	}
 	delete(opTimes.tms, rid)
 	opTimes.mu.Unlock()
-
-	duration := time.Since(start).Milliseconds()
 
 	fields := logrus.Fields{
 		"op":          string(method),
@@ -287,16 +289,16 @@ func onError(ctx context.Context, id any, method mcp.MCPMethod, message any, err
 
 	switch method {
 	case mcp.MethodToolsCall:
-		if p, ok := message.(*mcp.CallToolParams); ok && p != nil {
-			fields["tool"] = p.Name
+		if r, ok := message.(*mcp.CallToolRequest); ok && r != nil {
+			fields["tool"] = r.Params.Name
 		}
 	case mcp.MethodResourcesRead:
-		if p, ok := message.(*mcp.ReadResourceParams); ok && p != nil {
-			fields["resource_uri"] = p.URI
+		if r, ok := message.(*mcp.ReadResourceRequest); ok && r != nil {
+			fields["resource_uri"] = r.Params.URI
 		}
 	case mcp.MethodPromptsGet:
-		if p, ok := message.(*mcp.GetPromptParams); ok && p != nil {
-			fields["prompt_name"] = p.Name
+		if r, ok := message.(*mcp.GetPromptRequest); ok && r != nil {
+			fields["prompt_name"] = r.Params.Name
 		}
 	}
 

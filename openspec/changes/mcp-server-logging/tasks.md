@@ -32,6 +32,6 @@
 
 ## 6. Runtime verification
 
-- [ ] 6.1 Trigger `make dev-detached` to rebuild and restart mcp-server container
-- [ ] 6.2 Send a test request: `curl -s http://localhost:8095/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"initialize",...}'`
-- [ ] 6.3 Verify logs appear in `./docker/volumes/mcp-server/logs/mcp-server.log` with fields: timestamp, level (info), service ("mcp-server"), op name, request ID
+- [x] 6.1 Trigger `make dev-detached` to rebuild and restart mcp-server container — confirmed Air hot-reload picks up changes
+- [x] 6.2 Send a test request: `curl -s http://localhost:8095/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"initialize",...}'` — verified initialize, tools/call (with/without args), prompts/get, resources/read
+- [x] 6.3 Verify logs appear in `./docker/volumes/mcp-server/logs/mcp-server.log` with fields: timestamp, level (info/error), service ("mcp-server"), op name, request ID — all present and correct
