@@ -26,5 +26,5 @@
 
 ## 5. Commit
 
-- [ ] 5.1 Review changes with `git diff`
-- [ ] 5.2 Stage and commit all changed files
+- [x] 5.1 Review changes with `git diff`
+- [x] 5.2 Stage and commit all changed files
